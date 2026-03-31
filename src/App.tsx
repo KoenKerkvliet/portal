@@ -13,6 +13,7 @@ import Templates from './pages/admin/Templates'
 import AdminSettings from './pages/admin/Settings'
 import ClientPortal from './pages/client/Portal'
 import ClientSettings from './pages/client/Settings'
+import Verify from './pages/Verify'
 
 function AppRoutes() {
   const { profile, loading } = useAuth()
@@ -28,6 +29,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/bevestig" element={<Verify />} />
 
       {/* Admin routes */}
       <Route path="/admin" element={

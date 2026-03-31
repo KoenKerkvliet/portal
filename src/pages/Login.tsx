@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
+import { sendVerificationEmail } from '../lib/email'
 import { Lock, Mail, Eye, EyeOff, User, CheckCircle } from 'lucide-react'
 
 type Mode = 'login' | 'register'
@@ -35,10 +37,10 @@ export default function Login() {
         return
       }
 
-      const { error, needsConfirmation } = await signUp(email, password, fullName)
+      const { error: signUpError } = await signUp(email, password, fullName)
 
-      if (error) {
-        if (error.message.includes('already registered')) {
+      if (signUpError) {
+        if (signUpError.message.includes('already registered')) {
           setError('Dit e-mailadres is al geregistreerd. Probeer in te loggen.')
         } else {
           setError('Registratie mislukt. Probeer het opnieuw.')
@@ -47,23 +49,39 @@ export default function Login() {
         return
       }
 
-      if (needsConfirmation) {
-        setRegistered(true)
-        setLoading(false)
-        return
+      // Generate verification token and store it
+      const token = crypto.randomUUID()
+
+      // Small delay to let the Supabase trigger create the profile
+      await new Promise((r) => setTimeout(r, 1000))
+
+      // Update profile with verification token
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ verification_token: token, email_verified: false })
+        .eq('email', email)
+
+      if (updateError) {
+        console.error('Failed to store verification token:', updateError)
       }
 
-      // Auto-login if no confirmation needed
-      setTimeout(() => {
-        navigate('/', { replace: true })
-      }, 100)
+      // Send verification email via EmailIt
+      try {
+        await sendVerificationEmail(email, fullName, token)
+      } catch (err) {
+        console.error('Failed to send verification email:', err)
+        // Don't block registration if email fails
+      }
+
+      setRegistered(true)
+      setLoading(false)
       return
     }
 
     // Login
-    const { error } = await signIn(email, password)
+    const { error: loginError } = await signIn(email, password)
 
-    if (error) {
+    if (loginError) {
       setError('Ongeldige inloggegevens. Probeer het opnieuw.')
       setLoading(false)
       return
