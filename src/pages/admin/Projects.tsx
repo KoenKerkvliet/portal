@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase } from '../../types'
-import { Plus, FolderKanban, Trash2, Pencil, X, Globe, ExternalLink, ChevronDown } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, Pencil, X, Globe, ExternalLink, ChevronDown, Calendar } from 'lucide-react'
 
 const phaseLabels: Record<ProjectPhase, string> = {
   intake: 'Intake',
@@ -24,9 +24,10 @@ interface FormData {
   url: string
   client_id: string
   current_phase: ProjectPhase
+  due_date: string
 }
 
-const emptyForm: FormData = { name: '', url: '', client_id: '', current_phase: 'intake' }
+const emptyForm: FormData = { name: '', url: '', client_id: '', current_phase: 'intake', due_date: '' }
 
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -93,6 +94,7 @@ export default function Projects() {
       url: project.url || '',
       client_id: project.client_id || '',
       current_phase: project.current_phase,
+      due_date: project.due_date || '',
     })
     setEditingId(project.id)
     setShowForm(true)
@@ -111,6 +113,7 @@ export default function Projects() {
       url: formData.url || null,
       client_id: formData.client_id || null,
       current_phase: formData.current_phase,
+      due_date: formData.due_date || null,
       status: 'active' as const,
     }
 
@@ -200,6 +203,19 @@ export default function Projects() {
                   ))}
                 </select>
                 <p className="text-xs text-gray-400 mt-1">Je kunt later alsnog een klant koppelen via bewerken.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Verwachte opleverdatum</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm"
+                  />
+                </div>
               </div>
 
               {editingId && (
@@ -295,13 +311,19 @@ export default function Projects() {
                     </a>
                   )}
 
-                  <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
                     {project.client_id ? (
                       <span className="text-sm text-gray-500">
                         Klant: <span className="font-medium text-gray-700">{(project.client as unknown as { name: string })?.name}</span>
                       </span>
                     ) : (
                       <span className="text-sm text-amber-500 font-medium">Geen klant gekoppeld</span>
+                    )}
+                    {project.due_date && (
+                      <span className="text-sm text-gray-400 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(project.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
                     )}
                   </div>
                 </div>

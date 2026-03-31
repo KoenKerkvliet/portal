@@ -36,6 +36,7 @@ export interface Project {
   client_id: string | null
   current_phase: ProjectPhase
   status: ProjectStatus
+  due_date: string | null
   created_at: string
   client?: Client
 }
