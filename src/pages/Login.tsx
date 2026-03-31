@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { sendVerificationEmail } from '../lib/email'
 import { Lock, Mail, Eye, EyeOff, User, CheckCircle } from 'lucide-react'
 
 type Mode = 'login' | 'register'
@@ -49,28 +48,22 @@ export default function Login() {
         return
       }
 
-      // Generate verification token and store it
-      const token = crypto.randomUUID()
-
       // Small delay to let the Supabase trigger create the profile
-      await new Promise((r) => setTimeout(r, 1000))
+      await new Promise((r) => setTimeout(r, 1500))
 
-      // Update profile with verification token
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ verification_token: token, email_verified: false })
-        .eq('email', email)
-
-      if (updateError) {
-        console.error('Failed to store verification token:', updateError)
-      }
-
-      // Send verification email via EmailIt
+      // Send verification email via server-side database function
       try {
-        await sendVerificationEmail(email, fullName, token)
+        const { data, error: rpcError } = await supabase.rpc('send_verification_email', {
+          user_email: email,
+          user_name: fullName,
+        })
+        if (rpcError) {
+          console.error('Failed to send verification email:', rpcError)
+        } else {
+          console.log('Verification email sent:', data)
+        }
       } catch (err) {
         console.error('Failed to send verification email:', err)
-        // Don't block registration if email fails
       }
 
       setRegistered(true)
