@@ -9,6 +9,7 @@ import Projects from './pages/admin/Projects'
 import Clients from './pages/admin/Clients'
 import Invoices from './pages/admin/Invoices'
 import Quotes from './pages/admin/Quotes'
+import Templates from './pages/admin/Templates'
 import AdminSettings from './pages/admin/Settings'
 import ClientPortal from './pages/client/Portal'
 import ClientSettings from './pages/client/Settings'
@@ -39,6 +40,7 @@ function AppRoutes() {
         <Route path="klanten" element={<Clients />} />
         <Route path="facturen" element={<Invoices />} />
         <Route path="offertes" element={<Quotes />} />
+        <Route path="templates" element={<Templates />} />
         <Route path="instellingen" element={<AdminSettings />} />
       </Route>
 

@@ -7,6 +7,7 @@ import {
   Users,
   FileText,
   FileCheck,
+  Layers,
   Settings,
   LogOut,
   Menu,
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
   { to: '/admin/facturen', icon: FileText, label: 'Facturen' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
+  { to: '/admin/templates', icon: Layers, label: 'Templates' },
 ]
 
 export default function AdminLayout() {

@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'client'
 
-export type ProjectPhase = 'intake' | 'design' | 'development' | 'review' | 'opgeleverd'
+export type ProjectPhase = 'intake' | 'design' | 'development' | 'oplevering' | 'onderhoud'
 
 export type ProjectStatus = 'active' | 'archived'
 
@@ -32,8 +32,8 @@ export interface Client {
 export interface Project {
   id: string
   name: string
-  description: string | null
-  client_id: string
+  url: string | null
+  client_id: string | null
   current_phase: ProjectPhase
   status: ProjectStatus
   created_at: string
@@ -45,6 +45,7 @@ export interface PhaseTemplate {
   phase: ProjectPhase
   title: string
   description: string
+  content: string
   steps: PhaseStep[]
   created_at: string
 }
