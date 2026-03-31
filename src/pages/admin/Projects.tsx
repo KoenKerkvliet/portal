@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase } from '../../types'
-import { Plus, FolderKanban, Trash2, Pencil, X, Globe, ExternalLink } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, Pencil, X, Globe, ExternalLink, ChevronDown } from 'lucide-react'
 
 const phaseLabels: Record<ProjectPhase, string> = {
   intake: 'Intake',
@@ -35,6 +35,32 @@ export default function Projects() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState<FormData>(emptyForm)
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+  const [phaseDropdownId, setPhaseDropdownId] = useState<string | null>(null)
+  const phaseDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close phase dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (phaseDropdownRef.current && !phaseDropdownRef.current.contains(e.target as Node)) {
+        setPhaseDropdownId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handlePhaseChange = async (project: Project, newPhase: ProjectPhase) => {
+    setPhaseDropdownId(null)
+    if (newPhase === project.current_phase) return
+
+    const confirmed = confirm(
+      `Fase van "${project.name}" wijzigen van ${phaseLabels[project.current_phase]} naar ${phaseLabels[newPhase]}?`
+    )
+    if (!confirmed) return
+
+    await supabase.from('projects').update({ current_phase: newPhase }).eq('id', project.id)
+    fetchProjects()
+  }
 
   const fetchProjects = async () => {
     const { data } = await supabase
@@ -225,9 +251,35 @@ export default function Projects() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-gray-900">{project.name}</h3>
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${phaseColors[project.current_phase]}`}>
-                      {phaseLabels[project.current_phase]}
-                    </span>
+                    <div className="relative" ref={phaseDropdownId === project.id ? phaseDropdownRef : undefined}>
+                      <button
+                        onClick={() => setPhaseDropdownId(phaseDropdownId === project.id ? null : project.id)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${phaseColors[project.current_phase]}`}
+                      >
+                        {phaseLabels[project.current_phase]}
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                      {phaseDropdownId === project.id && (
+                        <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[160px]">
+                          {(Object.entries(phaseLabels) as [ProjectPhase, string][]).map(([key, label]) => (
+                            <button
+                              key={key}
+                              onClick={() => handlePhaseChange(project, key)}
+                              className={`flex items-center gap-2.5 w-full px-3.5 py-2 text-sm transition-colors ${
+                                key === project.current_phase
+                                  ? 'bg-gray-50 font-medium text-gray-900'
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                              }`}
+                            >
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                key === project.current_phase ? 'bg-primary' : 'bg-gray-300'
+                              }`} />
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {project.url && (
