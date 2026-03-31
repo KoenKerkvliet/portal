@@ -83,13 +83,13 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-500 mt-1">Overzicht van je portaal</p>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="bg-white rounded-xl p-6 shadow-sm animate-pulse">
               <div className="h-20" />
@@ -97,19 +97,19 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {cards.map((card) => (
             <Link
               key={card.title}
               to={card.link}
-              className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+              className="bg-white rounded-xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.color}`}>
                   <card.icon className="w-5 h-5" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{card.value}</p>
               <p className="text-sm text-gray-500 mt-1">{card.title}</p>
               <p className="text-xs text-gray-400 mt-0.5">{card.subtitle}</p>
             </Link>
