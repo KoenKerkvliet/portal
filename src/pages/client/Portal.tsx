@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Project, ProjectPhase, PhaseStep, CardElement } from '../../types'
-import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
+import type { Project, ProjectPhase, PhaseStep, CardElement, Form, FormSubmission } from '../../types'
+import { Sparkles, ArrowRight, Calendar, ExternalLink, ChevronLeft, ChevronRight, Check, Loader2 } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -13,6 +13,318 @@ const phaseLabels: Record<ProjectPhase, string> = {
   development: 'Development',
   oplevering: 'Oplevering',
   onderhoud: 'Onderhoud',
+}
+
+// Multi-step form viewer for clients
+function FormView({ formId, projectId }: { formId: string; projectId: string }) {
+  const [form, setForm] = useState<Form | null>(null)
+  const [submission, setSubmission] = useState<FormSubmission | null>(null)
+  const [formData, setFormData] = useState<Record<string, string | string[] | boolean>>({})
+  const [currentStep, setCurrentStep] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+
+  const fetchData = useCallback(async () => {
+    // Fetch form definition
+    const { data: formData } = await supabase
+      .from('forms')
+      .select('*')
+      .eq('id', formId)
+      .single()
+
+    if (formData) setForm(formData)
+
+    // Fetch existing submission for this project
+    const { data: sub } = await supabase
+      .from('form_submissions')
+      .select('*')
+      .eq('form_id', formId)
+      .eq('project_id', projectId)
+      .limit(1)
+      .single()
+
+    if (sub) {
+      setSubmission(sub)
+      setFormData(sub.data || {})
+      if (sub.submitted_at) setSubmitted(true)
+    }
+
+    setLoading(false)
+  }, [formId, projectId])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const updateField = (fieldId: string, value: string | string[] | boolean) => {
+    setFormData(prev => ({ ...prev, [fieldId]: value }))
+  }
+
+  const toggleCheckboxOption = (fieldId: string, optionId: string) => {
+    setFormData(prev => {
+      const current = (prev[fieldId] as string[]) || []
+      const updated = current.includes(optionId)
+        ? current.filter(id => id !== optionId)
+        : [...current, optionId]
+      return { ...prev, [fieldId]: updated }
+    })
+  }
+
+  const handleSave = async (submit: boolean) => {
+    setSaving(true)
+    const payload = {
+      form_id: formId,
+      project_id: projectId,
+      data: formData,
+      submitted_at: submit ? new Date().toISOString() : null,
+    }
+
+    if (submission) {
+      await supabase
+        .from('form_submissions')
+        .update(payload)
+        .eq('id', submission.id)
+    } else {
+      const { data } = await supabase
+        .from('form_submissions')
+        .insert(payload)
+        .select()
+        .single()
+      if (data) setSubmission(data)
+    }
+
+    if (submit) setSubmitted(true)
+    setSaving(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  if (!form || !form.steps || form.steps.length === 0) return null
+
+  // Already submitted — show confirmation
+  if (submitted) {
+    return (
+      <div className="bg-green-50 border border-green-100 rounded-xl p-5 text-center">
+        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+          <Check className="w-5 h-5 text-green-600" />
+        </div>
+        <p className="text-sm font-semibold text-green-800 mb-1">Formulier verzonden</p>
+        <p className="text-xs text-green-600">Bedankt! Je antwoorden zijn opgeslagen.</p>
+      </div>
+    )
+  }
+
+  const steps = form.steps
+  const step = steps[currentStep]
+  const isLastStep = currentStep === steps.length - 1
+  const isFirstStep = currentStep === 0
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      {/* Form header */}
+      <div className="bg-gray-50 border-b border-gray-100 px-5 py-3">
+        <p className="text-sm font-semibold text-gray-800">{form.title}</p>
+        {steps.length > 1 && (
+          <div className="flex items-center gap-2 mt-2">
+            {steps.map((_, i) => (
+              <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
+                i <= currentStep ? 'bg-primary' : 'bg-gray-200'
+              }`} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Step content */}
+      <div className="p-5">
+        {step.title && (
+          <h4 className="text-base font-semibold text-gray-900 mb-4">{step.title}</h4>
+        )}
+
+        <div className="space-y-4">
+          {step.fields.map((field) => {
+            if (field.type === 'heading') {
+              return (
+                <h5 key={field.id} className="text-sm font-bold text-gray-700 pt-2">
+                  {field.label}
+                </h5>
+              )
+            }
+
+            const value = formData[field.id] ?? ''
+
+            return (
+              <div key={field.id}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {field.label}
+                  {field.required && <span className="text-red-400 ml-0.5">*</span>}
+                </label>
+
+                {field.type === 'text' && (
+                  <input
+                    type="text"
+                    value={value as string}
+                    onChange={(e) => updateField(field.id, e.target.value)}
+                    placeholder={field.placeholder || ''}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                  />
+                )}
+
+                {field.type === 'textarea' && (
+                  <textarea
+                    value={value as string}
+                    onChange={(e) => updateField(field.id, e.target.value)}
+                    placeholder={field.placeholder || ''}
+                    rows={4}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all resize-none"
+                  />
+                )}
+
+                {field.type === 'email' && (
+                  <input
+                    type="email"
+                    value={value as string}
+                    onChange={(e) => updateField(field.id, e.target.value)}
+                    placeholder={field.placeholder || 'naam@voorbeeld.nl'}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                  />
+                )}
+
+                {field.type === 'phone' && (
+                  <input
+                    type="tel"
+                    value={value as string}
+                    onChange={(e) => updateField(field.id, e.target.value)}
+                    placeholder={field.placeholder || '06 12345678'}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                  />
+                )}
+
+                {field.type === 'number' && (
+                  <input
+                    type="number"
+                    value={value as string}
+                    onChange={(e) => updateField(field.id, e.target.value)}
+                    placeholder={field.placeholder || ''}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                  />
+                )}
+
+                {field.type === 'date' && (
+                  <input
+                    type="date"
+                    value={value as string}
+                    onChange={(e) => updateField(field.id, e.target.value)}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                  />
+                )}
+
+                {field.type === 'select' && field.options && (
+                  <select
+                    value={value as string}
+                    onChange={(e) => updateField(field.id, e.target.value)}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                  >
+                    <option value="">{field.placeholder || 'Maak een keuze...'}</option>
+                    {field.options.map((opt) => (
+                      <option key={opt.id} value={opt.id}>{opt.label}</option>
+                    ))}
+                  </select>
+                )}
+
+                {field.type === 'radio' && field.options && (
+                  <div className="space-y-2 mt-1">
+                    {field.options.map((opt) => (
+                      <label key={opt.id} className="flex items-center gap-2.5 cursor-pointer group">
+                        <input
+                          type="radio"
+                          name={field.id}
+                          checked={value === opt.id}
+                          onChange={() => updateField(field.id, opt.id)}
+                          className="w-4 h-4 text-primary border-gray-300 focus:ring-primary/30"
+                        />
+                        <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">{opt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {field.type === 'checkbox' && field.options && (
+                  <div className="space-y-2 mt-1">
+                    {field.options.map((opt) => {
+                      const checked = ((formData[field.id] as string[]) || []).includes(opt.id)
+                      return (
+                        <label key={opt.id} className="flex items-center gap-2.5 cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCheckboxOption(field.id, opt.id)}
+                            className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30"
+                          />
+                          <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">{opt.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Navigation footer */}
+      <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-t border-gray-100">
+        <div>
+          {!isFirstStep && (
+            <button
+              type="button"
+              onClick={() => setCurrentStep(currentStep - 1)}
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Vorige
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {steps.length > 1 && (
+            <span className="text-xs text-gray-400">
+              Stap {currentStep + 1} van {steps.length}
+            </span>
+          )}
+          {isLastStep ? (
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Verzenden
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { handleSave(false); setCurrentStep(currentStep + 1) }}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              Volgende
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // Render a single card element for the client view
@@ -87,6 +399,10 @@ function CardElementView({ element, project }: { element: CardElement; project: 
           </a>
         </div>
       )
+    }
+    case 'form': {
+      if (!element.data.formId) return null
+      return <FormView formId={element.data.formId} projectId={project.id} />
     }
     default:
       return null
