@@ -113,11 +113,14 @@ export default function Projects() {
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
   const [editingInstance, setEditingInstance] = useState<{ content: string; steps: PhaseStep[] } | null>(null)
   const [savingInstance, setSavingInstance] = useState(false)
+  const [reloadDropdownId, setReloadDropdownId] = useState<string | null>(null)
+  const reloadDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (phaseDropdownRef.current && !phaseDropdownRef.current.contains(e.target as Node)) setPhaseDropdownId(null)
       if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) setClientDropdownId(null)
+      if (reloadDropdownRef.current && !reloadDropdownRef.current.contains(e.target as Node)) setReloadDropdownId(null)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -538,19 +541,34 @@ export default function Projects() {
                               Template ingeladen. Bewerk hieronder de inhoud specifiek voor dit domein.
                             </p>
                             {phaseTemplates.length > 0 && (
-                              <div className="relative group">
-                                <button className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors">
-                                  <RotateCcw className="w-3 h-3" />
-                                  Herlaad
-                                </button>
-                                <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 min-w-[180px] hidden group-hover:block">
-                                  {phaseTemplates.map((t) => (
-                                    <button key={t.id} onClick={() => loadTemplate(project.id, project.current_phase, t)}
-                                      className="w-full px-3 py-2 text-xs text-left text-gray-600 hover:bg-gray-50 transition-colors">
-                                      {t.title}
+                              <div className="relative" ref={reloadDropdownId === project.id ? reloadDropdownRef : undefined}>
+                                {phaseTemplates.length === 1 ? (
+                                  // Single template — reload directly
+                                  <button onClick={() => { if (confirm('Template opnieuw inladen? Domein-specifieke aanpassingen worden overschreven.')) loadTemplate(project.id, project.current_phase, phaseTemplates[0]) }}
+                                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors">
+                                    <RotateCcw className="w-3 h-3" />
+                                    Herlaad template
+                                  </button>
+                                ) : (
+                                  // Multiple templates — show picker
+                                  <>
+                                    <button onClick={() => setReloadDropdownId(reloadDropdownId === project.id ? null : project.id)}
+                                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors">
+                                      <RotateCcw className="w-3 h-3" />
+                                      Herlaad template
                                     </button>
-                                  ))}
-                                </div>
+                                    {reloadDropdownId === project.id && (
+                                      <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 min-w-[180px]">
+                                        {phaseTemplates.map((t) => (
+                                          <button key={t.id} onClick={() => { setReloadDropdownId(null); if (confirm(`Template "${t.title}" opnieuw inladen? Domein-specifieke aanpassingen worden overschreven.`)) loadTemplate(project.id, project.current_phase, t) }}
+                                            className="w-full px-3 py-2 text-xs text-left text-gray-600 hover:bg-gray-50 transition-colors">
+                                            {t.title}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>
