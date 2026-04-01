@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import type { CardElement, CardElementType } from '../types'
 import {
   Plus, Trash2, Type, Image, Zap, Link2, MousePointer, FileText,
@@ -62,13 +63,51 @@ function createDefaultElement(type: CardElementType): CardElement {
   }
 }
 
+// Portal dropdown — renders at document.body level so it's never clipped
+function PortalDropdown({ anchorRef, open, onClose, children }: {
+  anchorRef: React.RefObject<HTMLElement | null>
+  open: boolean
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+
+  const updatePos = useCallback(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setPos({
+        top: rect.bottom + 4,
+        left: rect.left + rect.width / 2,
+      })
+    }
+  }, [anchorRef])
+
+  useEffect(() => {
+    if (open) updatePos()
+  }, [open, updatePos])
+
+  if (!open) return null
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998]" onClick={onClose} />
+      <div className="fixed z-[9999]" style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}>
+        {children}
+      </div>
+    </>,
+    document.body
+  )
+}
+
 // Insert menu that appears between elements
 function InsertMenu({ onInsert }: { onInsert: (type: CardElementType) => void }) {
   const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div className="relative flex items-center justify-center py-0.5 group/insert">
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen(!open)}
         className="w-5 h-5 rounded-full bg-gray-100 hover:bg-primary hover:text-white text-gray-400 flex items-center justify-center transition-all opacity-0 group-hover/insert:opacity-100 focus:opacity-100 z-10"
@@ -76,34 +115,30 @@ function InsertMenu({ onInsert }: { onInsert: (type: CardElementType) => void })
       >
         <Plus className="w-3 h-3" />
       </button>
-      {/* Hover line */}
       <div className="absolute left-0 right-0 h-px bg-gray-200 opacity-0 group-hover/insert:opacity-100 transition-opacity" />
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-30 min-w-[220px] left-1/2 -translate-x-1/2">
-            <p className="px-3 pb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Element toevoegen</p>
-            {elementTypes.map((et) => (
-              <button
-                type="button"
-                key={et.type}
-                onClick={() => { onInsert(et.type); setOpen(false) }}
-                disabled={et.type === 'form'}
-                className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
-                  <et.icon className="w-4 h-4 text-gray-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-700">{et.label}</p>
-                  <p className="text-[11px] text-gray-400">{et.description}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      <PortalDropdown anchorRef={btnRef} open={open} onClose={() => setOpen(false)}>
+        <div className="bg-white rounded-xl shadow-2xl border border-gray-100 py-2 min-w-[220px]">
+          <p className="px-3 pb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Element toevoegen</p>
+          {elementTypes.map((et) => (
+            <button
+              type="button"
+              key={et.type}
+              onClick={() => { onInsert(et.type); setOpen(false) }}
+              disabled={et.type === 'form'}
+              className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                <et.icon className="w-4 h-4 text-gray-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-700">{et.label}</p>
+                <p className="text-[11px] text-gray-400">{et.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </PortalDropdown>
     </div>
   )
 }
@@ -129,9 +164,9 @@ function ElementEditor({
   const typeInfo = elementTypes.find(t => t.type === element.type)
 
   return (
-    <div className="group/element relative bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="group/element relative bg-white border border-gray-200 rounded-lg">
       {/* Header bar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-100">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-100 rounded-t-lg">
         <GripVertical className="w-3 h-3 text-gray-300 flex-shrink-0" />
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           {typeInfo && <typeInfo.icon className="w-3 h-3 text-gray-400" />}
@@ -182,31 +217,29 @@ function ElementEditor({
 
 function IconEditor({ data, onChange }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void }) {
   const [showPicker, setShowPicker] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const SelectedIcon = getIconComponent(data.name || 'star')
 
   return (
     <div>
       <div className="flex items-center gap-3">
-        <div className="relative">
-          <button type="button" onClick={() => setShowPicker(!showPicker)}
+        <div>
+          <button type="button" ref={btnRef} onClick={() => setShowPicker(!showPicker)}
             className="w-12 h-12 rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex items-center justify-center transition-colors"
             style={{ color: data.color || '#9e86ff' }}>
             <SelectedIcon className="w-6 h-6" />
           </button>
-          {showPicker && (
-            <>
-              <div className="fixed inset-0 z-20" onClick={() => setShowPicker(false)} />
-              <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-30 grid grid-cols-6 gap-1 w-[220px]">
-                {iconOptions.map((opt) => (
-                  <button type="button" key={opt.name} onClick={() => { onChange({ ...data, name: opt.name }); setShowPicker(false) }}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${data.name === opt.name ? 'bg-primary/10 text-primary' : 'hover:bg-gray-100 text-gray-500'}`}
-                    title={opt.label}>
-                    <opt.icon className="w-4 h-4" />
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          <PortalDropdown anchorRef={btnRef} open={showPicker} onClose={() => setShowPicker(false)}>
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-100 p-2 grid grid-cols-6 gap-1 w-[220px]">
+              {iconOptions.map((opt) => (
+                <button type="button" key={opt.name} onClick={() => { onChange({ ...data, name: opt.name }); setShowPicker(false) }}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${data.name === opt.name ? 'bg-primary/10 text-primary' : 'hover:bg-gray-100 text-gray-500'}`}
+                  title={opt.label}>
+                  <opt.icon className="w-4 h-4" />
+                </button>
+              ))}
+            </div>
+          </PortalDropdown>
         </div>
         <div className="flex-1">
           <label className="block text-[11px] text-gray-400 mb-1">Kleur</label>
