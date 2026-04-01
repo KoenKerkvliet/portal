@@ -196,8 +196,8 @@ export default function Projects() {
     <div>
       <div className="flex items-center justify-between mb-6 sm:mb-8">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Projecten</h1>
-          <p className="text-gray-500 mt-1 text-sm sm:text-base">Beheer je webdesign projecten</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Domeinen</h1>
+          <p className="text-gray-500 mt-1 text-sm sm:text-base">Beheer je domeinen</p>
         </div>
         <button
           onClick={() => { setFormData(emptyForm); setShowForm(true) }}

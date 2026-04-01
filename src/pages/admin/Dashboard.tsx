@@ -65,7 +65,7 @@ export default function Dashboard() {
 
   const cards = [
     {
-      title: 'Projecten',
+      title: 'Domeinen',
       value: stats.projects,
       subtitle: `${stats.activeProjects} actief`,
       icon: FolderKanban,

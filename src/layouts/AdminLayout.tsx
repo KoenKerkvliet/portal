@@ -16,7 +16,7 @@ import {
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/projecten', icon: FolderKanban, label: 'Projecten' },
+  { to: '/admin/projecten', icon: FolderKanban, label: 'Domeinen' },
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
   { to: '/admin/facturen', icon: FileText, label: 'Facturen' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
