@@ -43,14 +43,10 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to generate verification link: ${linkError.message}`)
     }
 
-    // Extract the token_hash and type from the generated link
-    const actionLink = linkData.properties.action_link
-    const url = new URL(actionLink)
-    const tokenHash = url.searchParams.get('token')
-    const type = url.searchParams.get('type')
-
-    // Build the verification URL pointing to the app
-    const verifyUrl = `https://koenkerkvliet.github.io/portal/bevestig?token_hash=${tokenHash}&type=${type}`
+    // Use the Supabase action_link directly — Supabase verifies the token server-side
+    // and redirects to the app with access_token & refresh_token in the URL hash.
+    // This avoids GitHub Pages SPA routing issues with query parameters.
+    const verifyUrl = linkData.properties.action_link
 
     const html = `
       <!DOCTYPE html>
