@@ -35,13 +35,12 @@ function CardElementView({ element, project }: { element: CardElement; project: 
     }
     case 'dynamic': {
       const field = element.data.field
-      const fieldInfo = dynamicFields.find(f => f.key === field)
       let displayValue = ''
 
       if (field === 'start_meeting_at' && project.start_meeting_at) {
         const d = new Date(project.start_meeting_at)
-        displayValue = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) +
-          ' om ' + d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+        displayValue = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) +
+          ' om ' + d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) + ' uur'
       } else if (field === 'due_date' && project.due_date) {
         displayValue = new Date(project.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
       } else if (field === 'project_name') {
@@ -52,10 +51,8 @@ function CardElementView({ element, project }: { element: CardElement; project: 
 
       if (!displayValue) return null
 
-      const DynIcon = fieldInfo?.icon || Calendar
       return (
         <div className="flex flex-col items-center gap-1.5 bg-gray-50 rounded-xl px-4 py-3">
-          <DynIcon className="w-5 h-5 text-primary" />
           {element.data.label && (
             <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{element.data.label}</p>
           )}
