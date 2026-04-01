@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { FolderKanban, Users, FileText, FileCheck } from 'lucide-react'
+import { FolderKanban, Users, FileText, FileCheck, Mail } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface DashboardStats {
@@ -22,6 +22,23 @@ export default function Dashboard() {
     activeProjects: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  const handleSendTestEmail = async () => {
+    setSendingTest(true)
+    setTestResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('send-test-email')
+      if (error) throw error
+      if (data && !data.success) throw new Error(data.error || 'Onbekende fout')
+      setTestResult({ success: true, message: 'Testmail verzonden naar koen.kerkvliet@designpixels.nl' })
+    } catch (err) {
+      setTestResult({ success: false, message: `Verzenden mislukt: ${err instanceof Error ? err.message : 'Onbekende fout'}` })
+    } finally {
+      setSendingTest(false)
+    }
+  }
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -116,6 +133,24 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      <div className="mt-8 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">E-mail integratie</h2>
+        <p className="text-sm text-gray-500 mb-4">Test of de EmailIt v2 koppeling correct werkt.</p>
+        <button
+          onClick={handleSendTestEmail}
+          disabled={sendingTest}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#9e86ff] to-[#7c3aed] text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Mail className="w-4 h-4" />
+          {sendingTest ? 'Verzenden...' : 'Testmail versturen'}
+        </button>
+        {testResult && (
+          <div className={`mt-3 px-4 py-3 rounded-lg text-sm ${testResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {testResult.message}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

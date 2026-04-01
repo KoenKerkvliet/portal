@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { Lock, Mail, Eye, EyeOff, User, CheckCircle } from 'lucide-react'
@@ -7,6 +7,7 @@ import { Lock, Mail, Eye, EyeOff, User, CheckCircle } from 'lucide-react'
 type Mode = 'login' | 'register'
 
 export default function Login() {
+  const [searchParams] = useSearchParams()
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -15,6 +16,13 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [registered, setRegistered] = useState(false)
+  const [successMessage] = useState(() => {
+    // Show success message if redirected after email verification
+    if (searchParams.get('verified') === 'true') {
+      return 'Je e-mail is bevestigd! Je kunt nu inloggen.'
+    }
+    return ''
+  })
   const { signIn, signUp } = useAuth()
   const navigate = useNavigate()
 
@@ -48,23 +56,10 @@ export default function Login() {
         return
       }
 
-      // Small delay to let the Supabase trigger create the profile
-      await new Promise((r) => setTimeout(r, 1500))
-
-      // Send verification email via server-side database function
-      try {
-        const { data, error: rpcError } = await supabase.rpc('send_verification_email', {
-          user_email: email,
-          user_name: fullName,
-        })
-        if (rpcError) {
-          console.error('Failed to send verification email:', rpcError)
-        } else {
-          console.log('Verification email sent:', data)
-        }
-      } catch (err) {
-        console.error('Failed to send verification email:', err)
-      }
+      // Send branded verification email via EmailIt
+      await supabase.functions.invoke('send-verification-email', {
+        body: { email, fullName },
+      })
 
       setRegistered(true)
       setLoading(false)
@@ -152,6 +147,12 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+            {successMessage && (
+              <div className="bg-green-50 border border-green-100 text-green-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                {successMessage}
+              </div>
+            )}
             {error && (
               <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
@@ -9,47 +9,55 @@ export default function Verify() {
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState<Status>('loading')
   const navigate = useNavigate()
-  const token = searchParams.get('token')
 
   useEffect(() => {
-    const verify = async () => {
-      if (!token) {
-        setStatus('error')
-        return
-      }
+    const handleVerification = async () => {
+      // Check for Supabase auth tokens in URL hash (automatic after email confirmation)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
 
-      // Find profile with this verification token
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('verification_token', token)
-        .eq('email_verified', false)
-        .single()
-
-      if (error || !profile) {
-        setStatus('error')
-        return
-      }
-
-      // Mark as verified
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          email_verified: true,
-          verification_token: null,
+      if (accessToken && refreshToken) {
+        // Supabase redirected here after email confirmation
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
         })
-        .eq('id', profile.id)
 
-      if (updateError) {
-        setStatus('error')
+        if (error) {
+          setStatus('error')
+          return
+        }
+
+        setStatus('success')
         return
       }
 
-      setStatus('success')
+      // Check for token_hash and type (newer Supabase PKCE flow)
+      const tokenHash = searchParams.get('token_hash')
+      const type = searchParams.get('type')
+
+      if (tokenHash && type) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: type as 'signup' | 'email',
+        })
+
+        if (error) {
+          setStatus('error')
+          return
+        }
+
+        setStatus('success')
+        return
+      }
+
+      // No valid tokens found
+      setStatus('error')
     }
 
-    verify()
-  }, [token])
+    handleVerification()
+  }, [searchParams])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-primary-50 to-accent-50 px-4 py-8">
@@ -77,13 +85,13 @@ export default function Verify() {
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">E-mail bevestigd!</h2>
               <p className="text-gray-500 text-sm mb-6">
-                Je account is geactiveerd. Je kunt nu inloggen op je portaal.
+                Je account is geactiveerd. Je wordt nu doorgestuurd...
               </p>
               <button
                 onClick={() => navigate('/login')}
                 className="w-full bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-primary/25 text-sm sm:text-base"
               >
-                Inloggen
+                Naar inloggen
               </button>
             </>
           )}
