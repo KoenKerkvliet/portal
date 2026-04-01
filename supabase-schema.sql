@@ -60,6 +60,7 @@ create table public.projects (
   client_id uuid references public.clients(id) on delete cascade not null,
   current_phase text not null default 'intake' check (current_phase in ('intake', 'design', 'development', 'review', 'opgeleverd')),
   status text not null default 'active' check (status in ('active', 'archived')),
+  due_date date,
   created_at timestamptz not null default now()
 );
 
