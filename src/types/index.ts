@@ -93,6 +93,46 @@ export interface Invoice {
   client?: Client
 }
 
+// Form builder types
+export type FormFieldType = 'heading' | 'text' | 'textarea' | 'email' | 'phone' | 'select' | 'checkbox' | 'radio' | 'date' | 'number'
+
+export interface FormFieldOption {
+  id: string
+  label: string
+}
+
+export interface FormField {
+  id: string
+  type: FormFieldType
+  label: string
+  placeholder?: string
+  required?: boolean
+  options?: FormFieldOption[]  // for select, radio, checkbox
+}
+
+export interface FormStep {
+  id: string
+  title: string
+  fields: FormField[]
+}
+
+export interface Form {
+  id: string
+  title: string
+  description: string
+  steps: FormStep[]
+  created_at: string
+}
+
+export interface FormSubmission {
+  id: string
+  form_id: string
+  project_id: string
+  data: Record<string, string | string[] | boolean>
+  submitted_at: string | null
+  created_at: string
+}
+
 export interface Quote {
   id: string
   project_id: string

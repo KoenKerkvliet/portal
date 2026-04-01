@@ -121,6 +121,29 @@ create table public.quotes (
 );
 
 -- ============================================
+-- FORMS
+-- ============================================
+create table public.forms (
+  id uuid default uuid_generate_v4() primary key,
+  title text not null,
+  description text not null default '',
+  steps jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================
+-- FORM SUBMISSIONS
+-- ============================================
+create table public.form_submissions (
+  id uuid default uuid_generate_v4() primary key,
+  form_id uuid references public.forms(id) on delete cascade not null,
+  project_id uuid references public.projects(id) on delete cascade not null,
+  data jsonb not null default '{}'::jsonb,
+  submitted_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================
 -- ROW LEVEL SECURITY
 -- ============================================
 
@@ -132,6 +155,8 @@ alter table public.phase_templates enable row level security;
 alter table public.project_phases enable row level security;
 alter table public.invoices enable row level security;
 alter table public.quotes enable row level security;
+alter table public.forms enable row level security;
+alter table public.form_submissions enable row level security;
 
 -- Helper function: check if user is admin
 create or replace function public.is_admin()
@@ -181,4 +206,32 @@ create policy "Clients can view own invoices" on public.invoices for select usin
 create policy "Admins full access to quotes" on public.quotes for all using (public.is_admin());
 create policy "Clients can view own quotes" on public.quotes for select using (
   client_id in (select id from public.clients where profile_id = auth.uid())
+);
+
+-- FORMS policies
+create policy "Admins full access to forms" on public.forms for all using (public.is_admin());
+create policy "Clients can view forms" on public.forms for select using (true);
+
+-- FORM SUBMISSIONS policies
+create policy "Admins full access to form_submissions" on public.form_submissions for all using (public.is_admin());
+create policy "Clients can view own submissions" on public.form_submissions for select using (
+  project_id in (
+    select p.id from public.projects p
+    join public.clients c on c.id = p.client_id
+    where c.profile_id = auth.uid()
+  )
+);
+create policy "Clients can insert own submissions" on public.form_submissions for insert with check (
+  project_id in (
+    select p.id from public.projects p
+    join public.clients c on c.id = p.client_id
+    where c.profile_id = auth.uid()
+  )
+);
+create policy "Clients can update own submissions" on public.form_submissions for update using (
+  project_id in (
+    select p.id from public.projects p
+    join public.clients c on c.id = p.client_id
+    where c.profile_id = auth.uid()
+  )
 );

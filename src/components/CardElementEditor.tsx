@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import type { CardElement, CardElementType } from '../types'
+import type { CardElement, CardElementType, Form } from '../types'
+import { supabase } from '../lib/supabase'
 import {
   Plus, Trash2, Type, Image, Zap, Link2, MousePointer, FileText,
   Calendar, Clock, User, Mail, Phone, Globe, Star, Heart, CheckCircle,
@@ -48,7 +49,7 @@ const elementTypes: { type: CardElementType; label: string; icon: typeof Type; d
   { type: 'dynamic', label: 'Dynamische data', icon: Zap, description: 'Toon projectdata' },
   { type: 'link', label: 'Link', icon: Link2, description: 'Klikbare link' },
   { type: 'button', label: 'Knop', icon: MousePointer, description: 'Call-to-action knop' },
-  { type: 'form', label: 'Formulier', icon: FileText, description: 'Binnenkort beschikbaar' },
+  { type: 'form', label: 'Formulier', icon: FileText, description: 'Koppel een formulier' },
 ]
 
 function createDefaultElement(type: CardElementType): CardElement {
@@ -125,7 +126,7 @@ function InsertMenu({ onInsert }: { onInsert: (type: CardElementType) => void })
               type="button"
               key={et.type}
               onClick={() => { onInsert(et.type); setOpen(false) }}
-              disabled={et.type === 'form'}
+              disabled={false}
               className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
@@ -206,7 +207,7 @@ function ElementEditor({
           <ButtonEditor data={element.data} onChange={onChange} />
         )}
         {element.type === 'form' && (
-          <p className="text-xs text-gray-400 italic">Formulier — binnenkort beschikbaar</p>
+          <FormEditor data={element.data} onChange={onChange} />
         )}
       </div>
     </div>
@@ -331,6 +332,43 @@ function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChan
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function FormEditor({ data, onChange }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void }) {
+  const [forms, setForms] = useState<Form[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchForms = async () => {
+      const { data: formsData } = await supabase.from('forms').select('*').order('title')
+      setForms(formsData || [])
+      setLoading(false)
+    }
+    fetchForms()
+  }, [])
+
+  if (loading) return <p className="text-xs text-gray-400">Laden...</p>
+
+  return (
+    <div>
+      <label className="block text-[11px] text-gray-400 mb-1">Formulier</label>
+      {forms.length === 0 ? (
+        <p className="text-xs text-gray-400 italic">Geen formulieren beschikbaar. Maak er eerst een aan via Content &gt; Formulieren.</p>
+      ) : (
+        <select value={data.formId || ''}
+          onChange={(e) => {
+            const selected = forms.find(f => f.id === e.target.value)
+            onChange({ ...data, formId: e.target.value, formTitle: selected?.title || '' })
+          }}
+          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+          <option value="">Kies een formulier...</option>
+          {forms.map((f) => (
+            <option key={f.id} value={f.id}>{f.title} ({f.steps?.length || 0} stappen)</option>
+          ))}
+        </select>
+      )}
     </div>
   )
 }

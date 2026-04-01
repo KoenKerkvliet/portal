@@ -12,6 +12,8 @@ import {
   LogOut,
   Menu,
   X,
+  BookOpen,
+  ClipboardList,
 } from 'lucide-react'
 
 const navItems = [
@@ -21,6 +23,10 @@ const navItems = [
   { to: '/admin/facturen', icon: FileText, label: 'Facturen' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
+]
+
+const contentItems = [
+  { to: '/admin/formulieren', icon: ClipboardList, label: 'Formulieren' },
 ]
 
 export default function AdminLayout() {
@@ -46,25 +52,54 @@ export default function AdminLayout() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            onClick={closeSidebar}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-sidebar-active text-white'
-                  : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
-              }`
-            }
-          >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            {item.label}
-          </NavLink>
-        ))}
+      <nav className="flex-1 py-4 px-3 overflow-y-auto">
+        <div className="space-y-1">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={closeSidebar}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-sidebar-active text-white'
+                    : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
+                }`
+              }
+            >
+              <item.icon className="w-5 h-5 flex-shrink-0" />
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Content group */}
+        <div className="mt-6 pt-4 border-t border-white/10">
+          <div className="flex items-center gap-2 px-3 mb-2">
+            <BookOpen className="w-3.5 h-3.5 text-gray-500" />
+            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Content</span>
+          </div>
+          <div className="space-y-1">
+            {contentItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={closeSidebar}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-sidebar-active text-white'
+                      : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
+                  }`
+                }
+              >
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
       </nav>
 
       {/* Bottom section */}
