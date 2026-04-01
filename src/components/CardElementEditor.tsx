@@ -69,6 +69,7 @@ function InsertMenu({ onInsert }: { onInsert: (type: CardElementType) => void })
   return (
     <div className="relative flex items-center justify-center py-0.5 group/insert">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         className="w-5 h-5 rounded-full bg-gray-100 hover:bg-primary hover:text-white text-gray-400 flex items-center justify-center transition-all opacity-0 group-hover/insert:opacity-100 focus:opacity-100 z-10"
         title="Element toevoegen"
@@ -85,6 +86,7 @@ function InsertMenu({ onInsert }: { onInsert: (type: CardElementType) => void })
             <p className="px-3 pb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Element toevoegen</p>
             {elementTypes.map((et) => (
               <button
+                type="button"
                 key={et.type}
                 onClick={() => { onInsert(et.type); setOpen(false) }}
                 disabled={et.type === 'form'}
@@ -136,15 +138,15 @@ function ElementEditor({
           <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">{typeInfo?.label}</span>
         </div>
         <div className="flex items-center gap-0.5 opacity-0 group-hover/element:opacity-100 transition-opacity">
-          <button onClick={onMoveUp} disabled={isFirst}
+          <button type="button" onClick={onMoveUp} disabled={isFirst}
             className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors" title="Omhoog">
             <ChevronUp className="w-3 h-3" />
           </button>
-          <button onClick={onMoveDown} disabled={isLast}
+          <button type="button" onClick={onMoveDown} disabled={isLast}
             className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 transition-colors" title="Omlaag">
             <ChevronDown className="w-3 h-3" />
           </button>
-          <button onClick={onRemove}
+          <button type="button" onClick={onRemove}
             className="p-0.5 text-gray-400 hover:text-red-500 transition-colors" title="Verwijderen">
             <Trash2 className="w-3 h-3" />
           </button>
@@ -186,7 +188,7 @@ function IconEditor({ data, onChange }: { data: Record<string, string>; onChange
     <div>
       <div className="flex items-center gap-3">
         <div className="relative">
-          <button onClick={() => setShowPicker(!showPicker)}
+          <button type="button" onClick={() => setShowPicker(!showPicker)}
             className="w-12 h-12 rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex items-center justify-center transition-colors"
             style={{ color: data.color || '#9e86ff' }}>
             <SelectedIcon className="w-6 h-6" />
@@ -196,7 +198,7 @@ function IconEditor({ data, onChange }: { data: Record<string, string>; onChange
               <div className="fixed inset-0 z-20" onClick={() => setShowPicker(false)} />
               <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-30 grid grid-cols-6 gap-1 w-[220px]">
                 {iconOptions.map((opt) => (
-                  <button key={opt.name} onClick={() => { onChange({ ...data, name: opt.name }); setShowPicker(false) }}
+                  <button type="button" key={opt.name} onClick={() => { onChange({ ...data, name: opt.name }); setShowPicker(false) }}
                     className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${data.name === opt.name ? 'bg-primary/10 text-primary' : 'hover:bg-gray-100 text-gray-500'}`}
                     title={opt.label}>
                     <opt.icon className="w-4 h-4" />
@@ -295,7 +297,7 @@ function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChan
             { value: 'primary', label: 'Primair', cls: 'bg-primary text-white' },
             { value: 'outline', label: 'Outline', cls: 'bg-white text-gray-700 border border-gray-300' },
           ].map((v) => (
-            <button key={v.value} onClick={() => onChange({ ...data, variant: v.value })}
+            <button type="button" key={v.value} onClick={() => onChange({ ...data, variant: v.value })}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${v.cls} ${data.variant === v.value ? 'ring-2 ring-primary/30 ring-offset-1' : 'opacity-60 hover:opacity-100'}`}>
               {v.label}
             </button>
