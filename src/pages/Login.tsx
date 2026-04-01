@@ -23,7 +23,7 @@ export default function Login() {
     }
     return ''
   })
-  const { signIn, signUp } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
 
   const switchMode = (newMode: Mode) => {
@@ -44,22 +44,26 @@ export default function Login() {
         return
       }
 
-      const { error: signUpError } = await signUp(email, password, fullName)
+      // Create user and send branded verification email via Edge Function
+      const { data, error: fnError } = await supabase.functions.invoke('send-verification-email', {
+        body: { email, password, fullName },
+      })
 
-      if (signUpError) {
-        if (signUpError.message.includes('already registered')) {
-          setError('Dit e-mailadres is al geregistreerd. Probeer in te loggen.')
-        } else {
-          setError('Registratie mislukt. Probeer het opnieuw.')
-        }
+      if (fnError) {
+        setError('Registratie mislukt. Probeer het opnieuw.')
         setLoading(false)
         return
       }
 
-      // Send branded verification email via EmailIt
-      await supabase.functions.invoke('send-verification-email', {
-        body: { email, fullName },
-      })
+      if (data && !data.success) {
+        if (data.error?.includes('already been registered')) {
+          setError('Dit e-mailadres is al geregistreerd. Probeer in te loggen.')
+        } else {
+          setError(data.error || 'Registratie mislukt. Probeer het opnieuw.')
+        }
+        setLoading(false)
+        return
+      }
 
       setRegistered(true)
       setLoading(false)

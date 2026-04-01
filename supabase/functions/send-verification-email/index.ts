@@ -14,12 +14,13 @@ Deno.serve(async (req) => {
 
     const EMAILIT_FROM = Deno.env.get('EMAILIT_FROM') || 'DesignPixels <noreply@designpixels.nl>'
 
-    const { email, fullName } = await req.json()
-    if (!email || !fullName) {
-      throw new Error('Missing email or fullName')
+    const { email, password, fullName } = await req.json()
+    if (!email || !password || !fullName) {
+      throw new Error('Missing email, password, or fullName')
     }
 
-    // Use Supabase Admin API to generate a proper verification link
+    // Use Supabase Admin API to create user AND generate verification link
+    // generateLink with type 'signup' + password creates the user without sending Supabase's default email
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -28,7 +29,12 @@ Deno.serve(async (req) => {
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',
       email,
+      password,
       options: {
+        data: {
+          full_name: fullName,
+          role: 'client',
+        },
         redirectTo: 'https://koenkerkvliet.github.io/portal/bevestig',
       },
     })
