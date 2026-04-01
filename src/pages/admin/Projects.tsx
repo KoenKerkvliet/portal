@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock } from 'lucide-react'
+
+const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
 
 const phaseLabels: Record<ProjectPhase, string> = {
   intake: 'Intake',
@@ -17,6 +19,14 @@ const phaseColors: Record<ProjectPhase, string> = {
   development: 'bg-yellow-100 text-yellow-700',
   oplevering: 'bg-green-100 text-green-700',
   onderhoud: 'bg-emerald-100 text-emerald-700',
+}
+
+const phaseTabColors: Record<ProjectPhase, { active: string; inactive: string }> = {
+  intake: { active: 'border-blue-500 text-blue-700', inactive: 'text-gray-400 hover:text-blue-600' },
+  design: { active: 'border-purple-500 text-purple-700', inactive: 'text-gray-400 hover:text-purple-600' },
+  development: { active: 'border-yellow-500 text-yellow-700', inactive: 'text-gray-400 hover:text-yellow-600' },
+  oplevering: { active: 'border-green-500 text-green-700', inactive: 'text-gray-400 hover:text-green-600' },
+  onderhoud: { active: 'border-emerald-500 text-emerald-700', inactive: 'text-gray-400 hover:text-emerald-600' },
 }
 
 interface FormData {
@@ -111,6 +121,7 @@ export default function Projects() {
   const [templates, setTemplates] = useState<PhaseTemplate[]>([])
   const [phaseInstances, setPhaseInstances] = useState<Record<string, ProjectPhaseInstance>>({})
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
+  const [activePhaseTab, setActivePhaseTab] = useState<Record<string, ProjectPhase>>({})
   const [editingInstance, setEditingInstance] = useState<{ content: string; steps: PhaseStep[] } | null>(null)
   const [savingInstance, setSavingInstance] = useState(false)
   const [reloadDropdownId, setReloadDropdownId] = useState<string | null>(null)
@@ -169,7 +180,6 @@ export default function Projects() {
     const { data } = await supabase.from('project_phases').select('*')
     const map: Record<string, ProjectPhaseInstance> = {}
     ;(data || []).forEach((pi: ProjectPhaseInstance) => {
-      // Key by project_id + phase
       map[`${pi.project_id}_${pi.phase}`] = pi
     })
     setPhaseInstances(map)
@@ -221,7 +231,6 @@ export default function Projects() {
 
   const loadTemplate = async (projectId: string, phase: string, template: PhaseTemplate) => {
     const existing = getInstance(projectId, phase)
-    // Copy template steps into custom_data so they can be edited per-domain
     const customData = {
       content: template.content || '',
       steps: template.steps.map(s => ({ ...s, id: crypto.randomUUID() })),
@@ -242,7 +251,6 @@ export default function Projects() {
       })
     }
     await fetchPhaseInstances()
-    // Open editing
     setEditingInstance({ content: customData.content, steps: customData.steps })
   }
 
@@ -298,7 +306,9 @@ export default function Projects() {
       setExpandedProject(projectId)
       const project = projects.find(p => p.id === projectId)
       if (project) {
-        const instance = getInstance(projectId, project.current_phase)
+        const phase = activePhaseTab[projectId] || project.current_phase
+        setActivePhaseTab(prev => ({ ...prev, [projectId]: phase }))
+        const instance = getInstance(projectId, phase)
         if (instance) {
           openInstanceEditor(instance)
         } else {
@@ -306,6 +316,25 @@ export default function Projects() {
         }
       }
     }
+  }
+
+  const switchPhaseTab = (projectId: string, phase: ProjectPhase) => {
+    setActivePhaseTab(prev => ({ ...prev, [projectId]: phase }))
+    setReloadDropdownId(null)
+    const instance = getInstance(projectId, phase)
+    if (instance) {
+      openInstanceEditor(instance)
+    } else {
+      setEditingInstance(null)
+    }
+  }
+
+  // Helper to format datetime-local value for the input
+  const toDatetimeLocal = (isoString: string | null) => {
+    if (!isoString) return ''
+    const d = new Date(isoString)
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
   return (
@@ -390,9 +419,10 @@ export default function Projects() {
       ) : (
         <div className="space-y-4">
           {projects.map((project) => {
-            const instance = getInstance(project.id, project.current_phase)
-            const phaseTemplates = getTemplatesForPhase(project.current_phase)
             const isExpanded = expandedProject === project.id
+            const currentTab = activePhaseTab[project.id] || project.current_phase
+            const tabInstance = getInstance(project.id, currentTab)
+            const tabTemplates = getTemplatesForPhase(currentTab)
 
             return (
               <div key={project.id} className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow overflow-hidden">
@@ -430,7 +460,7 @@ export default function Projects() {
 
                 {/* Card details */}
                 <div className="px-5 sm:px-6 pb-5 sm:pb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4 border-t border-gray-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-gray-100">
                     <div className="space-y-1">
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Website</p>
                       {project.url && (
@@ -482,155 +512,195 @@ export default function Projects() {
                           className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors" />
                       </div>
                     </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Startgesprek</p>
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <input type="datetime-local" value={toDatetimeLocal(project.start_meeting_at)}
+                          onChange={(e) => updateProject(project.id, { start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                          className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Template section toggle */}
+                {/* Template accordion toggle */}
                 <div className="border-t border-gray-100">
                   <button onClick={() => toggleExpand(project.id)}
                     className="w-full px-5 sm:px-6 py-3 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-2">
                       <Layers className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium text-gray-600">
-                        Template — {phaseLabels[project.current_phase]}
-                      </span>
-                      {instance && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 font-medium">Ingeladen</span>
-                      )}
+                      <span className="font-medium text-gray-600">Templates</span>
+                      {/* Show count of loaded phases */}
+                      {(() => {
+                        const loadedCount = phases.filter(p => getInstance(project.id, p)).length
+                        return loadedCount > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 font-medium">
+                            {loadedCount}/{phases.length} fases
+                          </span>
+                        ) : null
+                      })()}
                     </div>
                     <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {/* Expanded template panel */}
+                  {/* Expanded template panel with phase tabs */}
                   {isExpanded && (
-                    <div className="px-5 sm:px-6 pb-5 sm:pb-6">
-                      {/* No instance loaded yet */}
-                      {!instance && (
-                        <div>
-                          {phaseTemplates.length > 0 ? (
-                            <div>
-                              <p className="text-sm text-gray-500 mb-3">Kies een template om in te laden voor dit domein:</p>
-                              <div className="space-y-2">
-                                {phaseTemplates.map((t) => (
-                                  <button key={t.id} onClick={() => loadTemplate(project.id, project.current_phase, t)}
-                                    className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors text-left">
-                                    <div>
-                                      <p className="text-sm font-medium text-gray-900">{t.title}</p>
-                                      <p className="text-xs text-gray-400 mt-0.5">{t.steps?.length || 0} stappen</p>
-                                    </div>
-                                    <Layers className="w-4 h-4 text-gray-400" />
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-center py-6">
-                              <p className="text-sm text-gray-400">Geen templates beschikbaar voor de fase "{phaseLabels[project.current_phase]}".</p>
-                              <p className="text-xs text-gray-400 mt-1">Maak eerst een template aan via het Templates menu.</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                    <div className="border-t border-gray-100">
+                      {/* Phase tabs */}
+                      <div className="flex overflow-x-auto border-b border-gray-100">
+                        {phases.map((phase) => {
+                          const isActive = currentTab === phase
+                          const hasInstance = !!getInstance(project.id, phase)
+                          const isCurrent = phase === project.current_phase
+                          const colors = phaseTabColors[phase]
+                          return (
+                            <button key={phase} onClick={() => switchPhaseTab(project.id, phase)}
+                              className={`relative flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                                isActive ? colors.active : `border-transparent ${colors.inactive}`
+                              }`}>
+                              {hasInstance && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                              )}
+                              {phaseLabels[phase]}
+                              {isCurrent && (
+                                <span className="text-[9px] font-bold uppercase tracking-wider opacity-50">actief</span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
 
-                      {/* Instance loaded — editing */}
-                      {instance && editingInstance && (
-                        <div className="space-y-4">
-                          {/* Reload template option */}
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-gray-400">
-                              Template ingeladen. Bewerk hieronder de inhoud specifiek voor dit domein.
-                            </p>
-                            {phaseTemplates.length > 0 && (
-                              <div className="relative" ref={reloadDropdownId === project.id ? reloadDropdownRef : undefined}>
-                                {phaseTemplates.length === 1 ? (
-                                  // Single template — reload directly
-                                  <button onClick={() => { if (confirm('Template opnieuw inladen? Domein-specifieke aanpassingen worden overschreven.')) loadTemplate(project.id, project.current_phase, phaseTemplates[0]) }}
-                                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors">
-                                    <RotateCcw className="w-3 h-3" />
-                                    Herlaad template
-                                  </button>
-                                ) : (
-                                  // Multiple templates — show picker
-                                  <>
-                                    <button onClick={() => setReloadDropdownId(reloadDropdownId === project.id ? null : project.id)}
-                                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors">
-                                      <RotateCcw className="w-3 h-3" />
-                                      Herlaad template
-                                    </button>
-                                    {reloadDropdownId === project.id && (
-                                      <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 min-w-[180px]">
-                                        {phaseTemplates.map((t) => (
-                                          <button key={t.id} onClick={() => { setReloadDropdownId(null); if (confirm(`Template "${t.title}" opnieuw inladen? Domein-specifieke aanpassingen worden overschreven.`)) loadTemplate(project.id, project.current_phase, t) }}
-                                            className="w-full px-3 py-2 text-xs text-left text-gray-600 hover:bg-gray-50 transition-colors">
-                                            {t.title}
-                                          </button>
-                                        ))}
+                      {/* Tab content */}
+                      <div className="px-5 sm:px-6 py-5 sm:py-6">
+                        {/* No instance loaded for this phase */}
+                        {!tabInstance && (
+                          <div>
+                            {tabTemplates.length > 0 ? (
+                              <div>
+                                <p className="text-sm text-gray-500 mb-3">
+                                  Kies een template om in te laden voor de fase <span className="font-medium">{phaseLabels[currentTab]}</span>:
+                                </p>
+                                <div className="space-y-2">
+                                  {tabTemplates.map((t) => (
+                                    <button key={t.id} onClick={() => loadTemplate(project.id, currentTab, t)}
+                                      className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors text-left">
+                                      <div>
+                                        <p className="text-sm font-medium text-gray-900">{t.title}</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">{t.steps?.length || 0} stappen</p>
                                       </div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Content */}
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Inhoud (zichtbaar voor klant)</label>
-                            <textarea value={editingInstance.content}
-                              onChange={(e) => setEditingInstance({ ...editingInstance, content: e.target.value })}
-                              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm resize-none"
-                              rows={3} placeholder="Tekst of instructies voor de klant..." />
-                          </div>
-
-                          {/* Steps */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <label className="text-xs font-medium text-gray-500">Stappen (cards voor klant)</label>
-                              <button type="button" onClick={addInstanceStep}
-                                className="flex items-center gap-1 text-xs text-primary hover:text-primary-600 font-medium transition-colors">
-                                <Plus className="w-3 h-3" />
-                                Stap toevoegen
-                              </button>
-                            </div>
-                            {editingInstance.steps.length === 0 ? (
-                              <div className="border border-dashed border-gray-200 rounded-lg p-4 text-center">
-                                <p className="text-xs text-gray-400">Nog geen stappen.</p>
+                                      <Layers className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             ) : (
-                              <div className="space-y-2">
-                                {editingInstance.steps.map((step, index) => (
-                                  <div key={step.id} className="flex gap-2 items-start bg-gray-50 border border-gray-200 rounded-lg p-3">
-                                    <div className="flex-1 space-y-1.5">
-                                      <input type="text" value={step.title}
-                                        onChange={(e) => updateInstanceStep(index, 'title', e.target.value)}
-                                        className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-                                        placeholder="Stap titel" />
-                                      <input type="text" value={step.description}
-                                        onChange={(e) => updateInstanceStep(index, 'description', e.target.value)}
-                                        className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-                                        placeholder="Beschrijving of URL (zichtbaar voor klant)" />
-                                    </div>
-                                    <button type="button" onClick={() => removeInstanceStep(index)}
-                                      className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors mt-1">
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ))}
+                              <div className="text-center py-6">
+                                <p className="text-sm text-gray-400">Geen templates beschikbaar voor de fase "{phaseLabels[currentTab]}".</p>
+                                <p className="text-xs text-gray-400 mt-1">Maak eerst een template aan via het Templates menu.</p>
                               </div>
                             )}
                           </div>
+                        )}
 
-                          {/* Save button */}
-                          <div className="flex justify-end">
-                            <button onClick={() => saveInstance(project.id, project.current_phase)}
-                              disabled={savingInstance}
-                              className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-                              <Save className="w-4 h-4" />
-                              {savingInstance ? 'Opslaan...' : 'Opslaan'}
-                            </button>
+                        {/* Instance loaded — editing */}
+                        {tabInstance && editingInstance && (
+                          <div className="space-y-4">
+                            {/* Reload template option */}
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-gray-400">
+                                Template ingeladen voor <span className="font-medium">{phaseLabels[currentTab]}</span>. Bewerk hieronder de inhoud specifiek voor dit domein.
+                              </p>
+                              {tabTemplates.length > 0 && (
+                                <div className="relative" ref={reloadDropdownId === `${project.id}_${currentTab}` ? reloadDropdownRef : undefined}>
+                                  {tabTemplates.length === 1 ? (
+                                    <button onClick={() => { if (confirm('Template opnieuw inladen? Domein-specifieke aanpassingen worden overschreven.')) loadTemplate(project.id, currentTab, tabTemplates[0]) }}
+                                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors whitespace-nowrap">
+                                      <RotateCcw className="w-3 h-3" />
+                                      Herlaad
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button onClick={() => setReloadDropdownId(reloadDropdownId === `${project.id}_${currentTab}` ? null : `${project.id}_${currentTab}`)}
+                                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors whitespace-nowrap">
+                                        <RotateCcw className="w-3 h-3" />
+                                        Herlaad
+                                      </button>
+                                      {reloadDropdownId === `${project.id}_${currentTab}` && (
+                                        <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 min-w-[180px]">
+                                          {tabTemplates.map((t) => (
+                                            <button key={t.id} onClick={() => { setReloadDropdownId(null); if (confirm(`Template "${t.title}" opnieuw inladen?`)) loadTemplate(project.id, currentTab, t) }}
+                                              className="w-full px-3 py-2 text-xs text-left text-gray-600 hover:bg-gray-50 transition-colors">
+                                              {t.title}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Content */}
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1.5">Inhoud (zichtbaar voor klant)</label>
+                              <textarea value={editingInstance.content}
+                                onChange={(e) => setEditingInstance({ ...editingInstance, content: e.target.value })}
+                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm resize-none"
+                                rows={3} placeholder="Tekst of instructies voor de klant..." />
+                            </div>
+
+                            {/* Steps */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="text-xs font-medium text-gray-500">Stappen (cards voor klant)</label>
+                                <button type="button" onClick={addInstanceStep}
+                                  className="flex items-center gap-1 text-xs text-primary hover:text-primary-600 font-medium transition-colors">
+                                  <Plus className="w-3 h-3" />
+                                  Stap toevoegen
+                                </button>
+                              </div>
+                              {editingInstance.steps.length === 0 ? (
+                                <div className="border border-dashed border-gray-200 rounded-lg p-4 text-center">
+                                  <p className="text-xs text-gray-400">Nog geen stappen.</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {editingInstance.steps.map((step, index) => (
+                                    <div key={step.id} className="flex gap-2 items-start bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                      <div className="flex-1 space-y-1.5">
+                                        <input type="text" value={step.title}
+                                          onChange={(e) => updateInstanceStep(index, 'title', e.target.value)}
+                                          className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                                          placeholder="Stap titel" />
+                                        <input type="text" value={step.description}
+                                          onChange={(e) => updateInstanceStep(index, 'description', e.target.value)}
+                                          className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                                          placeholder="Beschrijving of URL (zichtbaar voor klant)" />
+                                      </div>
+                                      <button type="button" onClick={() => removeInstanceStep(index)}
+                                        className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors mt-1">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Save button */}
+                            <div className="flex justify-end">
+                              <button onClick={() => saveInstance(project.id, currentTab)}
+                                disabled={savingInstance}
+                                className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                                <Save className="w-4 h-4" />
+                                {savingInstance ? 'Opslaan...' : 'Opslaan'}
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

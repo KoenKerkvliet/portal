@@ -61,6 +61,7 @@ create table public.projects (
   current_phase text not null default 'intake' check (current_phase in ('intake', 'design', 'development', 'review', 'opgeleverd')),
   status text not null default 'active' check (status in ('active', 'archived')),
   due_date date,
+  start_meeting_at timestamptz,
   created_at timestamptz not null default now()
 );
 
