@@ -263,24 +263,18 @@ function TextEditor({ data, onChange }: { data: Record<string, string>; onChange
 
 function DynamicEditor({ data, onChange }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void }) {
   return (
-    <div className="space-y-2">
-      <div>
-        <label className="block text-[11px] text-gray-400 mb-1">Databron</label>
-        <select value={data.field || 'start_meeting_at'}
-          onChange={(e) => onChange({ ...data, field: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
-          {dynamicFields.map((f) => (
-            <option key={f.key} value={f.key}>{f.label}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-[11px] text-gray-400 mb-1">Label (optioneel)</label>
-        <input type="text" value={data.label || ''}
-          onChange={(e) => onChange({ ...data, label: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-          placeholder="bijv. Datum startgesprek" />
-      </div>
+    <div>
+      <label className="block text-[11px] text-gray-400 mb-1">Databron</label>
+      <select value={data.field || 'start_meeting_at'}
+        onChange={(e) => {
+          const selected = dynamicFields.find(f => f.key === e.target.value)
+          onChange({ ...data, field: e.target.value, label: selected?.label || '' })
+        }}
+        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+        {dynamicFields.map((f) => (
+          <option key={f.key} value={f.key}>{f.label}</option>
+        ))}
+      </select>
     </div>
   )
 }
