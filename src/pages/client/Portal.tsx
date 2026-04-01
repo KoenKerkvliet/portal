@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Project, ProjectPhase, PhaseTemplate } from '../../types'
+import type { Project, ProjectPhase, PhaseStep } from '../../types'
 import { Sparkles, ArrowRight, Calendar } from 'lucide-react'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -17,7 +17,8 @@ const phaseLabels: Record<ProjectPhase, string> = {
 export default function ClientPortal() {
   const { profile } = useAuth()
   const [project, setProject] = useState<Project | null>(null)
-  const [template, setTemplate] = useState<PhaseTemplate | null>(null)
+  const [phaseContent, setPhaseContent] = useState<string>('')
+  const [phaseSteps, setPhaseSteps] = useState<PhaseStep[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -47,15 +48,32 @@ export default function ClientPortal() {
       if (projectData) {
         setProject(projectData)
 
-        const { data: templateData } = await supabase
-          .from('phase_templates')
+        // First try to load domain-specific instance from project_phases
+        const { data: phaseInstance } = await supabase
+          .from('project_phases')
           .select('*')
+          .eq('project_id', projectData.id)
           .eq('phase', projectData.current_phase)
           .limit(1)
           .single()
 
-        if (templateData) {
-          setTemplate(templateData)
+        if (phaseInstance?.custom_data) {
+          // Use domain-specific data
+          setPhaseContent(phaseInstance.custom_data.content || '')
+          setPhaseSteps(phaseInstance.custom_data.steps || [])
+        } else {
+          // Fallback: load from template directly
+          const { data: templateData } = await supabase
+            .from('phase_templates')
+            .select('*')
+            .eq('phase', projectData.current_phase)
+            .limit(1)
+            .single()
+
+          if (templateData) {
+            setPhaseContent(templateData.content || templateData.description || '')
+            setPhaseSteps(templateData.steps || [])
+          }
         }
       }
 
@@ -99,7 +117,7 @@ export default function ClientPortal() {
 
   const currentPhaseIndex = phases.indexOf(project.current_phase)
   const nextPhase = currentPhaseIndex < phases.length - 1 ? phases[currentPhaseIndex + 1] : null
-  const steps = template?.steps || []
+  const steps = phaseSteps
   const isOnderhoud = project.current_phase === 'onderhoud'
 
   // Format due date in Dutch
@@ -123,10 +141,10 @@ export default function ClientPortal() {
             {project.name}
           </h1>
 
-          {/* Template description */}
-          {(template?.content || template?.description) && (
+          {/* Phase content */}
+          {phaseContent && (
             <p className="text-gray-500 text-center mt-4 sm:mt-6 leading-relaxed max-w-xl mx-auto text-sm sm:text-base">
-              {template.content || template.description}
+              {phaseContent}
             </p>
           )}
 
