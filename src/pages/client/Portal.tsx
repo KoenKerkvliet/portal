@@ -30,7 +30,7 @@ function CardElementView({ element, project }: { element: CardElement; project: 
     }
     case 'text': {
       return element.data.content ? (
-        <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-wrap">{element.data.content}</p>
+        <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-wrap text-center">{element.data.content}</p>
       ) : null
     }
     case 'dynamic': {
@@ -54,25 +54,25 @@ function CardElementView({ element, project }: { element: CardElement; project: 
 
       const DynIcon = fieldInfo?.icon || Calendar
       return (
-        <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-          <DynIcon className="w-5 h-5 text-primary flex-shrink-0" />
-          <div>
-            {element.data.label && (
-              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{element.data.label}</p>
-            )}
-            <p className="text-sm font-semibold text-gray-800">{displayValue}</p>
-          </div>
+        <div className="flex flex-col items-center gap-1.5 bg-gray-50 rounded-xl px-4 py-3">
+          <DynIcon className="w-5 h-5 text-primary" />
+          {element.data.label && (
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{element.data.label}</p>
+          )}
+          <p className="text-sm font-semibold text-gray-800">{displayValue}</p>
         </div>
       )
     }
     case 'link': {
       if (!element.data.url) return null
       return (
-        <a href={element.data.url} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary-600 font-medium transition-colors">
-          {element.data.label || element.data.url}
-          <ExternalLink className="w-3.5 h-3.5" />
-        </a>
+        <div className="flex justify-center">
+          <a href={element.data.url} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary-600 font-medium transition-colors">
+            {element.data.label || element.data.url}
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
       )
     }
     case 'button': {
@@ -302,16 +302,27 @@ export default function ClientPortal() {
                       {/* Card content */}
                       {hasElements ? (
                         // Render block-based elements
-                        <div className="space-y-3">
-                          {/* Title */}
-                          <h3 className="text-lg font-bold text-gray-900 text-center">
-                            {step.title}
-                          </h3>
-                          {/* Elements */}
-                          {step.elements!.map((element) => (
-                            <CardElementView key={element.id} element={element} project={project} />
-                          ))}
-                        </div>
+                        (() => {
+                          // Extract icon element (always rendered above title)
+                          const iconElement = step.elements!.find(el => el.type === 'icon')
+                          const otherElements = step.elements!.filter(el => el.type !== 'icon')
+                          return (
+                            <div className="space-y-3 text-center">
+                              {/* Icon always on top */}
+                              {iconElement && (
+                                <CardElementView key={iconElement.id} element={iconElement} project={project} />
+                              )}
+                              {/* Title */}
+                              <h3 className="text-lg font-bold text-gray-900">
+                                {step.title}
+                              </h3>
+                              {/* Remaining elements */}
+                              {otherElements.map((element) => (
+                                <CardElementView key={element.id} element={element} project={project} />
+                              ))}
+                            </div>
+                          )
+                        })()
                       ) : (
                         // Legacy: simple title + description
                         <>
