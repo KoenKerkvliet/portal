@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Client, Profile } from '../../types'
-import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, Globe, ChevronDown, ChevronUp, X } from 'lucide-react'
+import type { Client } from '../../types'
+import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X } from 'lucide-react'
 
 interface NewUser {
   id: string
