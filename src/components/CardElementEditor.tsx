@@ -71,14 +71,20 @@ function PortalDropdown({ anchorRef, open, onClose, children }: {
   onClose: () => void
   children: React.ReactNode
 }) {
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [pos, setPos] = useState({ top: 0, left: 0, openUp: false })
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const updatePos = useCallback(() => {
     if (anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      const estimatedHeight = 320 // approximate dropdown height
+      const openUp = spaceBelow < estimatedHeight && rect.top > spaceBelow
+
       setPos({
-        top: rect.bottom + 4,
+        top: openUp ? rect.top - 4 : rect.bottom + 4,
         left: rect.left + rect.width / 2,
+        openUp,
       })
     }
   }, [anchorRef])
@@ -92,7 +98,17 @@ function PortalDropdown({ anchorRef, open, onClose, children }: {
   return createPortal(
     <>
       <div className="fixed inset-0 z-[9998]" onClick={onClose} />
-      <div className="fixed z-[9999]" style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}>
+      <div
+        ref={dropdownRef}
+        className="fixed z-[9999] overflow-y-auto"
+        style={{
+          top: pos.openUp ? undefined : pos.top,
+          bottom: pos.openUp ? `${window.innerHeight - pos.top}px` : undefined,
+          left: pos.left,
+          transform: 'translateX(-50%)',
+          maxHeight: `${Math.min(400, pos.openUp ? pos.top - 8 : window.innerHeight - pos.top - 8)}px`,
+        }}
+      >
         {children}
       </div>
     </>,
