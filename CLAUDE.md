@@ -14,3 +14,7 @@ Dit omvat:
 - Supabase Auth configuratie en EmailIt v2 integratie
 
 Vraag altijd expliciet om toestemming voordat je iets aan deze bestanden of flow wijzigt.
+
+## Werkwijze
+
+- **Altijd pushen** na elke bewerking — niet wachten op bevestiging.
