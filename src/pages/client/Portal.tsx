@@ -21,7 +21,7 @@ function CardElementView({ element, project }: { element: CardElement; project: 
     case 'icon': {
       const IconComp = getIconComponent(element.data.name || 'star')
       return (
-        <div className="flex justify-center py-2">
+        <div className="flex justify-center">
           <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${element.data.color || '#9e86ff'}15` }}>
             <IconComp className="w-6 h-6" style={{ color: element.data.color || '#9e86ff' }} />
           </div>
