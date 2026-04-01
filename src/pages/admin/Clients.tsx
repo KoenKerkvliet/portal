@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Client } from '../../types'
-import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X } from 'lucide-react'
+import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban } from 'lucide-react'
 
 interface NewUser {
   id: string
@@ -10,57 +10,82 @@ interface NewUser {
   created_at: string
 }
 
+interface DomainOption {
+  id: string
+  name: string
+  url: string | null
+}
+
 export default function Clients() {
   const [clients, setClients] = useState<Client[]>([])
   const [newUsers, setNewUsers] = useState<NewUser[]>([])
+  const [domains, setDomains] = useState<DomainOption[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [linkingUser, setLinkingUser] = useState<NewUser | null>(null)
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '', domain: '' })
+  const [domainMode, setDomainMode] = useState<'existing' | 'new'>('existing')
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' })
+  const [selectedDomainId, setSelectedDomainId] = useState('')
+  const [newDomain, setNewDomain] = useState({ name: '', url: '' })
 
   const fetchData = async () => {
-    // Fetch clients with their profile info
-    const { data: clientData } = await supabase
-      .from('clients')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const [{ data: clientData }, { data: profileData }, { data: domainData }] = await Promise.all([
+      supabase.from('clients').select('*').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('id, email, full_name, created_at').eq('role', 'client'),
+      supabase.from('projects').select('id, name, url').order('name'),
+    ])
 
-    // Fetch profiles that are clients but not yet linked to a client record
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, created_at')
-      .eq('role', 'client')
-
-    const linkedProfileIds = (clientData || [])
-      .map(c => c.profile_id)
-      .filter(Boolean)
-
-    const unlinkedProfiles = (profileData || []).filter(
-      p => !linkedProfileIds.includes(p.id)
-    )
+    const linkedProfileIds = (clientData || []).map(c => c.profile_id).filter(Boolean)
+    const unlinkedProfiles = (profileData || []).filter(p => !linkedProfileIds.includes(p.id))
 
     setClients(clientData || [])
     setNewUsers(unlinkedProfiles)
+    setDomains(domainData || [])
     setLoading(false)
   }
 
   useEffect(() => { fetchData() }, [])
 
+  const resetForm = () => {
+    setShowForm(false)
+    setLinkingUser(null)
+    setDomainMode('existing')
+    setFormData({ name: '', email: '', phone: '', company: '' })
+    setSelectedDomainId('')
+    setNewDomain({ name: '', url: '' })
+  }
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { error } = await supabase.from('clients').insert({
+
+    // 1. Create client record
+    const { data: clientRecord, error: clientError } = await supabase.from('clients').insert({
       name: formData.name,
       email: formData.email,
       phone: formData.phone || null,
       company: formData.company || null,
       profile_id: linkingUser?.id || null,
-    })
-    if (!error) {
-      setShowForm(false)
-      setLinkingUser(null)
-      setFormData({ name: '', email: '', phone: '', company: '', domain: '' })
-      fetchData()
+    }).select().single()
+
+    if (clientError || !clientRecord) return
+
+    // 2. Link or create domain
+    if (domainMode === 'existing' && selectedDomainId) {
+      // Link existing domain to this client
+      await supabase.from('projects').update({ client_id: clientRecord.id }).eq('id', selectedDomainId)
+    } else if (domainMode === 'new' && newDomain.name) {
+      // Create new domain and link to this client
+      await supabase.from('projects').insert({
+        name: newDomain.name,
+        url: newDomain.url || null,
+        client_id: clientRecord.id,
+        current_phase: 'intake',
+        status: 'active',
+      })
     }
+
+    resetForm()
+    fetchData()
   }
 
   const handleLinkUser = (user: NewUser) => {
@@ -70,8 +95,10 @@ export default function Clients() {
       email: user.email,
       phone: '',
       company: '',
-      domain: '',
     })
+    setDomainMode('existing')
+    setSelectedDomainId('')
+    setNewDomain({ name: '', url: '' })
     setShowForm(true)
   }
 
@@ -108,7 +135,7 @@ export default function Clients() {
           <p className="text-gray-500 mt-1">Beheer je klanten</p>
         </div>
         <button
-          onClick={() => { setLinkingUser(null); setFormData({ name: '', email: '', phone: '', company: '', domain: '' }); setShowForm(!showForm) }}
+          onClick={() => { resetForm(); setShowForm(true) }}
           className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors text-sm"
         >
           <Plus className="w-4 h-4" />
@@ -163,7 +190,7 @@ export default function Clients() {
             <h3 className="font-semibold text-gray-900">
               {linkingUser ? `Koppel ${linkingUser.full_name} als klant` : 'Nieuwe klant aanmaken'}
             </h3>
-            <button onClick={() => { setShowForm(false); setLinkingUser(null) }} className="text-gray-400 hover:text-gray-600">
+            <button onClick={resetForm} className="text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -179,6 +206,7 @@ export default function Clients() {
             </div>
           )}
           <form onSubmit={handleCreate} className="space-y-4">
+            {/* Client info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Naam *</label>
@@ -220,11 +248,110 @@ export default function Clients() {
                 />
               </div>
             </div>
+
+            {/* Domain section */}
+            <div className="border-t border-gray-100 pt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                <FolderKanban className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+                Domein koppelen
+              </label>
+
+              {/* Toggle between existing and new */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setDomainMode('existing')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    domainMode === 'existing'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  Bestaand domein
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDomainMode('new')}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    domainMode === 'new'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" />
+                  Nieuw domein
+                </button>
+              </div>
+
+              {domainMode === 'existing' ? (
+                <div>
+                  {domains.length > 0 ? (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {domains.map((domain) => (
+                        <label
+                          key={domain.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                            selectedDomainId === domain.id
+                              ? 'border-primary bg-primary/5'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="domain"
+                            value={domain.id}
+                            checked={selectedDomainId === domain.id}
+                            onChange={(e) => setSelectedDomainId(e.target.value)}
+                            className="accent-primary"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900">{domain.name}</p>
+                            {domain.url && (
+                              <p className="text-xs text-gray-400 truncate">{domain.url.replace(/^https?:\/\//, '')}</p>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Geen domeinen beschikbaar. Maak een nieuw domein aan.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Domeinnaam *</label>
+                    <input
+                      type="text"
+                      value={newDomain.name}
+                      onChange={(e) => setNewDomain({ ...newDomain, name: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="bijv. Bakkerij De Gouden Aar"
+                      required={domainMode === 'new'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Website URL</label>
+                    <div className="relative">
+                      <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="url"
+                        value={newDomain.url}
+                        onChange={(e) => setNewDomain({ ...newDomain, url: e.target.value })}
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="https://voorbeeld.nl"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3 pt-2">
               <button type="submit" className="bg-primary hover:bg-primary-600 text-white px-5 py-2.5 rounded-lg font-medium transition-colors text-sm">
                 {linkingUser ? 'Koppelen & aanmaken' : 'Aanmaken'}
               </button>
-              <button type="button" onClick={() => { setShowForm(false); setLinkingUser(null) }} className="px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors text-sm">
+              <button type="button" onClick={resetForm} className="px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors text-sm">
                 Annuleren
               </button>
             </div>
