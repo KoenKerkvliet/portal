@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement } from '../../types'
 import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
-import { getIconComponent, dynamicFields } from '../../components/CardElementEditor'
+import { getIconComponent } from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
 
