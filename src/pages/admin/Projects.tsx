@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Project, ProjectPhase, PhaseTemplate, PhaseStep } from '../../types'
+import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement } from '../../types'
 import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock } from 'lucide-react'
+import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
 
@@ -124,6 +125,7 @@ export default function Projects() {
   const [activePhaseTab, setActivePhaseTab] = useState<Record<string, ProjectPhase>>({})
   const [editingInstance, setEditingInstance] = useState<{ content: string; steps: PhaseStep[] } | null>(null)
   const [savingInstance, setSavingInstance] = useState(false)
+  const [expandedStepId, setExpandedStepId] = useState<string | null>(null)
   const [reloadDropdownId, setReloadDropdownId] = useState<string | null>(null)
   const reloadDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -275,7 +277,7 @@ export default function Projects() {
     setSavingInstance(false)
   }
 
-  const updateInstanceStep = (index: number, field: keyof PhaseStep, value: string | boolean) => {
+  const updateInstanceStep = (index: number, field: string, value: string | boolean | CardElement[]) => {
     if (!editingInstance) return
     const newSteps = [...editingInstance.steps]
     newSteps[index] = { ...newSteps[index], [field]: value }
@@ -651,40 +653,60 @@ export default function Projects() {
                                 rows={3} placeholder="Tekst of instructies voor de klant..." />
                             </div>
 
-                            {/* Steps */}
+                            {/* Cards */}
                             <div>
                               <div className="flex items-center justify-between mb-2">
-                                <label className="text-xs font-medium text-gray-500">Stappen (cards voor klant)</label>
+                                <label className="text-xs font-medium text-gray-500">Cards (zichtbaar voor klant)</label>
                                 <button type="button" onClick={addInstanceStep}
                                   className="flex items-center gap-1 text-xs text-primary hover:text-primary-600 font-medium transition-colors">
                                   <Plus className="w-3 h-3" />
-                                  Stap toevoegen
+                                  Card toevoegen
                                 </button>
                               </div>
                               {editingInstance.steps.length === 0 ? (
                                 <div className="border border-dashed border-gray-200 rounded-lg p-4 text-center">
-                                  <p className="text-xs text-gray-400">Nog geen stappen.</p>
+                                  <p className="text-xs text-gray-400">Nog geen cards.</p>
                                 </div>
                               ) : (
-                                <div className="space-y-2">
-                                  {editingInstance.steps.map((step, index) => (
-                                    <div key={step.id} className="flex gap-2 items-start bg-gray-50 border border-gray-200 rounded-lg p-3">
-                                      <div className="flex-1 space-y-1.5">
-                                        <input type="text" value={step.title}
-                                          onChange={(e) => updateInstanceStep(index, 'title', e.target.value)}
-                                          className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-                                          placeholder="Stap titel" />
-                                        <input type="text" value={step.description}
-                                          onChange={(e) => updateInstanceStep(index, 'description', e.target.value)}
-                                          className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-                                          placeholder="Beschrijving of URL (zichtbaar voor klant)" />
+                                <div className="space-y-3">
+                                  {editingInstance.steps.map((step, index) => {
+                                    const isStepExpanded = expandedStepId === step.id
+                                    const elemCount = step.elements?.length || 0
+                                    return (
+                                      <div key={step.id} className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                                        {/* Card header */}
+                                        <div className="flex gap-2 items-start p-3">
+                                          <div className="flex-1">
+                                            <input type="text" value={step.title}
+                                              onChange={(e) => updateInstanceStep(index, 'title', e.target.value)}
+                                              className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                                              placeholder="Card titel" />
+                                          </div>
+                                          <button type="button" onClick={() => removeInstanceStep(index)}
+                                            className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors mt-1">
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                        {/* Elements toggle */}
+                                        <button type="button" onClick={() => setExpandedStepId(isStepExpanded ? null : step.id)}
+                                          className="w-full flex items-center justify-between px-3 py-2 border-t border-gray-200 hover:bg-gray-100 transition-colors">
+                                          <span className="text-xs font-medium text-gray-500">
+                                            {elemCount} {elemCount === 1 ? 'element' : 'elementen'}
+                                          </span>
+                                          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isStepExpanded ? 'rotate-180' : ''}`} />
+                                        </button>
+                                        {/* Elements editor */}
+                                        {isStepExpanded && (
+                                          <div className="px-3 pb-3 pt-2 border-t border-gray-200 bg-white">
+                                            <CardElementsEditor
+                                              elements={step.elements || []}
+                                              onChange={(elements) => updateInstanceStep(index, 'elements', elements)}
+                                            />
+                                          </div>
+                                        )}
                                       </div>
-                                      <button type="button" onClick={() => removeInstanceStep(index)}
-                                        className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors mt-1">
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               )}
                             </div>

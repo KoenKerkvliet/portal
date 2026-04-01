@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { PhaseTemplate, ProjectPhase, PhaseStep } from '../../types'
-import { Plus, Layers, Trash2, Pencil, X, GripVertical, Check, Circle } from 'lucide-react'
+import type { PhaseTemplate, ProjectPhase, PhaseStep, CardElement } from '../../types'
+import { Plus, Layers, Trash2, Pencil, X, GripVertical, Check, Circle, ChevronDown } from 'lucide-react'
+import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
 
@@ -83,17 +84,18 @@ export default function Templates() {
     setFormData(emptyForm)
   }
 
+  const [expandedStepId, setExpandedStepId] = useState<string | null>(null)
+
   const addStep = () => {
+    const newStep = { id: crypto.randomUUID(), title: '', description: '', completed: false, elements: [] as CardElement[] }
     setFormData({
       ...formData,
-      steps: [
-        ...formData.steps,
-        { id: crypto.randomUUID(), title: '', description: '', completed: false },
-      ],
+      steps: [...formData.steps, newStep],
     })
+    setExpandedStepId(newStep.id)
   }
 
-  const updateStep = (index: number, field: keyof PhaseStep, value: string | boolean) => {
+  const updateStep = (index: number, field: string, value: string | boolean | CardElement[]) => {
     const newSteps = [...formData.steps]
     newSteps[index] = { ...newSteps[index], [field]: value }
     setFormData({ ...formData, steps: newSteps })
@@ -254,35 +256,57 @@ export default function Templates() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {formData.steps.map((step, index) => (
-                      <div key={step.id} className="flex gap-3 items-start bg-gray-50 border border-gray-200 rounded-xl p-4">
-                        <GripVertical className="w-4 h-4 text-gray-300 mt-2.5 flex-shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <input
-                            type="text"
-                            value={step.title}
-                            onChange={(e) => updateStep(index, 'title', e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all text-sm"
-                            placeholder="Stap titel"
-                            required
-                          />
-                          <input
-                            type="text"
-                            value={step.description}
-                            onChange={(e) => updateStep(index, 'description', e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all text-sm"
-                            placeholder="Korte beschrijving (optioneel)"
-                          />
+                    {formData.steps.map((step, index) => {
+                      const isStepExpanded = expandedStepId === step.id
+                      const elemCount = step.elements?.length || 0
+                      return (
+                        <div key={step.id} className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+                          {/* Step header */}
+                          <div className="flex gap-3 items-start p-4">
+                            <GripVertical className="w-4 h-4 text-gray-300 mt-2.5 flex-shrink-0" />
+                            <div className="flex-1 space-y-2">
+                              <input
+                                type="text"
+                                value={step.title}
+                                onChange={(e) => updateStep(index, 'title', e.target.value)}
+                                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all text-sm"
+                                placeholder="Card titel"
+                                required
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeStep(index)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors mt-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Elements toggle */}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedStepId(isStepExpanded ? null : step.id)}
+                            className="w-full flex items-center justify-between px-4 py-2 border-t border-gray-200 hover:bg-gray-100 transition-colors"
+                          >
+                            <span className="text-xs font-medium text-gray-500">
+                              {elemCount} {elemCount === 1 ? 'element' : 'elementen'}
+                            </span>
+                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isStepExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {/* Elements editor */}
+                          {isStepExpanded && (
+                            <div className="px-4 pb-4 pt-2 border-t border-gray-200 bg-white">
+                              <CardElementsEditor
+                                elements={step.elements || []}
+                                onChange={(elements) => updateStep(index, 'elements', elements)}
+                              />
+                            </div>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeStep(index)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors mt-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>

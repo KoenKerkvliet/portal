@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Project, ProjectPhase, PhaseStep } from '../../types'
-import { Sparkles, ArrowRight, Calendar } from 'lucide-react'
+import type { Project, ProjectPhase, PhaseStep, CardElement } from '../../types'
+import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
+import { getIconComponent, dynamicFields } from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
 
@@ -12,6 +13,87 @@ const phaseLabels: Record<ProjectPhase, string> = {
   development: 'Development',
   oplevering: 'Oplevering',
   onderhoud: 'Onderhoud',
+}
+
+// Render a single card element for the client view
+function CardElementView({ element, project }: { element: CardElement; project: Project }) {
+  switch (element.type) {
+    case 'icon': {
+      const IconComp = getIconComponent(element.data.name || 'star')
+      return (
+        <div className="flex justify-center py-2">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${element.data.color || '#9e86ff'}15` }}>
+            <IconComp className="w-6 h-6" style={{ color: element.data.color || '#9e86ff' }} />
+          </div>
+        </div>
+      )
+    }
+    case 'text': {
+      return element.data.content ? (
+        <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-wrap">{element.data.content}</p>
+      ) : null
+    }
+    case 'dynamic': {
+      const field = element.data.field
+      const fieldInfo = dynamicFields.find(f => f.key === field)
+      let displayValue = ''
+
+      if (field === 'start_meeting_at' && project.start_meeting_at) {
+        const d = new Date(project.start_meeting_at)
+        displayValue = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) +
+          ' om ' + d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+      } else if (field === 'due_date' && project.due_date) {
+        displayValue = new Date(project.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+      } else if (field === 'project_name') {
+        displayValue = project.name
+      } else if (field === 'client_name') {
+        displayValue = (project.client as unknown as { name: string })?.name || ''
+      }
+
+      if (!displayValue) return null
+
+      const DynIcon = fieldInfo?.icon || Calendar
+      return (
+        <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+          <DynIcon className="w-5 h-5 text-primary flex-shrink-0" />
+          <div>
+            {element.data.label && (
+              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{element.data.label}</p>
+            )}
+            <p className="text-sm font-semibold text-gray-800">{displayValue}</p>
+          </div>
+        </div>
+      )
+    }
+    case 'link': {
+      if (!element.data.url) return null
+      return (
+        <a href={element.data.url} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary-600 font-medium transition-colors">
+          {element.data.label || element.data.url}
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      )
+    }
+    case 'button': {
+      if (!element.data.url) return null
+      const isPrimary = element.data.variant !== 'outline'
+      return (
+        <div className="flex justify-center pt-2">
+          <a href={element.data.url} target="_blank" rel="noopener noreferrer"
+            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              isPrimary
+                ? 'bg-primary hover:bg-primary-600 text-white'
+                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}>
+            {element.data.label || 'Bekijk'}
+          </a>
+        </div>
+      )
+    }
+    default:
+      return null
+  }
 }
 
 export default function ClientPortal() {
@@ -38,7 +120,7 @@ export default function ClientPortal() {
 
       const { data: projectData } = await supabase
         .from('projects')
-        .select('*')
+        .select('*, client:clients(id, name, email)')
         .eq('client_id', client.id)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
@@ -58,7 +140,6 @@ export default function ClientPortal() {
           .single()
 
         if (phaseInstance?.custom_data) {
-          // Use domain-specific data
           setPhaseContent(phaseInstance.custom_data.content || '')
           setPhaseSteps(phaseInstance.custom_data.steps || [])
         } else {
@@ -188,8 +269,7 @@ export default function ClientPortal() {
       </section>
 
       {/* ============================================ */}
-      {/* SECTION 2: Light background — Phase Steps/Cards */}
-      {/* Only for non-onderhoud phases */}
+      {/* SECTION 2: Light background — Phase Cards */}
       {/* ============================================ */}
       {!isOnderhoud && (
         <section className="bg-[#f8f7fc] min-h-[400px]">
@@ -202,33 +282,52 @@ export default function ClientPortal() {
             {/* Step cards */}
             {steps.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-                {steps.map((step) => (
-                  <div
-                    key={step.id}
-                    className="relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 text-center hover:shadow-md transition-shadow"
-                  >
-                    {/* Completed badge */}
-                    {step.completed && (
-                      <div className="absolute -top-2.5 -left-2.5 w-7 h-7 bg-accent rounded-full flex items-center justify-center shadow-sm">
-                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    )}
+                {steps.map((step) => {
+                  const hasElements = step.elements && step.elements.length > 0
 
-                    {/* Step title */}
-                    <h3 className="text-lg font-bold text-gray-900 mt-2 mb-2">
-                      {step.title}
-                    </h3>
+                  return (
+                    <div
+                      key={step.id}
+                      className="relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                    >
+                      {/* Completed badge */}
+                      {step.completed && (
+                        <div className="absolute -top-2.5 -left-2.5 w-7 h-7 bg-accent rounded-full flex items-center justify-center shadow-sm">
+                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
 
-                    {/* Step description */}
-                    {step.description && (
-                      <p className="text-sm text-gray-500 leading-relaxed mb-6">
-                        {step.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                      {/* Card content */}
+                      {hasElements ? (
+                        // Render block-based elements
+                        <div className="space-y-3">
+                          {/* Title */}
+                          <h3 className="text-lg font-bold text-gray-900 text-center">
+                            {step.title}
+                          </h3>
+                          {/* Elements */}
+                          {step.elements!.map((element) => (
+                            <CardElementView key={element.id} element={element} project={project} />
+                          ))}
+                        </div>
+                      ) : (
+                        // Legacy: simple title + description
+                        <>
+                          <h3 className="text-lg font-bold text-gray-900 mt-2 mb-2 text-center">
+                            {step.title}
+                          </h3>
+                          {step.description && (
+                            <p className="text-sm text-gray-500 leading-relaxed text-center">
+                              {step.description}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             ) : (
               <div className="text-center py-12">

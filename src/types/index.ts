@@ -52,11 +52,20 @@ export interface PhaseTemplate {
   created_at: string
 }
 
+export type CardElementType = 'text' | 'icon' | 'dynamic' | 'link' | 'button' | 'form'
+
+export interface CardElement {
+  id: string
+  type: CardElementType
+  data: Record<string, string>
+}
+
 export interface PhaseStep {
   id: string
   title: string
   description: string
   completed: boolean
+  elements?: CardElement[]
 }
 
 export interface ProjectPhaseRecord {
