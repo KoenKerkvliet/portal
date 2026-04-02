@@ -157,6 +157,7 @@ create table public.invoice_settings (
   iban text not null default '',
   btw_number text not null default '',
   kvk_number text not null default '',
+  kor_enabled boolean not null default false,
   invoice_prefix text not null default 'INV',
   year_format text not null default 'YY' check (year_format in ('YY', 'YYYY')),
   start_number integer not null default 1,

@@ -146,6 +146,7 @@ export interface InvoiceSettings {
   iban: string
   btw_number: string
   kvk_number: string
+  kor_enabled: boolean
   invoice_prefix: string
   year_format: YearFormat
   start_number: number

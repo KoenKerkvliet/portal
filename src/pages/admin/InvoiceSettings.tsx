@@ -30,6 +30,7 @@ const defaultSettings: Omit<InvoiceSettings, 'id' | 'created_at' | 'updated_at'>
   iban: '',
   btw_number: '',
   kvk_number: '',
+  kor_enabled: false,
   invoice_prefix: 'INV',
   year_format: 'YY',
   start_number: 1,
@@ -62,6 +63,7 @@ export default function InvoiceSettingsPage() {
           iban: data.iban || '',
           btw_number: data.btw_number || '',
           kvk_number: data.kvk_number || '',
+          kor_enabled: data.kor_enabled ?? false,
           invoice_prefix: data.invoice_prefix || 'INV',
           year_format: data.year_format || 'YY',
           start_number: data.start_number ?? 1,
@@ -94,7 +96,7 @@ export default function InvoiceSettingsPage() {
     setTimeout(() => setSaved(false), 3000)
   }
 
-  const update = (field: string, value: string | number) => {
+  const update = (field: string, value: string | number | boolean) => {
     setSettings(prev => ({ ...prev, [field]: value }))
     setSaved(false)
   }
@@ -207,17 +209,39 @@ export default function InvoiceSettingsPage() {
                 placeholder="NL00 BANK 0000 0000 00"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            {/* KOR toggle */}
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-xl p-4">
+              <input
+                type="checkbox"
+                id="kor_enabled"
+                checked={settings.kor_enabled}
+                onChange={(e) => update('kor_enabled', e.target.checked)}
+                className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30 mt-0.5"
+              />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">BTW-nummer</label>
-                <input
-                  type="text"
-                  value={settings.btw_number}
-                  onChange={(e) => update('btw_number', e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all font-mono"
-                  placeholder="NL000000000B00"
-                />
+                <label htmlFor="kor_enabled" className="text-sm font-medium text-gray-800 cursor-pointer">
+                  Kleineondernemersregeling (KOR)
+                </label>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Als je de KOR gebruikt, wordt er geen BTW berekend of getoond op facturen en offertes.
+                </p>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {!settings.kor_enabled && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">BTW-nummer</label>
+                  <input
+                    type="text"
+                    value={settings.btw_number}
+                    onChange={(e) => update('btw_number', e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all font-mono"
+                    placeholder="NL000000000B00"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">KVK-nummer</label>
                 <input
