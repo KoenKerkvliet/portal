@@ -52,7 +52,7 @@ export interface PhaseTemplate {
   created_at: string
 }
 
-export type CardElementType = 'text' | 'icon' | 'dynamic' | 'link' | 'button' | 'form'
+export type CardElementType = 'text' | 'icon' | 'dynamic' | 'link' | 'button'
 
 export interface CardElement {
   id: string

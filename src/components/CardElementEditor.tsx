@@ -49,7 +49,14 @@ const elementTypes: { type: CardElementType; label: string; icon: typeof Type; d
   { type: 'dynamic', label: 'Dynamische data', icon: Zap, description: 'Toon projectdata' },
   { type: 'link', label: 'Link', icon: Link2, description: 'Klikbare link' },
   { type: 'button', label: 'Knop', icon: MousePointer, description: 'Call-to-action knop' },
-  { type: 'form', label: 'Formulier', icon: FileText, description: 'Koppel een formulier' },
+]
+
+// Button action types — extensible for future actions (offerte, factuur, etc.)
+export const buttonActionTypes = [
+  { value: 'url', label: 'Link naar URL', icon: Link2 },
+  { value: 'form', label: 'Open formulier', icon: FileText },
+  // Future: { value: 'quote', label: 'Bekijk offerte', icon: FileText },
+  // Future: { value: 'invoice', label: 'Bekijk factuur', icon: FileText },
 ]
 
 function createDefaultElement(type: CardElementType): CardElement {
@@ -59,8 +66,7 @@ function createDefaultElement(type: CardElementType): CardElement {
     case 'text': return { ...base, data: { content: '' } }
     case 'dynamic': return { ...base, data: { field: 'start_meeting_at' } }
     case 'link': return { ...base, data: { url: '', label: '' } }
-    case 'button': return { ...base, data: { url: '', label: '', variant: 'primary' } }
-    case 'form': return { ...base, data: { formId: '' } }
+    case 'button': return { ...base, data: { action: 'url', url: '', label: '', variant: 'primary' } }
   }
 }
 
@@ -222,9 +228,6 @@ function ElementEditor({
         {element.type === 'button' && (
           <ButtonEditor data={element.data} onChange={onChange} />
         )}
-        {element.type === 'form' && (
-          <FormEditor data={element.data} onChange={onChange} />
-        )}
       </div>
     </div>
   )
@@ -318,22 +321,86 @@ function LinkEditor({ data, onChange }: { data: Record<string, string>; onChange
 }
 
 function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void }) {
+  const [forms, setForms] = useState<Form[]>([])
+  const [loadingForms, setLoadingForms] = useState(false)
+  const action = data.action || 'url'
+
+  // Load forms when action is 'form'
+  useEffect(() => {
+    if (action === 'form' && forms.length === 0) {
+      setLoadingForms(true)
+      supabase.from('forms').select('*').order('title').then(({ data: formsData }) => {
+        setForms(formsData || [])
+        setLoadingForms(false)
+      })
+    }
+  }, [action, forms.length])
+
   return (
     <div className="space-y-2">
+      {/* Action type selector */}
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1">Actie</label>
+        <div className="flex gap-1.5">
+          {buttonActionTypes.map((at) => (
+            <button type="button" key={at.value}
+              onClick={() => onChange({ ...data, action: at.value })}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                action === at.value
+                  ? 'bg-primary/10 border-primary/30 text-primary'
+                  : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}>
+              <at.icon className="w-3 h-3" />
+              {at.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Button label */}
       <div>
         <label className="block text-[11px] text-gray-400 mb-1">Knoptekst</label>
         <input type="text" value={data.label || ''}
           onChange={(e) => onChange({ ...data, label: e.target.value })}
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-          placeholder="Bekijk meer" />
+          placeholder={action === 'form' ? 'Formulier invullen' : 'Bekijk meer'} />
       </div>
-      <div>
-        <label className="block text-[11px] text-gray-400 mb-1">URL</label>
-        <input type="url" value={data.url || ''}
-          onChange={(e) => onChange({ ...data, url: e.target.value })}
-          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-          placeholder="https://..." />
-      </div>
+
+      {/* Action-specific fields */}
+      {action === 'url' && (
+        <div>
+          <label className="block text-[11px] text-gray-400 mb-1">URL</label>
+          <input type="url" value={data.url || ''}
+            onChange={(e) => onChange({ ...data, url: e.target.value })}
+            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+            placeholder="https://..." />
+        </div>
+      )}
+
+      {action === 'form' && (
+        <div>
+          <label className="block text-[11px] text-gray-400 mb-1">Formulier</label>
+          {loadingForms ? (
+            <p className="text-xs text-gray-400">Laden...</p>
+          ) : forms.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">Geen formulieren beschikbaar. Maak er eerst een aan via Content &gt; Formulieren.</p>
+          ) : (
+            <select value={data.formId || ''}
+              onChange={(e) => {
+                const selected = forms.find(f => f.id === e.target.value)
+                onChange({ ...data, formId: e.target.value, formTitle: selected?.title || '' })
+              }}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+              <option value="">Kies een formulier...</option>
+              {forms.map((f) => (
+                <option key={f.id} value={f.id}>{f.title} ({f.steps?.length || 0} stappen)</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      {/* Style picker */}
       <div>
         <label className="block text-[11px] text-gray-400 mb-1">Stijl</label>
         <div className="flex gap-2">
@@ -348,43 +415,6 @@ function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChan
           ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-function FormEditor({ data, onChange }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void }) {
-  const [forms, setForms] = useState<Form[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchForms = async () => {
-      const { data: formsData } = await supabase.from('forms').select('*').order('title')
-      setForms(formsData || [])
-      setLoading(false)
-    }
-    fetchForms()
-  }, [])
-
-  if (loading) return <p className="text-xs text-gray-400">Laden...</p>
-
-  return (
-    <div>
-      <label className="block text-[11px] text-gray-400 mb-1">Formulier</label>
-      {forms.length === 0 ? (
-        <p className="text-xs text-gray-400 italic">Geen formulieren beschikbaar. Maak er eerst een aan via Content &gt; Formulieren.</p>
-      ) : (
-        <select value={data.formId || ''}
-          onChange={(e) => {
-            const selected = forms.find(f => f.id === e.target.value)
-            onChange({ ...data, formId: e.target.value, formTitle: selected?.title || '' })
-          }}
-          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
-          <option value="">Kies een formulier...</option>
-          {forms.map((f) => (
-            <option key={f.id} value={f.id}>{f.title} ({f.steps?.length || 0} stappen)</option>
-          ))}
-        </select>
-      )}
     </div>
   )
 }

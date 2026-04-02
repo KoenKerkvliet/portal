@@ -327,6 +327,48 @@ function FormView({ formId, projectId }: { formId: string; projectId: string }) 
   )
 }
 
+// Button that opens a form modal
+function ButtonFormTrigger({ element, project, className }: { element: CardElement; project: Project; className: string }) {
+  const [showModal, setShowModal] = useState(false)
+  return (
+    <>
+      <div className="flex justify-center pt-2">
+        <button type="button" onClick={() => setShowModal(true)} className={className}>
+          {element.data.label || 'Formulier invullen'}
+        </button>
+      </div>
+      {showModal && (
+        <FormModal
+          formId={element.data.formId}
+          projectId={project.id}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+    </>
+  )
+}
+
+// Modal overlay for forms (and later: quotes, invoices)
+function FormModal({ formId, projectId, onClose }: { formId: string; projectId: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      {/* Modal content */}
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-3 right-3 z-10 w-8 h-8 bg-white/90 hover:bg-white rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 shadow-sm transition-colors"
+        >
+          ✕
+        </button>
+        <FormView formId={formId} projectId={projectId} />
+      </div>
+    </div>
+  )
+}
+
 // Render a single card element for the client view
 function CardElementView({ element, project }: { element: CardElement; project: Project }) {
   switch (element.type) {
@@ -385,24 +427,27 @@ function CardElementView({ element, project }: { element: CardElement; project: 
       )
     }
     case 'button': {
-      if (!element.data.url) return null
+      const action = element.data.action || 'url'
       const isPrimary = element.data.variant !== 'outline'
+      const btnClasses = `inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+        isPrimary
+          ? 'bg-primary hover:bg-primary-600 text-white'
+          : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+      }`
+
+      if (action === 'form' && element.data.formId) {
+        return <ButtonFormTrigger element={element} project={project} className={btnClasses} />
+      }
+
+      // Default: URL action
+      if (!element.data.url) return null
       return (
         <div className="flex justify-center pt-2">
-          <a href={element.data.url} target="_blank" rel="noopener noreferrer"
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-              isPrimary
-                ? 'bg-primary hover:bg-primary-600 text-white'
-                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-            }`}>
+          <a href={element.data.url} target="_blank" rel="noopener noreferrer" className={btnClasses}>
             {element.data.label || 'Bekijk'}
           </a>
         </div>
       )
-    }
-    case 'form': {
-      if (!element.data.formId) return null
-      return <FormView formId={element.data.formId} projectId={project.id} />
     }
     default:
       return null
