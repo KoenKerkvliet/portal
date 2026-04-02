@@ -26,7 +26,7 @@ export default function Products() {
     const { data } = await supabase
       .from('products')
       .select('*')
-      .order('code')
+      .order('name')
     setProducts(data || [])
     setLoading(false)
   }
