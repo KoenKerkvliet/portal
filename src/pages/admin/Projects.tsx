@@ -174,13 +174,20 @@ export default function Projects() {
     const existing = projectClients[projectId] || []
     if (existing.some(pc => pc.client_id === clientId)) return
     const isFirst = existing.length === 0
-    await supabase.from('project_clients').insert({
+    const { error } = await supabase.from('project_clients').insert({
       project_id: projectId,
       client_id: clientId,
       notify_invoices: isFirst,
       notify_quotes: isFirst,
       notify_portal: true,
     })
+    if (error) {
+      console.error('Error adding client to project:', error)
+      // Fallback: update the project's client_id directly
+      await supabase.from('projects').update({ client_id: clientId }).eq('id', projectId)
+      fetchProjects()
+      return
+    }
     // Also set as primary client_id if first
     if (isFirst) {
       await supabase.from('projects').update({ client_id: clientId }).eq('id', projectId)
@@ -558,6 +565,22 @@ export default function Projects() {
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>
                       {/* Linked clients */}
                       <div className="space-y-1">
+                        {/* Fallback: show client from old client_id if no project_clients entries */}
+                        {(projectClients[project.id] || []).length === 0 && project.client_id && (() => {
+                          const clientName = (project.client as unknown as { name: string })?.name || 'Onbekend'
+                          return (
+                            <div className="bg-amber-50 rounded-lg border border-amber-100 px-3 py-2 flex items-center gap-2">
+                              <Users className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                              <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
+                              <button
+                                onClick={() => addClientToProject(project.id, project.client_id!)}
+                                className="text-xs text-primary hover:text-primary-600 font-medium whitespace-nowrap"
+                              >
+                                Activeer
+                              </button>
+                            </div>
+                          )
+                        })()}
                         {(projectClients[project.id] || []).map((pc) => {
                           const clientName = (pc.client as unknown as { name: string })?.name || 'Onbekend'
                           const clientEmail = (pc.client as unknown as { email: string })?.email || ''
