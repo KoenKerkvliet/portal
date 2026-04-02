@@ -309,7 +309,7 @@ export default function ClientPortal() {
                   return (
                     <div
                       key={step.id}
-                      className="relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                      className="relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col"
                     >
                       {/* Completed badge */}
                       {step.completed && (
@@ -324,23 +324,30 @@ export default function ClientPortal() {
                       {hasElements ? (
                         // Render block-based elements
                         (() => {
-                          // Extract icon element (always rendered above title)
                           const iconElement = step.elements!.find(el => el.type === 'icon')
                           const otherElements = step.elements!.filter(el => el.type !== 'icon')
+                          const contentElements = otherElements.filter(el => el.type !== 'button')
+                          const buttonElements = otherElements.filter(el => el.type === 'button')
                           return (
-                            <div className="space-y-3 text-center">
-                              {/* Icon always on top */}
-                              {iconElement && (
-                                <CardElementView key={iconElement.id} element={iconElement} project={project} />
+                            <div className="flex flex-col flex-1 text-center">
+                              <div className="space-y-3">
+                                {iconElement && (
+                                  <CardElementView key={iconElement.id} element={iconElement} project={project} />
+                                )}
+                                <h3 className="text-lg font-bold text-gray-900">
+                                  {step.title}
+                                </h3>
+                                {contentElements.map((element) => (
+                                  <CardElementView key={element.id} element={element} project={project} />
+                                ))}
+                              </div>
+                              {buttonElements.length > 0 && (
+                                <div className="mt-auto pt-4 space-y-2">
+                                  {buttonElements.map((element) => (
+                                    <CardElementView key={element.id} element={element} project={project} />
+                                  ))}
+                                </div>
                               )}
-                              {/* Title */}
-                              <h3 className="text-lg font-bold text-gray-900">
-                                {step.title}
-                              </h3>
-                              {/* Remaining elements */}
-                              {otherElements.map((element) => (
-                                <CardElementView key={element.id} element={element} project={project} />
-                              ))}
                             </div>
                           )
                         })()
