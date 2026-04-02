@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Product, QuoteItem, YearFormat, InvoiceSettings } from '../../types'
@@ -91,6 +92,8 @@ export default function QuoteBuilder() {
   const [saved, setSaved] = useState(false)
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [productSearch, setProductSearch] = useState('')
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 })
+  const productBtnRef = useRef<HTMLButtonElement>(null)
   const productPickerRef = useRef<HTMLDivElement>(null)
 
   // Load data
@@ -177,13 +180,27 @@ export default function QuoteBuilder() {
   // Close product picker on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (productPickerRef.current && !productPickerRef.current.contains(e.target as Node)) {
+      if (
+        productPickerRef.current && !productPickerRef.current.contains(e.target as Node) &&
+        productBtnRef.current && !productBtnRef.current.contains(e.target as Node)
+      ) {
         setShowProductPicker(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  const toggleProductPicker = useCallback(() => {
+    if (!showProductPicker && productBtnRef.current) {
+      const rect = productBtnRef.current.getBoundingClientRect()
+      setPickerPos({
+        top: rect.bottom + 4,
+        left: Math.max(8, rect.right - 320),
+      })
+    }
+    setShowProductPicker((v) => !v)
+  }, [showProductPicker])
 
   // When project changes, find the client with notify_quotes
   const handleProjectChange = (pid: string) => {
@@ -410,7 +427,7 @@ export default function QuoteBuilder() {
       </section>
 
       {/* Elementen */}
-      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900">Elementen</h2>
           <div className="flex items-center gap-2">
@@ -422,58 +439,63 @@ export default function QuoteBuilder() {
               Titel
             </button>
 
-            {/* Product picker */}
-            <div className="relative" ref={productPickerRef}>
-              <button
-                onClick={() => setShowProductPicker(!showProductPicker)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-              >
-                <Package className="w-3.5 h-3.5" />
-                Dienst
-              </button>
+            {/* Product picker trigger */}
+            <button
+              ref={productBtnRef}
+              onClick={toggleProductPicker}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <Package className="w-3.5 h-3.5" />
+              Dienst
+            </button>
 
-              {showProductPicker && (
-                <div className="absolute right-0 top-full mt-1 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
-                  <div className="p-3 border-b border-gray-100">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                        placeholder="Zoek product..."
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {filteredProducts.length === 0 ? (
-                      <div className="p-4 text-center text-sm text-gray-400">Geen producten gevonden</div>
-                    ) : (
-                      filteredProducts.map((product) => (
-                        <button
-                          key={product.id}
-                          onClick={() => addProduct(product)}
-                          className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
-                        >
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{product.name}</p>
-                            <p className="text-xs text-gray-400">
-                              {product.code} &middot; {product.quantity_value} {product.quantity_unit}
-                              {product.is_recurring && ' \u00b7 Jaarlijks'}
-                            </p>
-                          </div>
-                          <span className="text-sm font-semibold text-gray-700">
-                            &euro;{product.price.toFixed(2)}
-                          </span>
-                        </button>
-                      ))
-                    )}
+            {/* Product picker portal */}
+            {showProductPicker && createPortal(
+              <div
+                ref={productPickerRef}
+                className="fixed w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-[9999]"
+                style={{ top: pickerPos.top, left: pickerPos.left }}
+              >
+                <div className="p-3 border-b border-gray-100">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      placeholder="Zoek product..."
+                      autoFocus
+                    />
                   </div>
                 </div>
-              )}
-            </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {filteredProducts.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-400">Geen producten gevonden</div>
+                  ) : (
+                    filteredProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        onClick={() => addProduct(product)}
+                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{product.name}</p>
+                          <p className="text-xs text-gray-400">
+                            {product.code} &middot; {product.quantity_value} {product.quantity_unit}
+                            {product.is_recurring && ' \u00b7 Jaarlijks'}
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">
+                          &euro;{product.price.toFixed(2)}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>,
+              document.body
+            )}
 
             <button
               onClick={addDivider}
