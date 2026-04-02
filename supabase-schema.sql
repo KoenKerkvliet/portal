@@ -93,6 +93,20 @@ create table public.project_phases (
 );
 
 -- ============================================
+-- PROJECT CLIENTS (many-to-many with notification prefs)
+-- ============================================
+create table public.project_clients (
+  id uuid default uuid_generate_v4() primary key,
+  project_id uuid references public.projects(id) on delete cascade not null,
+  client_id uuid references public.clients(id) on delete cascade not null,
+  notify_invoices boolean not null default true,
+  notify_quotes boolean not null default true,
+  notify_portal boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique(project_id, client_id)
+);
+
+-- ============================================
 -- INVOICES
 -- ============================================
 create table public.invoices (
@@ -175,6 +189,7 @@ alter table public.clients enable row level security;
 alter table public.projects enable row level security;
 alter table public.phase_templates enable row level security;
 alter table public.project_phases enable row level security;
+alter table public.project_clients enable row level security;
 alter table public.invoices enable row level security;
 alter table public.quotes enable row level security;
 alter table public.forms enable row level security;
@@ -217,6 +232,12 @@ create policy "Clients can view own project phases" on public.project_phases for
     join public.clients c on c.id = p.client_id
     where c.profile_id = auth.uid()
   )
+);
+
+-- PROJECT CLIENTS policies
+create policy "Admins full access to project_clients" on public.project_clients for all using (public.is_admin());
+create policy "Clients can view own project_clients" on public.project_clients for select using (
+  client_id in (select id from public.clients where profile_id = auth.uid())
 );
 
 -- INVOICES policies

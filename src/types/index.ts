@@ -80,6 +80,17 @@ export interface ProjectPhaseRecord {
   template?: PhaseTemplate
 }
 
+export interface ProjectClient {
+  id: string
+  project_id: string
+  client_id: string
+  notify_invoices: boolean
+  notify_quotes: boolean
+  notify_portal: boolean
+  created_at: string
+  client?: Client
+}
+
 export interface Invoice {
   id: string
   project_id: string

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock } from 'lucide-react'
+import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient } from '../../types'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -115,6 +115,8 @@ export default function Projects() {
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [phaseDropdownId, setPhaseDropdownId] = useState<string | null>(null)
   const [clientDropdownId, setClientDropdownId] = useState<string | null>(null)
+  const [projectClients, setProjectClients] = useState<Record<string, ProjectClient[]>>({})
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null)
   const phaseDropdownRef = useRef<HTMLDivElement>(null)
   const clientDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -152,11 +154,49 @@ export default function Projects() {
     updateProject(project.id, { current_phase: newPhase })
   }
 
-  const handleClientChange = async (project: Project, clientId: string) => {
-    setClientDropdownId(null)
-    const newClientId = clientId || null
-    if (newClientId === project.client_id) return
-    updateProject(project.id, { client_id: newClientId } as Partial<Project>)
+  const fetchProjectClients = async (projectIds?: string[]) => {
+    let query = supabase.from('project_clients').select('*, client:clients(id, name, email)')
+    if (projectIds && projectIds.length > 0) {
+      query = query.in('project_id', projectIds)
+    }
+    const { data } = await query.order('created_at')
+    if (data) {
+      const grouped: Record<string, ProjectClient[]> = {}
+      for (const pc of data) {
+        if (!grouped[pc.project_id]) grouped[pc.project_id] = []
+        grouped[pc.project_id].push(pc)
+      }
+      setProjectClients(prev => ({ ...prev, ...grouped }))
+    }
+  }
+
+  const addClientToProject = async (projectId: string, clientId: string) => {
+    const existing = projectClients[projectId] || []
+    if (existing.some(pc => pc.client_id === clientId)) return
+    const isFirst = existing.length === 0
+    await supabase.from('project_clients').insert({
+      project_id: projectId,
+      client_id: clientId,
+      notify_invoices: isFirst,
+      notify_quotes: isFirst,
+      notify_portal: true,
+    })
+    // Also set as primary client_id if first
+    if (isFirst) {
+      await supabase.from('projects').update({ client_id: clientId }).eq('id', projectId)
+    }
+    fetchProjectClients([projectId])
+    fetchProjects()
+  }
+
+  const removeClientFromProject = async (projectClientId: string, projectId: string) => {
+    await supabase.from('project_clients').delete().eq('id', projectClientId)
+    fetchProjectClients([projectId])
+  }
+
+  const toggleProjectClientPref = async (pcId: string, field: 'notify_invoices' | 'notify_quotes' | 'notify_portal', value: boolean, projectId: string) => {
+    await supabase.from('project_clients').update({ [field]: value }).eq('id', pcId)
+    fetchProjectClients([projectId])
   }
 
   const fetchProjects = async () => {
@@ -165,6 +205,9 @@ export default function Projects() {
       .select('*, client:clients(id, name, email)')
       .order('created_at', { ascending: false })
     setProjects(data || [])
+    if (data && data.length > 0) {
+      fetchProjectClients(data.map(p => p.id))
+    }
     setLoading(false)
   }
 
@@ -216,9 +259,6 @@ export default function Projects() {
     fetchProjects()
   }
 
-  const getClientName = (project: Project) => {
-    return (project.client as unknown as { name: string })?.name || null
-  }
 
   // Template instance functions
   const getInstanceKey = (projectId: string, phase: string) => `${projectId}_${phase}`
@@ -476,31 +516,84 @@ export default function Projects() {
                       <InlineEdit value={project.url || ''} onSave={(url) => updateProject(project.id, { url: url || null })} type="url"
                         placeholder={project.url ? 'Wijzig URL' : 'URL toevoegen'} icon={Globe} displayValue={project.url ? '' : 'URL toevoegen'} />
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klant</p>
+                    <div className="space-y-1.5 col-span-2">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>
+                      {/* Linked clients */}
+                      <div className="space-y-1">
+                        {(projectClients[project.id] || []).map((pc) => {
+                          const clientName = (pc.client as unknown as { name: string })?.name || 'Onbekend'
+                          const clientEmail = (pc.client as unknown as { email: string })?.email || ''
+                          const isExpanded = expandedClientId === pc.id
+                          return (
+                            <div key={pc.id} className="bg-gray-50 rounded-lg border border-gray-100">
+                              <button
+                                onClick={() => setExpandedClientId(isExpanded ? null : pc.id)}
+                                className="flex items-center gap-2 w-full px-3 py-2 text-left"
+                              >
+                                <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
+                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                              {isExpanded && (
+                                <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                                  <p className="text-xs text-gray-400 mb-2">{clientEmail}</p>
+                                  <div className="space-y-1.5">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                      <input type="checkbox" checked={pc.notify_invoices}
+                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_invoices', e.target.checked, project.id)}
+                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                      <FileText className="w-3.5 h-3.5 text-gray-400" />
+                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Factuur e-mails</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                      <input type="checkbox" checked={pc.notify_quotes}
+                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_quotes', e.target.checked, project.id)}
+                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                      <FileCheck className="w-3.5 h-3.5 text-gray-400" />
+                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Offerte e-mails</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                      <input type="checkbox" checked={pc.notify_portal}
+                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_portal', e.target.checked, project.id)}
+                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                      <Bell className="w-3.5 h-3.5 text-gray-400" />
+                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Portaal meldingen</span>
+                                    </label>
+                                  </div>
+                                  <button
+                                    onClick={() => { if (confirm(`${clientName} verwijderen van dit domein?`)) removeClientFromProject(pc.id, project.id) }}
+                                    className="flex items-center gap-1 mt-2 text-xs text-red-400 hover:text-red-600 transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    Ontkoppelen
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {/* Add client dropdown */}
                       <div className="relative" ref={clientDropdownId === project.id ? clientDropdownRef : undefined}>
                         <button onClick={() => setClientDropdownId(clientDropdownId === project.id ? null : project.id)}
-                          className="flex items-center gap-1.5 text-sm group transition-colors text-left hover:text-gray-700">
-                          <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                          <span className={project.client_id ? 'text-gray-700 font-medium' : 'text-amber-500 font-medium'}>
-                            {getClientName(project) || 'Klant koppelen'}
-                          </span>
-                          <ChevronDown className="w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors" />
+                          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-primary transition-colors mt-1">
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>Klant toevoegen</span>
                         </button>
                         {clientDropdownId === project.id && (
                           <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[200px]">
-                            <button onClick={() => handleClientChange(project, '')}
-                              className={`flex items-center gap-2.5 w-full px-3.5 py-2 text-sm transition-colors ${!project.client_id ? 'bg-gray-50 font-medium text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
-                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${!project.client_id ? 'bg-primary' : 'bg-gray-300'}`} />
-                              Geen klant
-                            </button>
-                            {clients.map((c) => (
-                              <button key={c.id} onClick={() => handleClientChange(project, c.id)}
-                                className={`flex items-center gap-2.5 w-full px-3.5 py-2 text-sm transition-colors ${project.client_id === c.id ? 'bg-gray-50 font-medium text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
-                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${project.client_id === c.id ? 'bg-primary' : 'bg-gray-300'}`} />
-                                {c.name}
-                              </button>
-                            ))}
+                            {clients
+                              .filter(c => !(projectClients[project.id] || []).some(pc => pc.client_id === c.id))
+                              .map((c) => (
+                                <button key={c.id} onClick={() => { addClientToProject(project.id, c.id); setClientDropdownId(null) }}
+                                  className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                                  <UserPlus className="w-3.5 h-3.5 text-gray-400" />
+                                  {c.name}
+                                </button>
+                              ))}
+                            {clients.filter(c => !(projectClients[project.id] || []).some(pc => pc.client_id === c.id)).length === 0 && (
+                              <p className="px-3.5 py-2 text-xs text-gray-400 italic">Alle klanten al gekoppeld</p>
+                            )}
                           </div>
                         )}
                       </div>
