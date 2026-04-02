@@ -199,6 +199,26 @@ export default function Projects() {
     fetchProjectClients([projectId])
   }
 
+  const migrateExistingClients = async (projectList: Project[], existingPCs: Record<string, ProjectClient[]>) => {
+    // Auto-migrate: if a project has client_id but no project_clients entry, create one
+    const toInsert: { project_id: string; client_id: string; notify_invoices: boolean; notify_quotes: boolean; notify_portal: boolean }[] = []
+    for (const project of projectList) {
+      if (project.client_id && (!existingPCs[project.id] || existingPCs[project.id].length === 0)) {
+        toInsert.push({
+          project_id: project.id,
+          client_id: project.client_id,
+          notify_invoices: true,
+          notify_quotes: true,
+          notify_portal: true,
+        })
+      }
+    }
+    if (toInsert.length > 0) {
+      await supabase.from('project_clients').insert(toInsert)
+      await fetchProjectClients(toInsert.map(i => i.project_id))
+    }
+  }
+
   const fetchProjects = async () => {
     const { data } = await supabase
       .from('projects')
@@ -206,7 +226,25 @@ export default function Projects() {
       .order('created_at', { ascending: false })
     setProjects(data || [])
     if (data && data.length > 0) {
-      fetchProjectClients(data.map(p => p.id))
+      const ids = data.map(p => p.id)
+      // Fetch project_clients first, then migrate if needed
+      const { data: pcData } = await supabase
+        .from('project_clients')
+        .select('*, client:clients(id, name, email)')
+        .in('project_id', ids)
+        .order('created_at')
+
+      const grouped: Record<string, ProjectClient[]> = {}
+      if (pcData) {
+        for (const pc of pcData) {
+          if (!grouped[pc.project_id]) grouped[pc.project_id] = []
+          grouped[pc.project_id].push(pc)
+        }
+      }
+      setProjectClients(grouped)
+
+      // Auto-migrate old client_id entries
+      await migrateExistingClients(data, grouped)
     }
     setLoading(false)
   }
