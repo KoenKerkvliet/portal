@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState, useRef, useEffect } from 'react'
-import { User, Settings, LogOut, ChevronDown } from 'lucide-react'
+import { User, Settings, LogOut, ChevronDown, FolderOpen } from 'lucide-react'
 
 export default function ClientLayout() {
   const { signOut, profile } = useAuth()
@@ -62,6 +62,16 @@ export default function ClientLayout() {
                   </div>
 
                   <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        navigate('/bestanden')
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Mijn bestanden
+                    </button>
                     <button
                       onClick={() => {
                         setMenuOpen(false)

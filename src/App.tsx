@@ -14,6 +14,7 @@ import Forms from './pages/admin/Forms'
 import AdminSettings from './pages/admin/Settings'
 import ClientPortal from './pages/client/Portal'
 import FormPage from './pages/client/FormPage'
+import ClientFiles from './pages/client/Files'
 import ClientSettings from './pages/client/Settings'
 import Verify from './pages/Verify'
 
@@ -57,6 +58,7 @@ function AppRoutes() {
       }>
         <Route index element={<ClientPortal />} />
         <Route path="formulier/:formId" element={<FormPage />} />
+        <Route path="bestanden" element={<ClientFiles />} />
         <Route path="instellingen" element={<ClientSettings />} />
       </Route>
 
