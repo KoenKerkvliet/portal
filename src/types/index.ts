@@ -133,6 +133,26 @@ export interface FormSubmission {
   created_at: string
 }
 
+export type YearFormat = 'YY' | 'YYYY'
+
+export interface InvoiceSettings {
+  id: string
+  company_name: string
+  address_line1: string
+  address_line2: string
+  postal_code: string
+  city: string
+  country: string
+  iban: string
+  btw_number: string
+  kvk_number: string
+  invoice_prefix: string
+  year_format: YearFormat
+  start_number: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Quote {
   id: string
   project_id: string

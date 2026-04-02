@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState } from 'react'
 import {
@@ -14,15 +14,24 @@ import {
   X,
   BookOpen,
   ClipboardList,
+  ChevronDown,
+  List,
+  Repeat,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/projecten', icon: FolderKanban, label: 'Domeinen' },
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
-  { to: '/admin/facturen', icon: FileText, label: 'Facturen' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
+]
+
+const invoiceSubItems = [
+  { to: '/admin/facturen', icon: List, label: 'Alle facturen', end: true },
+  { to: '/admin/facturen/terugkerend', icon: Repeat, label: 'Terugkerende facturen' },
+  { to: '/admin/facturen/instellingen', icon: SlidersHorizontal, label: 'Instellingen' },
 ]
 
 const contentItems = [
@@ -32,7 +41,10 @@ const contentItems = [
 export default function AdminLayout() {
   const { signOut, profile } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const isInvoicePath = location.pathname.startsWith('/admin/facturen')
+  const [invoicesOpen, setInvoicesOpen] = useState(isInvoicePath)
 
   const handleSignOut = async () => {
     await signOut()
@@ -54,7 +66,64 @@ export default function AdminLayout() {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
         <div className="space-y-1">
-          {navItems.map((item) => (
+          {navItems.slice(0, 3).map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={closeSidebar}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-sidebar-active text-white'
+                    : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
+                }`
+              }
+            >
+              <item.icon className="w-5 h-5 flex-shrink-0" />
+              {item.label}
+            </NavLink>
+          ))}
+
+          {/* Facturen — expandable */}
+          <div>
+            <button
+              onClick={() => setInvoicesOpen(!invoicesOpen)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full ${
+                isInvoicePath
+                  ? 'bg-sidebar-active text-white'
+                  : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
+              }`}
+            >
+              <FileText className="w-5 h-5 flex-shrink-0" />
+              <span className="flex-1 text-left">Facturen</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${invoicesOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {invoicesOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                {invoiceSubItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={closeSidebar}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                        isActive
+                          ? 'bg-sidebar-active text-white'
+                          : 'text-gray-400 hover:bg-sidebar-hover hover:text-white'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {navItems.slice(3).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

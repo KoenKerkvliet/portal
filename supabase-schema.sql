@@ -144,6 +144,27 @@ create table public.form_submissions (
 );
 
 -- ============================================
+-- INVOICE SETTINGS
+-- ============================================
+create table public.invoice_settings (
+  id uuid default uuid_generate_v4() primary key,
+  company_name text not null default '',
+  address_line1 text not null default '',
+  address_line2 text not null default '',
+  postal_code text not null default '',
+  city text not null default '',
+  country text not null default 'Nederland',
+  iban text not null default '',
+  btw_number text not null default '',
+  kvk_number text not null default '',
+  invoice_prefix text not null default 'INV',
+  year_format text not null default 'YY' check (year_format in ('YY', 'YYYY')),
+  start_number integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ============================================
 -- ROW LEVEL SECURITY
 -- ============================================
 
@@ -157,6 +178,7 @@ alter table public.invoices enable row level security;
 alter table public.quotes enable row level security;
 alter table public.forms enable row level security;
 alter table public.form_submissions enable row level security;
+alter table public.invoice_settings enable row level security;
 
 -- Helper function: check if user is admin
 create or replace function public.is_admin()
@@ -207,6 +229,9 @@ create policy "Admins full access to quotes" on public.quotes for all using (pub
 create policy "Clients can view own quotes" on public.quotes for select using (
   client_id in (select id from public.clients where profile_id = auth.uid())
 );
+
+-- INVOICE SETTINGS policies
+create policy "Admins full access to invoice_settings" on public.invoice_settings for all using (public.is_admin());
 
 -- FORMS policies
 create policy "Admins full access to forms" on public.forms for all using (public.is_admin());
