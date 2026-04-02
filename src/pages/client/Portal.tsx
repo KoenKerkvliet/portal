@@ -302,14 +302,14 @@ export default function ClientPortal() {
 
             {/* Step cards */}
             {steps.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+              <div className="flex flex-wrap justify-center gap-5 sm:gap-6">
                 {steps.map((step) => {
                   const hasElements = step.elements && step.elements.length > 0
 
                   return (
                     <div
                       key={step.id}
-                      className="relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col"
+                      className="relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]"
                     >
                       {/* Completed badge */}
                       {step.completed && (

@@ -7,6 +7,14 @@ import {
   Calendar, Clock, User, Mail, Phone, Globe, Star, Heart, CheckCircle,
   AlertCircle, Info, MessageSquare, MapPin, Briefcase, Home, Shield,
   GripVertical, ChevronUp, ChevronDown,
+  Camera, Code, Coffee, CreditCard, Database, Eye, Flag, Gift,
+  Headphones, Key, Layers, Lightbulb, Lock, Monitor, Music,
+  Package, Palette, PenTool, Rocket, Search, Send, Settings,
+  ShoppingCart, Target, ThumbsUp, Trophy, Truck, Umbrella,
+  Video, Wifi, Wrench, Zap as ZapIcon, BookOpen, Compass,
+  Feather, Film, Folder, Hash, Image as ImageIcon, Mic,
+  Navigation, Paperclip, Percent, PieChart, Printer, Share2,
+  Smartphone, Speaker, Sun, Tag, TrendingUp, Upload, Users,
 } from 'lucide-react'
 
 // Available dynamic data fields
@@ -19,24 +27,86 @@ export const dynamicFields: { key: string; label: string; icon: typeof Calendar 
 
 // Icon picker options
 const iconOptions = [
-  { name: 'calendar', icon: Calendar, label: 'Kalender' },
-  { name: 'clock', icon: Clock, label: 'Klok' },
-  { name: 'user', icon: User, label: 'Gebruiker' },
-  { name: 'mail', icon: Mail, label: 'E-mail' },
-  { name: 'phone', icon: Phone, label: 'Telefoon' },
-  { name: 'globe', icon: Globe, label: 'Website' },
+  // Basis
   { name: 'star', icon: Star, label: 'Ster' },
   { name: 'heart', icon: Heart, label: 'Hart' },
+  { name: 'thumbs-up', icon: ThumbsUp, label: 'Duim omhoog' },
   { name: 'check-circle', icon: CheckCircle, label: 'Vinkje' },
+  { name: 'flag', icon: Flag, label: 'Vlag' },
+  { name: 'trophy', icon: Trophy, label: 'Trofee' },
+  { name: 'target', icon: Target, label: 'Doel' },
+  { name: 'lightbulb', icon: Lightbulb, label: 'Lamp' },
+  // Communicatie
+  { name: 'mail', icon: Mail, label: 'E-mail' },
+  { name: 'phone', icon: Phone, label: 'Telefoon' },
+  { name: 'message-square', icon: MessageSquare, label: 'Bericht' },
+  { name: 'send', icon: Send, label: 'Verzenden' },
+  { name: 'share', icon: Share2, label: 'Delen' },
+  { name: 'mic', icon: Mic, label: 'Microfoon' },
+  { name: 'headphones', icon: Headphones, label: 'Koptelefoon' },
+  { name: 'video', icon: Video, label: 'Video' },
+  // Tijd & planning
+  { name: 'calendar', icon: Calendar, label: 'Kalender' },
+  { name: 'clock', icon: Clock, label: 'Klok' },
+  { name: 'trending-up', icon: TrendingUp, label: 'Groei' },
+  { name: 'compass', icon: Compass, label: 'Kompas' },
+  { name: 'navigation', icon: Navigation, label: 'Navigatie' },
+  { name: 'rocket', icon: Rocket, label: 'Raket' },
+  // Personen
+  { name: 'user', icon: User, label: 'Gebruiker' },
+  { name: 'users', icon: Users, label: 'Gebruikers' },
+  // Design & creatief
+  { name: 'palette', icon: Palette, label: 'Palet' },
+  { name: 'pen-tool', icon: PenTool, label: 'Pen' },
+  { name: 'feather', icon: Feather, label: 'Veer' },
+  { name: 'camera', icon: Camera, label: 'Camera' },
+  { name: 'image', icon: ImageIcon, label: 'Afbeelding' },
+  { name: 'film', icon: Film, label: 'Film' },
+  { name: 'eye', icon: Eye, label: 'Oog' },
+  { name: 'sun', icon: Sun, label: 'Zon' },
+  // Tech & web
+  { name: 'globe', icon: Globe, label: 'Website' },
+  { name: 'monitor', icon: Monitor, label: 'Monitor' },
+  { name: 'smartphone', icon: Smartphone, label: 'Smartphone' },
+  { name: 'code', icon: Code, label: 'Code' },
+  { name: 'database', icon: Database, label: 'Database' },
+  { name: 'wifi', icon: Wifi, label: 'Wifi' },
+  { name: 'layers', icon: Layers, label: 'Lagen' },
+  { name: 'settings', icon: Settings, label: 'Instellingen' },
+  // Bestanden & documenten
+  { name: 'file-text', icon: FileText, label: 'Document' },
+  { name: 'folder', icon: Folder, label: 'Map' },
+  { name: 'book-open', icon: BookOpen, label: 'Boek' },
+  { name: 'paperclip', icon: Paperclip, label: 'Bijlage' },
+  { name: 'printer', icon: Printer, label: 'Printer' },
+  { name: 'upload', icon: Upload, label: 'Upload' },
+  // Zakelijk
+  { name: 'briefcase', icon: Briefcase, label: 'Werk' },
+  { name: 'credit-card', icon: CreditCard, label: 'Betaling' },
+  { name: 'shopping-cart', icon: ShoppingCart, label: 'Winkelwagen' },
+  { name: 'package', icon: Package, label: 'Pakket' },
+  { name: 'truck', icon: Truck, label: 'Levering' },
+  { name: 'tag', icon: Tag, label: 'Label' },
+  { name: 'pie-chart', icon: PieChart, label: 'Grafiek' },
+  { name: 'percent', icon: Percent, label: 'Procent' },
+  // Overig
+  { name: 'home', icon: Home, label: 'Huis' },
+  { name: 'map-pin', icon: MapPin, label: 'Locatie' },
+  { name: 'key', icon: Key, label: 'Sleutel' },
+  { name: 'lock', icon: Lock, label: 'Slot' },
+  { name: 'shield', icon: Shield, label: 'Beveiliging' },
+  { name: 'wrench', icon: Wrench, label: 'Moersleutel' },
+  { name: 'coffee', icon: Coffee, label: 'Koffie' },
+  { name: 'gift', icon: Gift, label: 'Cadeau' },
+  { name: 'music', icon: Music, label: 'Muziek' },
+  { name: 'umbrella', icon: Umbrella, label: 'Paraplu' },
+  { name: 'search', icon: Search, label: 'Zoeken' },
+  { name: 'hash', icon: Hash, label: 'Hashtag' },
+  { name: 'link', icon: Link2, label: 'Link' },
   { name: 'alert-circle', icon: AlertCircle, label: 'Waarschuwing' },
   { name: 'info', icon: Info, label: 'Info' },
-  { name: 'message-square', icon: MessageSquare, label: 'Bericht' },
-  { name: 'map-pin', icon: MapPin, label: 'Locatie' },
-  { name: 'briefcase', icon: Briefcase, label: 'Werk' },
-  { name: 'home', icon: Home, label: 'Huis' },
-  { name: 'shield', icon: Shield, label: 'Beveiliging' },
-  { name: 'file-text', icon: FileText, label: 'Document' },
-  { name: 'link', icon: Link2, label: 'Link' },
+  { name: 'zap', icon: ZapIcon, label: 'Bliksem' },
+  { name: 'speaker', icon: Speaker, label: 'Speaker' },
 ]
 
 export function getIconComponent(name: string) {
@@ -250,7 +320,7 @@ function IconEditor({ data, onChange }: { data: Record<string, string>; onChange
             <SelectedIcon className="w-6 h-6" />
           </button>
           <PortalDropdown anchorRef={btnRef} open={showPicker} onClose={() => setShowPicker(false)}>
-            <div className="bg-white rounded-xl shadow-2xl border border-gray-100 p-2 grid grid-cols-6 gap-1 w-[220px]">
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-100 p-2 grid grid-cols-8 gap-1 w-[296px] max-h-[240px] overflow-y-auto">
               {iconOptions.map((opt) => (
                 <button type="button" key={opt.name} onClick={() => { onChange({ ...data, name: opt.name }); setShowPicker(false) }}
                   className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${data.name === opt.name ? 'bg-primary/10 text-primary' : 'hover:bg-gray-100 text-gray-500'}`}
