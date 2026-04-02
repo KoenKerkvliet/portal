@@ -186,6 +186,21 @@ export interface QuoteSettings {
   updated_at: string
 }
 
+export type QuoteItemType = 'product' | 'title' | 'divider'
+
+export interface QuoteItem {
+  id: string
+  type: QuoteItemType
+  product_id?: string
+  name?: string
+  description?: string
+  quantity?: number
+  unit?: string
+  price?: number
+  is_recurring?: boolean
+  title?: string
+}
+
 export interface Quote {
   id: string
   project_id: string
@@ -194,6 +209,11 @@ export interface Quote {
   amount: number
   status: QuoteStatus
   valid_until: string
+  is_test: boolean
+  items: QuoteItem[]
+  discount_percent: number
+  btw_percent: number
+  notes: string
   created_at: string
   project?: Project
   client?: Client

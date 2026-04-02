@@ -1,43 +1,18 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { Quote, QuoteStatus, QuoteSettings, YearFormat } from '../../types'
-import { Plus, FileCheck, Trash2 } from 'lucide-react'
+import type { Quote, QuoteStatus } from '../../types'
+import { Plus, FileCheck, Trash2, Pencil, FlaskConical, X } from 'lucide-react'
 
 const statusLabels: Record<QuoteStatus, string> = { draft: 'Concept', sent: 'Verzonden', accepted: 'Geaccepteerd', declined: 'Afgewezen' }
 const statusColors: Record<QuoteStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', accepted: 'bg-green-100 text-green-700', declined: 'bg-red-100 text-red-700' }
 
-function generateQuoteNumber(
-  prefix: string,
-  yearFormat: YearFormat,
-  startNumber: number,
-  existingNumbers: string[]
-): string {
-  const currentYear = new Date().getFullYear()
-  const yearStr = yearFormat === 'YY' ? String(currentYear).slice(-2) : String(currentYear)
-  const basePrefix = `${prefix}${yearStr}`
-
-  let maxNum = startNumber - 1
-  for (const num of existingNumbers) {
-    if (num.startsWith(basePrefix)) {
-      const suffix = num.slice(basePrefix.length)
-      const parsed = parseInt(suffix, 10)
-      if (!isNaN(parsed) && parsed > maxNum) {
-        maxNum = parsed
-      }
-    }
-  }
-
-  return `${basePrefix}${maxNum + 1}`
-}
-
 export default function Quotes() {
+  const navigate = useNavigate()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [clients, setClients] = useState<{ id: string; name: string }[]>([])
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
-  const [formData, setFormData] = useState({ number: '', amount: '', client_id: '', project_id: '', valid_until: '' })
-  const [quoteSettings, setQuoteSettings] = useState<QuoteSettings | null>(null)
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [isTest, setIsTest] = useState(false)
 
   const fetchQuotes = async () => {
     const { data } = await supabase.from('quotes').select('*, client:clients(name), project:projects(name)').order('created_at', { ascending: false })
@@ -47,20 +22,7 @@ export default function Quotes() {
 
   useEffect(() => {
     fetchQuotes()
-    supabase.from('clients').select('id, name').then(({ data }) => setClients(data || []))
-    supabase.from('projects').select('id, name').then(({ data }) => setProjects(data || []))
-    supabase.from('quote_settings').select('*').limit(1).single().then(({ data }) => {
-      if (data) setQuoteSettings(data)
-    })
   }, [])
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    await supabase.from('quotes').insert({ ...formData, amount: parseFloat(formData.amount), status: 'draft' })
-    setShowForm(false)
-    setFormData({ number: '', amount: '', client_id: '', project_id: '', valid_until: '' })
-    fetchQuotes()
-  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Weet je zeker dat je deze offerte wilt verwijderen?')) return
@@ -75,6 +37,13 @@ export default function Quotes() {
     fetchQuotes()
   }
 
+  const handleCreate = () => {
+    const params = isTest ? '?test=1' : ''
+    setShowNewModal(false)
+    setIsTest(false)
+    navigate(`/admin/offertes/nieuw${params}`)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -82,58 +51,66 @@ export default function Quotes() {
           <h1 className="text-2xl font-bold text-gray-900">Offertes</h1>
           <p className="text-gray-500 mt-1">Beheer je offertes</p>
         </div>
-        <button onClick={() => {
-          if (!showForm && quoteSettings) {
-            const nextNumber = generateQuoteNumber(
-              quoteSettings.quote_prefix,
-              quoteSettings.year_format as YearFormat,
-              quoteSettings.start_number,
-              quotes.map(q => q.number)
-            )
-            setFormData({ number: nextNumber, amount: '', client_id: '', project_id: '', valid_until: '' })
-          }
-          setShowForm(!showForm)
-        }} className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
+        <button
+          onClick={() => setShowNewModal(true)}
+          className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+        >
           <Plus className="w-4 h-4" />
           Nieuwe offerte
         </button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Offertenummer</label>
-              <input type="text" value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bedrag</label>
-              <input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Klant</label>
-              <select value={formData.client_id} onChange={(e) => setFormData({ ...formData, client_id: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
-                <option value="">Selecteer</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-              <select value={formData.project_id} onChange={(e) => setFormData({ ...formData, project_id: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
-                <option value="">Selecteer</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Geldig tot</label>
-              <input type="date" value={formData.valid_until} onChange={(e) => setFormData({ ...formData, valid_until: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+      {/* New quote modal */}
+      {showNewModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Nieuwe offerte</h2>
+                <button
+                  onClick={() => { setShowNewModal(false); setIsTest(false) }}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <label className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-xl p-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isTest}
+                  onChange={(e) => setIsTest(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-500 border-gray-300 focus:ring-amber-400 mt-0.5"
+                />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <FlaskConical className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-medium text-gray-800">Dit is een testofferte</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Er wordt geen offertenummer uit de reeks gebruikt.
+                  </p>
+                </div>
+              </label>
+
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={handleCreate}
+                  className="flex-1 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors"
+                >
+                  Offerte aanmaken
+                </button>
+                <button
+                  onClick={() => { setShowNewModal(false); setIsTest(false) }}
+                  className="px-4 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  Annuleren
+                </button>
+              </div>
             </div>
           </div>
-          <div className="flex gap-3">
-            <button type="submit" className="bg-primary hover:bg-primary-600 text-white px-4 py-2 rounded-lg font-medium transition-colors">Aanmaken</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">Annuleren</button>
-          </div>
-        </form>
+        </>
       )}
 
       {loading ? (
@@ -147,9 +124,14 @@ export default function Quotes() {
       ) : (
         <div className="space-y-3">
           {quotes.map((quote) => (
-            <div key={quote.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
+            <div key={quote.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center justify-between group">
               <div>
-                <h3 className="font-semibold text-gray-900">{quote.number}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900">{quote.number}</h3>
+                  {quote.is_test && (
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Test</span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500">{(quote.client as unknown as { name: string })?.name} — {(quote.project as unknown as { name: string })?.name}</p>
                 <p className="text-sm text-gray-400 mt-0.5">Geldig tot: {new Date(quote.valid_until).toLocaleDateString('nl-NL')}</p>
               </div>
@@ -158,7 +140,14 @@ export default function Quotes() {
                 <button onClick={() => cycleStatus(quote)} className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer ${statusColors[quote.status]}`}>
                   {statusLabels[quote.status]}
                 </button>
-                <button onClick={() => handleDelete(quote.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                <button
+                  onClick={() => navigate(`/admin/offertes/${quote.id}`)}
+                  className="p-2 text-gray-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                  title="Bewerken"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={() => handleDelete(quote.id)} className="p-2 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>

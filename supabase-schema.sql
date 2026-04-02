@@ -131,6 +131,11 @@ create table public.quotes (
   amount numeric(10,2) not null default 0,
   status text not null default 'draft' check (status in ('draft', 'sent', 'accepted', 'declined')),
   valid_until date not null,
+  is_test boolean not null default false,
+  items jsonb not null default '[]'::jsonb,
+  discount_percent numeric(5,2) not null default 0,
+  btw_percent numeric(5,2) not null default 21,
+  notes text not null default '',
   created_at timestamptz not null default now()
 );
 
