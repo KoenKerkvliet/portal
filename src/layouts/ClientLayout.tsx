@@ -1,13 +1,15 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState, useRef, useEffect } from 'react'
-import { User, Settings, LogOut, ChevronDown, FolderOpen } from 'lucide-react'
+import { User, Settings, LogOut, ChevronDown, FolderOpen, ArrowLeft } from 'lucide-react'
 
 export default function ClientLayout() {
   const { signOut, profile } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const isSubpage = location.pathname !== '/' && location.pathname !== ''
 
   const handleSignOut = async () => {
     await signOut()
@@ -30,9 +32,20 @@ export default function ClientLayout() {
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
-            {/* Logo */}
-            <div className="flex items-center">
-              <h1 className="text-lg font-bold tracking-tight">
+            {/* Logo + back */}
+            <div className="flex items-center gap-3">
+              {isSubpage && (
+                <button
+                  onClick={() => navigate('/')}
+                  className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+              <h1
+                className="text-lg font-bold tracking-tight cursor-pointer"
+                onClick={() => navigate('/')}
+              >
                 <span className="text-primary">Design</span>
                 <span className="text-gray-900">Pixels</span>
               </h1>
