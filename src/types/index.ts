@@ -177,6 +177,15 @@ export interface Product {
   created_at: string
 }
 
+export interface QuoteSettings {
+  id: string
+  quote_prefix: string
+  year_format: YearFormat
+  start_number: number
+  created_at: string
+  updated_at: string
+}
+
 export interface Quote {
   id: string
   project_id: string

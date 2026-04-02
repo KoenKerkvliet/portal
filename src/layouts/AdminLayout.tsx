@@ -25,7 +25,6 @@ const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/projecten', icon: FolderKanban, label: 'Domeinen' },
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
-  { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
   { to: '/admin/producten', icon: Package, label: 'Producten' },
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
 ]
@@ -34,6 +33,11 @@ const invoiceSubItems = [
   { to: '/admin/facturen', icon: List, label: 'Alle facturen', end: true },
   { to: '/admin/facturen/terugkerend', icon: Repeat, label: 'Terugkerende facturen' },
   { to: '/admin/facturen/instellingen', icon: SlidersHorizontal, label: 'Instellingen' },
+]
+
+const quoteSubItems = [
+  { to: '/admin/offertes', icon: List, label: 'Alle offertes', end: true },
+  { to: '/admin/offertes/instellingen', icon: SlidersHorizontal, label: 'Instellingen' },
 ]
 
 const contentItems = [
@@ -46,7 +50,9 @@ export default function AdminLayout() {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const isInvoicePath = location.pathname.startsWith('/admin/facturen')
+  const isQuotePath = location.pathname.startsWith('/admin/offertes')
   const [invoicesOpen, setInvoicesOpen] = useState(isInvoicePath)
+  const [quotesOpen, setQuotesOpen] = useState(isQuotePath)
 
   const handleSignOut = async () => {
     await signOut()
@@ -104,6 +110,44 @@ export default function AdminLayout() {
             {invoicesOpen && (
               <div className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
                 {invoiceSubItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={closeSidebar}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                        isActive
+                          ? 'bg-sidebar-active text-white'
+                          : 'text-gray-400 hover:bg-sidebar-hover hover:text-white'
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4 flex-shrink-0" />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Offertes — expandable */}
+          <div>
+            <button
+              onClick={() => setQuotesOpen(!quotesOpen)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full ${
+                isQuotePath
+                  ? 'bg-sidebar-active text-white'
+                  : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
+              }`}
+            >
+              <FileCheck className="w-5 h-5 flex-shrink-0" />
+              <span className="flex-1 text-left">Offertes</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${quotesOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {quotesOpen && (
+              <div className="ml-4 mt-1 space-y-0.5 border-l border-white/10 pl-3">
+                {quoteSubItems.map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

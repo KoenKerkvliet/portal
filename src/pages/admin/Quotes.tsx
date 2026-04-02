@@ -1,10 +1,34 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Quote, QuoteStatus } from '../../types'
+import type { Quote, QuoteStatus, QuoteSettings, YearFormat } from '../../types'
 import { Plus, FileCheck, Trash2 } from 'lucide-react'
 
 const statusLabels: Record<QuoteStatus, string> = { draft: 'Concept', sent: 'Verzonden', accepted: 'Geaccepteerd', declined: 'Afgewezen' }
 const statusColors: Record<QuoteStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', accepted: 'bg-green-100 text-green-700', declined: 'bg-red-100 text-red-700' }
+
+function generateQuoteNumber(
+  prefix: string,
+  yearFormat: YearFormat,
+  startNumber: number,
+  existingNumbers: string[]
+): string {
+  const currentYear = new Date().getFullYear()
+  const yearStr = yearFormat === 'YY' ? String(currentYear).slice(-2) : String(currentYear)
+  const basePrefix = `${prefix}${yearStr}`
+
+  let maxNum = startNumber - 1
+  for (const num of existingNumbers) {
+    if (num.startsWith(basePrefix)) {
+      const suffix = num.slice(basePrefix.length)
+      const parsed = parseInt(suffix, 10)
+      if (!isNaN(parsed) && parsed > maxNum) {
+        maxNum = parsed
+      }
+    }
+  }
+
+  return `${basePrefix}${maxNum + 1}`
+}
 
 export default function Quotes() {
   const [quotes, setQuotes] = useState<Quote[]>([])
@@ -13,6 +37,7 @@ export default function Quotes() {
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
   const [formData, setFormData] = useState({ number: '', amount: '', client_id: '', project_id: '', valid_until: '' })
+  const [quoteSettings, setQuoteSettings] = useState<QuoteSettings | null>(null)
 
   const fetchQuotes = async () => {
     const { data } = await supabase.from('quotes').select('*, client:clients(name), project:projects(name)').order('created_at', { ascending: false })
@@ -24,6 +49,9 @@ export default function Quotes() {
     fetchQuotes()
     supabase.from('clients').select('id, name').then(({ data }) => setClients(data || []))
     supabase.from('projects').select('id, name').then(({ data }) => setProjects(data || []))
+    supabase.from('quote_settings').select('*').limit(1).single().then(({ data }) => {
+      if (data) setQuoteSettings(data)
+    })
   }, [])
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -54,7 +82,18 @@ export default function Quotes() {
           <h1 className="text-2xl font-bold text-gray-900">Offertes</h1>
           <p className="text-gray-500 mt-1">Beheer je offertes</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
+        <button onClick={() => {
+          if (!showForm && quoteSettings) {
+            const nextNumber = generateQuoteNumber(
+              quoteSettings.quote_prefix,
+              quoteSettings.year_format as YearFormat,
+              quoteSettings.start_number,
+              quotes.map(q => q.number)
+            )
+            setFormData({ number: nextNumber, amount: '', client_id: '', project_id: '', valid_until: '' })
+          }
+          setShowForm(!showForm)
+        }} className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
           <Plus className="w-4 h-4" />
           Nieuwe offerte
         </button>

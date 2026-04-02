@@ -12,6 +12,7 @@ import RecurringInvoices from './pages/admin/RecurringInvoices'
 import InvoiceSettings from './pages/admin/InvoiceSettings'
 import Products from './pages/admin/Products'
 import Quotes from './pages/admin/Quotes'
+import QuoteSettings from './pages/admin/QuoteSettings'
 import Templates from './pages/admin/Templates'
 import Forms from './pages/admin/Forms'
 import AdminSettings from './pages/admin/Settings'
@@ -51,6 +52,7 @@ function AppRoutes() {
         <Route path="facturen/instellingen" element={<InvoiceSettings />} />
         <Route path="producten" element={<Products />} />
         <Route path="offertes" element={<Quotes />} />
+        <Route path="offertes/instellingen" element={<QuoteSettings />} />
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />
         <Route path="instellingen" element={<AdminSettings />} />
