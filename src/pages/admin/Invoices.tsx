@@ -1,10 +1,35 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Invoice, InvoiceStatus } from '../../types'
+import type { Invoice, InvoiceStatus, InvoiceSettings, YearFormat } from '../../types'
 import { Plus, FileText, Trash2 } from 'lucide-react'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
+
+function generateInvoiceNumber(
+  prefix: string,
+  yearFormat: YearFormat,
+  startNumber: number,
+  existingNumbers: string[]
+): string {
+  const currentYear = new Date().getFullYear()
+  const yearStr = yearFormat === 'YY' ? String(currentYear).slice(-2) : String(currentYear)
+  const basePrefix = `${prefix}${yearStr}`
+
+  // Find the highest number used this year
+  let maxNum = startNumber - 1
+  for (const num of existingNumbers) {
+    if (num.startsWith(basePrefix)) {
+      const suffix = num.slice(basePrefix.length)
+      const parsed = parseInt(suffix, 10)
+      if (!isNaN(parsed) && parsed > maxNum) {
+        maxNum = parsed
+      }
+    }
+  }
+
+  return `${basePrefix}${maxNum + 1}`
+}
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -13,6 +38,7 @@ export default function Invoices() {
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
   const [formData, setFormData] = useState({ number: '', amount: '', client_id: '', project_id: '', due_date: '' })
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings | null>(null)
 
   const fetchInvoices = async () => {
     const { data } = await supabase.from('invoices').select('*, client:clients(name), project:projects(name)').order('created_at', { ascending: false })
@@ -24,6 +50,9 @@ export default function Invoices() {
     fetchInvoices()
     supabase.from('clients').select('id, name').then(({ data }) => setClients(data || []))
     supabase.from('projects').select('id, name').then(({ data }) => setProjects(data || []))
+    supabase.from('invoice_settings').select('*').limit(1).single().then(({ data }) => {
+      if (data) setInvoiceSettings(data)
+    })
   }, [])
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -54,7 +83,18 @@ export default function Invoices() {
           <h1 className="text-2xl font-bold text-gray-900">Facturen</h1>
           <p className="text-gray-500 mt-1">Beheer je facturen</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
+        <button onClick={() => {
+          if (!showForm && invoiceSettings) {
+            const nextNumber = generateInvoiceNumber(
+              invoiceSettings.invoice_prefix,
+              invoiceSettings.year_format as YearFormat,
+              invoiceSettings.start_number,
+              invoices.map(i => i.number)
+            )
+            setFormData({ number: nextNumber, amount: '', client_id: '', project_id: '', due_date: '' })
+          }
+          setShowForm(!showForm)
+        }} className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
           <Plus className="w-4 h-4" />
           Nieuwe factuur
         </button>
