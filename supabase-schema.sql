@@ -180,6 +180,21 @@ create table public.invoice_settings (
 );
 
 -- ============================================
+-- PRODUCTS
+-- ============================================
+create table public.products (
+  id uuid default uuid_generate_v4() primary key,
+  code text not null,
+  name text not null,
+  description text not null default '',
+  quantity_value integer not null default 1,
+  quantity_unit text not null default 'stuks',
+  price numeric(10,2) not null default 0,
+  is_recurring boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================
 -- ROW LEVEL SECURITY
 -- ============================================
 
@@ -195,6 +210,7 @@ alter table public.quotes enable row level security;
 alter table public.forms enable row level security;
 alter table public.form_submissions enable row level security;
 alter table public.invoice_settings enable row level security;
+alter table public.products enable row level security;
 
 -- Helper function: check if user is admin
 create or replace function public.is_admin()
@@ -254,6 +270,9 @@ create policy "Clients can view own quotes" on public.quotes for select using (
 
 -- INVOICE SETTINGS policies
 create policy "Admins full access to invoice_settings" on public.invoice_settings for all using (public.is_admin());
+
+-- PRODUCTS policies
+create policy "Admins full access to products" on public.products for all using (public.is_admin());
 
 -- FORMS policies
 create policy "Admins full access to forms" on public.forms for all using (public.is_admin());

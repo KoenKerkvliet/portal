@@ -10,6 +10,7 @@ import Clients from './pages/admin/Clients'
 import Invoices from './pages/admin/Invoices'
 import RecurringInvoices from './pages/admin/RecurringInvoices'
 import InvoiceSettings from './pages/admin/InvoiceSettings'
+import Products from './pages/admin/Products'
 import Quotes from './pages/admin/Quotes'
 import Templates from './pages/admin/Templates'
 import Forms from './pages/admin/Forms'
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="facturen" element={<Invoices />} />
         <Route path="facturen/terugkerend" element={<RecurringInvoices />} />
         <Route path="facturen/instellingen" element={<InvoiceSettings />} />
+        <Route path="producten" element={<Products />} />
         <Route path="offertes" element={<Quotes />} />
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />

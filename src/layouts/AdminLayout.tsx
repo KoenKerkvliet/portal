@@ -18,6 +18,7 @@ import {
   List,
   Repeat,
   SlidersHorizontal,
+  Package,
 } from 'lucide-react'
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { to: '/admin/projecten', icon: FolderKanban, label: 'Domeinen' },
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
+  { to: '/admin/producten', icon: Package, label: 'Producten' },
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
 ]
 

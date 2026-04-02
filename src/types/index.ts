@@ -165,6 +165,18 @@ export interface InvoiceSettings {
   updated_at: string
 }
 
+export interface Product {
+  id: string
+  code: string
+  name: string
+  description: string
+  quantity_value: number
+  quantity_unit: string
+  price: number
+  is_recurring: boolean
+  created_at: string
+}
+
 export interface Quote {
   id: string
   project_id: string
