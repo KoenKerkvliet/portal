@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Product } from '../../types'
 import { Plus, Package, Trash2, Pencil, X, Search, Repeat } from 'lucide-react'
+import RichTextEditor from '../../components/RichTextEditor'
 
 const emptyForm = {
   code: '',
@@ -84,10 +85,12 @@ export default function Products() {
     setFormData(emptyForm)
   }
 
+  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '')
+
   const filtered = products.filter((p) => {
     if (!search) return true
     const q = search.toLowerCase()
-    return p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+    return p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || stripHtml(p.description).toLowerCase().includes(q)
   })
 
   return (
@@ -142,12 +145,10 @@ export default function Products() {
             </div>
             <div className="lg:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">Omschrijving</label>
-              <textarea
+              <RichTextEditor
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all resize-none"
-                rows={2}
-                placeholder="Korte omschrijving van het product of de dienst..."
+                onChange={(html) => setFormData({ ...formData, description: html })}
+                placeholder="Omschrijving van het product of de dienst..."
               />
             </div>
             <div>
@@ -269,8 +270,8 @@ export default function Products() {
                   </td>
                   <td className="px-5 py-3.5">
                     <p className="text-sm font-medium text-gray-900">{product.name}</p>
-                    {product.description && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[300px]">{product.description}</p>
+                    {product.description && stripHtml(product.description).trim() && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[300px]">{stripHtml(product.description)}</p>
                     )}
                   </td>
                   <td className="px-5 py-3.5 hidden md:table-cell">
