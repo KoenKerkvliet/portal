@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -358,6 +358,22 @@ export default function Projects() {
         custom_data: editingInstance,
       }).eq('id', instance.id)
     }
+
+    // Auto-set linked quotes to 'sent' status
+    const quoteIds: string[] = []
+    for (const step of editingInstance.steps) {
+      if (step.elements) {
+        for (const el of step.elements) {
+          if (el.type === 'button' && el.data.action === 'quote' && el.data.quoteId) {
+            quoteIds.push(el.data.quoteId)
+          }
+        }
+      }
+    }
+    if (quoteIds.length > 0) {
+      await supabase.from('quotes').update({ status: 'sent' }).in('id', quoteIds).eq('status', 'draft')
+    }
+
     await fetchPhaseInstances()
     setSavingInstance(false)
   }
@@ -373,7 +389,7 @@ export default function Projects() {
     if (!editingInstance) return
     setEditingInstance({
       ...editingInstance,
-      steps: [...editingInstance.steps, { id: crypto.randomUUID(), title: '', description: '', completed: false }],
+      steps: [...editingInstance.steps, { id: crypto.randomUUID(), title: '', description: '', completed: false, faded: false }],
     })
   }
 
@@ -383,6 +399,40 @@ export default function Projects() {
       ...editingInstance,
       steps: editingInstance.steps.filter((_, i) => i !== index),
     })
+  }
+
+  const toggleStepCompleted = async (projectId: string, phase: string, stepId: string) => {
+    const instance = getInstance(projectId, phase)
+    if (!instance?.custom_data?.steps) return
+
+    const stepTitle = instance.custom_data.steps.find((s: PhaseStep) => s.id === stepId)?.title || 'deze stap'
+    const isCompleted = instance.custom_data.steps.find((s: PhaseStep) => s.id === stepId)?.completed
+    const action = isCompleted ? 'als niet voltooid markeren' : 'als voltooid markeren'
+
+    if (!confirm(`Weet je zeker dat je "${stepTitle}" wilt ${action}?`)) return
+
+    const updatedSteps = instance.custom_data.steps.map((s: PhaseStep) =>
+      s.id === stepId ? { ...s, completed: !s.completed } : s
+    )
+    await supabase.from('project_phases').update({
+      custom_data: { ...instance.custom_data, steps: updatedSteps },
+    }).eq('id', instance.id)
+    await fetchPhaseInstances()
+
+    // Also update editingInstance if open
+    if (editingInstance) {
+      setEditingInstance({
+        ...editingInstance,
+        steps: editingInstance.steps.map(s => s.id === stepId ? { ...s, completed: !s.completed } : s),
+      })
+    }
+  }
+
+  const toggleStepFaded = (index: number) => {
+    if (!editingInstance) return
+    const newSteps = [...editingInstance.steps]
+    newSteps[index] = { ...newSteps[index], faded: !newSteps[index].faded }
+    setEditingInstance({ ...editingInstance, steps: newSteps })
   }
 
   const toggleExpand = (projectId: string) => {
@@ -827,7 +877,7 @@ export default function Projects() {
                                     const isStepExpanded = expandedStepId === step.id
                                     const elemCount = step.elements?.length || 0
                                     return (
-                                      <div key={step.id} className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                                      <div key={step.id} className={`border border-gray-200 rounded-lg overflow-hidden ${step.faded ? 'bg-amber-50/50 border-amber-200' : 'bg-gray-50'} ${step.completed ? 'ring-2 ring-green-200' : ''}`}>
                                         {/* Card header */}
                                         <div className="flex gap-2 items-start p-3">
                                           <div className="flex-1">
@@ -836,10 +886,28 @@ export default function Projects() {
                                               className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
                                               placeholder="Card titel" />
                                           </div>
-                                          <button type="button" onClick={() => removeInstanceStep(index)}
-                                            className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors mt-1">
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
+                                          <div className="flex items-center gap-0.5 mt-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleStepCompleted(project.id, currentTab, step.id)}
+                                              className={`p-1 rounded transition-colors ${step.completed ? 'text-green-500 hover:text-green-700 bg-green-50' : 'text-gray-400 hover:text-green-500 hover:bg-green-50'}`}
+                                              title={step.completed ? 'Markeer als niet voltooid' : 'Markeer als voltooid'}
+                                            >
+                                              <CheckCircle className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleStepFaded(index)}
+                                              className={`p-1 rounded transition-colors ${step.faded ? 'text-amber-500 hover:text-amber-700 bg-amber-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                                              title={step.faded ? 'Zichtbaar maken' : 'Faden (nog niet aan de beurt)'}
+                                            >
+                                              {step.faded ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                            </button>
+                                            <button type="button" onClick={() => removeInstanceStep(index)}
+                                              className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors">
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
                                         </div>
                                         {/* Elements toggle */}
                                         <button type="button" onClick={() => setExpandedStepId(isStepExpanded ? null : step.id)}

@@ -414,7 +414,7 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
   useEffect(() => {
     if (action === 'quote') {
       setLoadingQuotes(true)
-      let query = supabase.from('quotes').select('*').eq('status', 'sent').order('number')
+      let query = supabase.from('quotes').select('*').in('status', ['draft', 'sent']).order('number')
       if (projectId) query = query.eq('project_id', projectId)
       query.then(({ data: quotesData }) => {
         setQuotes(quotesData || [])

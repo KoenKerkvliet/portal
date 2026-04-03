@@ -329,7 +329,7 @@ export default function ClientPortal() {
                   return (
                     <div
                       key={step.id}
-                      className="relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)]"
+                      className={`relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 transition-shadow flex flex-col w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] ${step.faded ? 'opacity-50' : 'hover:shadow-md'}`}
                     >
                       {/* Completed badge */}
                       {step.completed && (

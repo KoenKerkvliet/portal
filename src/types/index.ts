@@ -65,6 +65,7 @@ export interface PhaseStep {
   title: string
   description: string
   completed: boolean
+  faded?: boolean
   elements?: CardElement[]
 }
 

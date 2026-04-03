@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { PhaseTemplate, ProjectPhase, PhaseStep, CardElement } from '../../types'
-import { Plus, Layers, Trash2, Pencil, X, GripVertical, Check, Circle, ChevronDown } from 'lucide-react'
+import { Plus, Layers, Trash2, Pencil, X, GripVertical, Check, Circle, ChevronDown, Eye, EyeOff } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -87,7 +87,7 @@ export default function Templates() {
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null)
 
   const addStep = () => {
-    const newStep = { id: crypto.randomUUID(), title: '', description: '', completed: false, elements: [] as CardElement[] }
+    const newStep = { id: crypto.randomUUID(), title: '', description: '', completed: false, faded: false, elements: [] as CardElement[] }
     setFormData({
       ...formData,
       steps: [...formData.steps, newStep],
@@ -260,7 +260,7 @@ export default function Templates() {
                       const isStepExpanded = expandedStepId === step.id
                       const elemCount = step.elements?.length || 0
                       return (
-                        <div key={step.id} className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+                        <div key={step.id} className={`border border-gray-200 rounded-xl overflow-hidden ${step.faded ? 'bg-amber-50/50 border-amber-200' : 'bg-gray-50'}`}>
                           {/* Step header */}
                           <div className="flex gap-3 items-start p-4">
                             <GripVertical className="w-4 h-4 text-gray-300 mt-2.5 flex-shrink-0" />
@@ -274,13 +274,27 @@ export default function Templates() {
                                 required
                               />
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removeStep(index)}
-                              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors mt-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-0.5 mt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newSteps = [...formData.steps]
+                                  newSteps[index] = { ...newSteps[index], faded: !newSteps[index].faded }
+                                  setFormData({ ...formData, steps: newSteps })
+                                }}
+                                className={`p-1.5 rounded-lg transition-colors ${step.faded ? 'text-amber-500 hover:text-amber-700 bg-amber-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                                title={step.faded ? 'Zichtbaar maken' : 'Faden (nog niet aan de beurt)'}
+                              >
+                                {step.faded ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeStep(index)}
+                                className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
 
                           {/* Elements toggle */}
