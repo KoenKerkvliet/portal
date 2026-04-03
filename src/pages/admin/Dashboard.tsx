@@ -24,15 +24,33 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [sendingTest, setSendingTest] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [testEmailDesignPixels, setTestEmailDesignPixels] = useState(true)
+  const [testEmailCustom, setTestEmailCustom] = useState('')
 
   const handleSendTestEmail = async () => {
+    const recipients: string[] = []
+    if (testEmailDesignPixels) recipients.push('koen.kerkvliet@designpixels.nl')
+    if (testEmailCustom.trim()) recipients.push(testEmailCustom.trim())
+
+    if (recipients.length === 0) {
+      setTestResult({ success: false, message: 'Selecteer minstens één ontvanger of vul een e-mailadres in.' })
+      return
+    }
+
     setSendingTest(true)
     setTestResult(null)
+
     try {
-      const { data, error } = await supabase.functions.invoke('send-test-email')
-      if (error) throw error
-      if (data && !data.success) throw new Error(data.error || 'Onbekende fout')
-      setTestResult({ success: true, message: 'Testmail verzonden naar koen.kerkvliet@designpixels.nl' })
+      const results: string[] = []
+      for (const to of recipients) {
+        const { data, error } = await supabase.functions.invoke('send-test-email', {
+          body: { to },
+        })
+        if (error) throw error
+        if (data && !data.success) throw new Error(data.error || 'Onbekende fout')
+        results.push(to)
+      }
+      setTestResult({ success: true, message: `Testmail verzonden naar ${results.join(' en ')}` })
     } catch (err) {
       setTestResult({ success: false, message: `Verzenden mislukt: ${err instanceof Error ? err.message : 'Onbekende fout'}` })
     } finally {
@@ -137,6 +155,29 @@ export default function Dashboard() {
       <div className="mt-8 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900 mb-1">E-mail integratie</h2>
         <p className="text-sm text-gray-500 mb-4">Test of de EmailIt v2 koppeling correct werkt.</p>
+
+        <div className="space-y-3 mb-5">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={testEmailDesignPixels}
+              onChange={(e) => setTestEmailDesignPixels(e.target.checked)}
+              className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30"
+            />
+            <span className="text-sm text-gray-700">koen.kerkvliet@designpixels.nl</span>
+          </label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ander e-mailadres</label>
+            <input
+              type="email"
+              value={testEmailCustom}
+              onChange={(e) => setTestEmailCustom(e.target.value)}
+              placeholder="naam@voorbeeld.nl"
+              className="w-full max-w-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+            />
+          </div>
+        </div>
+
         <button
           onClick={handleSendTestEmail}
           disabled={sendingTest}

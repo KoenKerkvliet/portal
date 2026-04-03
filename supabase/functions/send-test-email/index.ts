@@ -13,6 +13,13 @@ Deno.serve(async (req) => {
 
     const EMAILIT_FROM = Deno.env.get('EMAILIT_FROM') || 'DesignPixels <noreply@designpixels.nl>'
 
+    // Read recipient from request body
+    const body = await req.json().catch(() => ({}))
+    const to = body.to
+    if (!to || typeof to !== 'string' || !to.includes('@')) {
+      throw new Error('Geen geldig e-mailadres opgegeven')
+    }
+
     const now = new Date().toLocaleString('nl-NL', { dateStyle: 'full', timeStyle: 'short' })
 
     const html = `
@@ -53,7 +60,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         from: EMAILIT_FROM,
-        to: 'koen.kerkvliet@designpixels.nl',
+        to,
         subject: 'Testmail — DesignPixels Klantportaal',
         html,
       }),
