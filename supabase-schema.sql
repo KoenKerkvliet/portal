@@ -267,6 +267,13 @@ create policy "Clients can view own project phases" on public.project_phases for
     where c.profile_id = auth.uid()
   )
 );
+create policy "Clients can update own project phases" on public.project_phases for update using (
+  project_id in (
+    select p.id from public.projects p
+    join public.clients c on c.id = p.client_id
+    where c.profile_id = auth.uid()
+  )
+);
 
 -- PROJECT CLIENTS policies
 create policy "Admins full access to project_clients" on public.project_clients for all using (public.is_admin());
