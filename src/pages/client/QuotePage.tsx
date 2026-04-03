@@ -4,6 +4,26 @@ import { supabase } from '../../lib/supabase'
 import type { Quote, QuoteItem, InvoiceSettings } from '../../types'
 import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2 } from 'lucide-react'
 
+// Convert HTML to structured plain text for PDF
+function htmlToPlainText(html: string): string {
+  let text = html
+  // Convert list items to bullet points
+  text = text.replace(/<li[^>]*>/gi, '• ')
+  text = text.replace(/<\/li>/gi, '\n')
+  // Convert block elements to newlines
+  text = text.replace(/<\/p>/gi, '\n')
+  text = text.replace(/<br\s*\/?>/gi, '\n')
+  text = text.replace(/<\/h[1-6]>/gi, '\n')
+  text = text.replace(/<\/div>/gi, '\n')
+  // Remove remaining tags
+  text = text.replace(/<[^>]*>/g, '')
+  // Decode HTML entities
+  text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&euro;/g, '€').replace(/&middot;/g, '·')
+  // Clean up multiple newlines
+  text = text.replace(/\n{3,}/g, '\n\n').trim()
+  return text
+}
+
 export default function QuotePage() {
   const { quoteId } = useParams()
   const navigate = useNavigate()
@@ -162,12 +182,15 @@ export default function QuotePage() {
         y += 5
 
         if (item.description) {
-          doc.setFontSize(8)
-          doc.setFont('helvetica', 'normal')
-          doc.setTextColor(120, 120, 120)
-          const descLines = doc.splitTextToSize(item.description, contentWidth - 80)
-          doc.text(descLines, margin, y)
-          y += descLines.length * 4
+          const plainDesc = htmlToPlainText(item.description)
+          if (plainDesc) {
+            doc.setFontSize(7.5)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(120, 120, 120)
+            const descLines = doc.splitTextToSize(plainDesc, contentWidth - 80)
+            doc.text(descLines, margin, y, { lineHeightFactor: 1.4 })
+            y += descLines.length * 3.2
+          }
         }
 
         if (item.is_recurring) {
@@ -421,7 +444,10 @@ export default function QuotePage() {
                   <div className="col-span-6">
                     <p className="text-sm font-medium text-gray-900">{item.name}</p>
                     {item.description && (
-                      <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>
+                      <div
+                        className="text-xs text-gray-400 mt-0.5 prose-quote"
+                        dangerouslySetInnerHTML={{ __html: item.description }}
+                      />
                     )}
                     {item.is_recurring && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded mt-1">

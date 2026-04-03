@@ -228,7 +228,7 @@ export default function QuoteBuilder() {
       type: 'product',
       product_id: product.id,
       name: product.name,
-      description: stripHtml(product.description),
+      description: product.description,
       quantity: product.quantity_value,
       unit: product.quantity_unit,
       price: product.price,
@@ -579,13 +579,14 @@ export default function QuoteBuilder() {
                               onChange={(e) => updateItem(item.id, { name: e.target.value })}
                               className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                             />
-                            <input
-                              type="text"
-                              value={item.description || ''}
-                              onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                              className="w-full px-3 py-1.5 mt-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                              placeholder="Omschrijving..."
-                            />
+                            {item.description && stripHtml(item.description).trim() ? (
+                              <div
+                                className="w-full px-3 py-1.5 mt-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 prose-quote"
+                                dangerouslySetInnerHTML={{ __html: item.description }}
+                              />
+                            ) : (
+                              <p className="w-full px-3 py-1.5 mt-1.5 text-xs text-gray-300 italic">Geen omschrijving</p>
+                            )}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <div className="flex items-center gap-1">
