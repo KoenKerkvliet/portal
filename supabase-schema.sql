@@ -218,6 +218,21 @@ create table public.products (
 );
 
 -- ============================================
+-- CLIENT NOTIFICATIONS
+-- ============================================
+create table public.client_notifications (
+  id uuid default uuid_generate_v4() primary key,
+  project_id uuid references public.projects on delete cascade not null,
+  client_id uuid references public.clients on delete cascade not null,
+  type text not null default 'general' check (type in ('quote', 'invoice', 'assignment', 'card_update', 'general')),
+  title text not null,
+  message text not null default '',
+  link_url text,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- ============================================
 -- ASSIGNMENTS
 -- ============================================
 create table public.assignments (
@@ -248,6 +263,7 @@ alter table public.invoice_settings enable row level security;
 alter table public.quote_settings enable row level security;
 alter table public.products enable row level security;
 alter table public.assignments enable row level security;
+alter table public.client_notifications enable row level security;
 
 -- Helper function: check if user is admin
 create or replace function public.is_admin()
@@ -323,6 +339,19 @@ create policy "Admins full access to quote_settings" on public.quote_settings fo
 
 -- PRODUCTS policies
 create policy "Admins full access to products" on public.products for all using (public.is_admin());
+
+-- CLIENT NOTIFICATIONS policies
+create policy "Admins full access to client_notifications" on public.client_notifications for all using (public.is_admin());
+create policy "Clients can view own notifications" on public.client_notifications for select using (
+  client_id in (
+    select c.id from public.clients c where c.profile_id = auth.uid()
+  )
+);
+create policy "Clients can update own notifications" on public.client_notifications for update using (
+  client_id in (
+    select c.id from public.clients c where c.profile_id = auth.uid()
+  )
+);
 
 -- ASSIGNMENTS policies
 create policy "Admins full access to assignments" on public.assignments for all using (public.is_admin());

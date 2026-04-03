@@ -156,6 +156,20 @@ export default function Projects() {
     fetchProjects()
   }
 
+  // Helper: create a client notification for a project
+  const createNotification = async (projectId: string, type: string, title: string, message: string, linkUrl?: string) => {
+    const project = projects.find(p => p.id === projectId)
+    if (!project?.client_id) return
+    await supabase.from('client_notifications').insert({
+      project_id: projectId,
+      client_id: project.client_id,
+      type,
+      title,
+      message,
+      link_url: linkUrl || null,
+    })
+  }
+
   const handlePhaseChange = async (project: Project, newPhase: ProjectPhase) => {
     setPhaseDropdownId(null)
     if (newPhase === project.current_phase) return
@@ -359,6 +373,20 @@ export default function Projects() {
         }
       }
     }
+    // Create notifications for newly linked items
+    const oldLinks = intakeLinks[projectId] || { quote_id: '', invoice_id: '', assignment_id: '' }
+    if (quoteId && quoteId !== oldLinks.quote_id) {
+      const q = (projectQuotes[projectId] || []).find(q => q.id === quoteId)
+      createNotification(projectId, 'quote', 'Nieuwe offerte beschikbaar', q ? `Offerte ${q.number} staat voor je klaar.` : 'Er is een offerte voor je klaargezet.', `/offerte/${quoteId}`)
+    }
+    if (invoiceId && invoiceId !== oldLinks.invoice_id) {
+      createNotification(projectId, 'invoice', 'Nieuwe factuur beschikbaar', 'Er is een factuur voor je klaargezet.')
+    }
+    if (assignmentId && assignmentId !== oldLinks.assignment_id) {
+      const a = (projectAssignments[projectId] || []).find(a => a.id === assignmentId)
+      createNotification(projectId, 'assignment', 'Nieuwe opdracht beschikbaar', a ? `Opdracht "${a.title}" staat voor je klaar.` : 'Er is een opdrachtomschrijving voor je klaargezet.', `/opdracht/${assignmentId}`)
+    }
+
     setIntakeLinks(prev => ({ ...prev, [projectId]: { quote_id: quoteId, invoice_id: invoiceId, assignment_id: assignmentId } }))
     setSavingIntakeLinks(null)
   }
@@ -491,6 +519,13 @@ export default function Projects() {
     }
 
     await fetchPhaseInstances()
+
+    // Send notification for card update
+    const project = projects.find(p => p.id === projectId)
+    if (project) {
+      createNotification(projectId, 'card_update', 'Je portaal is bijgewerkt', `De ${phaseLabels[phase as ProjectPhase] || phase}-fase is bijgewerkt.`)
+    }
+
     setSavingInstance(false)
   }
 

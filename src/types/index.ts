@@ -226,6 +226,20 @@ export interface Quote {
   client?: Client
 }
 
+export type NotificationType = 'quote' | 'invoice' | 'assignment' | 'card_update' | 'general'
+
+export interface ClientNotification {
+  id: string
+  project_id: string
+  client_id: string
+  type: NotificationType
+  title: string
+  message: string
+  link_url: string | null
+  read: boolean
+  created_at: string
+}
+
 export interface Assignment {
   id: string
   project_id: string
