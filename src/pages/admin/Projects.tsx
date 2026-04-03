@@ -159,8 +159,11 @@ export default function Projects() {
   // Helper: create a client notification for a project
   const createNotification = async (projectId: string, type: string, title: string, message: string, linkUrl?: string) => {
     const project = projects.find(p => p.id === projectId)
-    if (!project?.client_id) return
-    await supabase.from('client_notifications').insert({
+    if (!project?.client_id) {
+      console.warn('createNotification: no client_id found for project', projectId)
+      return
+    }
+    const { error } = await supabase.from('client_notifications').insert({
       project_id: projectId,
       client_id: project.client_id,
       type,
@@ -168,6 +171,9 @@ export default function Projects() {
       message,
       link_url: linkUrl || null,
     })
+    if (error) {
+      console.error('Error creating notification:', error)
+    }
   }
 
   const handlePhaseChange = async (project: Project, newPhase: ProjectPhase) => {

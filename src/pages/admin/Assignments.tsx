@@ -20,10 +20,13 @@ export default function Assignments() {
   const [saving, setSaving] = useState(false)
 
   const fetchAssignments = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('assignments')
       .select('*, client:clients(name), project:projects(name)')
       .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Error fetching assignments:', error)
+    }
     setAssignments(data || [])
     setLoading(false)
   }
@@ -83,9 +86,21 @@ export default function Assignments() {
     }
 
     if (editingId) {
-      await supabase.from('assignments').update(payload).eq('id', editingId)
+      const { error } = await supabase.from('assignments').update(payload).eq('id', editingId)
+      if (error) {
+        console.error('Error updating assignment:', error)
+        alert(`Fout bij opslaan: ${error.message}`)
+        setSaving(false)
+        return
+      }
     } else {
-      await supabase.from('assignments').insert(payload)
+      const { error } = await supabase.from('assignments').insert(payload)
+      if (error) {
+        console.error('Error creating assignment:', error)
+        alert(`Fout bij aanmaken: ${error.message}`)
+        setSaving(false)
+        return
+      }
     }
 
     setSaving(false)
