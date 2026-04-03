@@ -139,6 +139,9 @@ create table public.quotes (
   accepted_at timestamptz,
   accepted_name text,
   accepted_signature text,
+  accepted_remarks text,
+  declined_at timestamptz,
+  declined_reason text,
   created_at timestamptz not null default now()
 );
 

@@ -218,6 +218,9 @@ export interface Quote {
   accepted_at: string | null
   accepted_name: string | null
   accepted_signature: string | null
+  accepted_remarks: string | null
+  declined_at: string | null
+  declined_reason: string | null
   created_at: string
   project?: Project
   client?: Client

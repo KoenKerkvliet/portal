@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Quote, QuoteItem, InvoiceSettings } from '../../types'
-import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle } from 'lucide-react'
 
 // Convert HTML to structured plain text for PDF
 function htmlToPlainText(html: string): string {
@@ -131,7 +131,13 @@ export default function QuotePage() {
   const [acceptName, setAcceptName] = useState('')
   const [acceptSignature, setAcceptSignature] = useState('')
   const [acceptTerms, setAcceptTerms] = useState(false)
+  const [acceptRemarks, setAcceptRemarks] = useState('')
   const [accepting, setAccepting] = useState(false)
+
+  // Decline state
+  const [showDecline, setShowDecline] = useState(false)
+  const [declineReason, setDeclineReason] = useState('')
+  const [declining, setDeclining] = useState(false)
 
   useEffect(() => {
     const fetch = async () => {
@@ -413,10 +419,23 @@ export default function QuotePage() {
         accepted_at: new Date().toISOString(),
         accepted_name: acceptName.trim(),
         accepted_signature: acceptSignature,
+        accepted_remarks: acceptRemarks.trim() || null,
       }).eq('id', quoteId)
 
       // Mark the step that links to this quote as completed
       await markQuoteStepCompleted()
+
+      // Send notification email to admin
+      const client = quote.client as unknown as { name: string; company: string }
+      await supabase.functions.invoke('notify-quote-response', {
+        body: {
+          action: 'accepted',
+          quoteNumber: quote.number,
+          clientName: client?.name || acceptName.trim(),
+          projectName,
+          remarks: acceptRemarks.trim() || null,
+        },
+      })
 
       // Refresh quote data
       const { data } = await supabase.from('quotes').select('*, project:projects(name), client:clients(name, company, email)').eq('id', quoteId).single()
@@ -425,6 +444,39 @@ export default function QuotePage() {
       console.error('Error accepting quote:', err)
     } finally {
       setAccepting(false)
+    }
+  }
+
+  const handleDecline = async () => {
+    if (!quote || !quoteId || !declineReason.trim()) return
+    setDeclining(true)
+
+    try {
+      await supabase.from('quotes').update({
+        status: 'declined',
+        declined_at: new Date().toISOString(),
+        declined_reason: declineReason.trim(),
+      }).eq('id', quoteId)
+
+      // Send notification email to admin
+      const client = quote.client as unknown as { name: string; company: string }
+      await supabase.functions.invoke('notify-quote-response', {
+        body: {
+          action: 'declined',
+          quoteNumber: quote.number,
+          clientName: client?.name || '',
+          projectName,
+          declineReason: declineReason.trim(),
+        },
+      })
+
+      // Refresh quote data
+      const { data } = await supabase.from('quotes').select('*, project:projects(name), client:clients(name, company, email)').eq('id', quoteId).single()
+      if (data) setQuote(data)
+    } catch (err) {
+      console.error('Error declining quote:', err)
+    } finally {
+      setDeclining(false)
     }
   }
 
@@ -699,7 +751,7 @@ export default function QuotePage() {
         )}
       </div>
 
-      {/* Acceptance section */}
+      {/* Acceptance / Decline section */}
       {quote.accepted_at ? (
         // Already accepted — show confirmation
         <div className="mt-6 bg-white rounded-2xl border border-green-200 shadow-sm overflow-hidden">
@@ -716,14 +768,47 @@ export default function QuotePage() {
               </div>
             </div>
           </div>
-          {quote.accepted_signature && (
+          <div className="px-8 py-5 space-y-4">
+            {quote.accepted_signature && (
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Handtekening</p>
+                <img src={quote.accepted_signature} alt="Handtekening" className="h-20 object-contain" />
+              </div>
+            )}
+            {quote.accepted_remarks && (
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Opmerking</p>
+                <p className="text-sm text-gray-600">{quote.accepted_remarks}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : quote.status === 'declined' ? (
+        // Declined — show decline confirmation
+        <div className="mt-6 bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
+          <div className="bg-red-50 px-8 py-5 border-b border-red-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <XCircle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-red-900">Offerte afgekeurd</h3>
+                {quote.declined_at && (
+                  <p className="text-sm text-red-700">
+                    Afgekeurd op {new Date(quote.declined_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          {quote.declined_reason && (
             <div className="px-8 py-5">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Handtekening</p>
-              <img src={quote.accepted_signature} alt="Handtekening" className="h-20 object-contain" />
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Reden</p>
+              <p className="text-sm text-gray-600">{quote.declined_reason}</p>
             </div>
           )}
         </div>
-      ) : quote.status !== 'declined' && (
+      ) : (
         // Not yet accepted — show acceptance form
         <div className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-8 py-5 border-b border-gray-100">
@@ -731,62 +816,125 @@ export default function QuotePage() {
             <p className="text-sm text-gray-500 mt-0.5">Bevestig de offerte door hieronder je gegevens in te vullen en te ondertekenen.</p>
           </div>
 
-          <div className="px-8 py-6 space-y-5">
-            {/* Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Volledige naam</label>
-              <input
-                type="text"
-                value={acceptName}
-                onChange={(e) => setAcceptName(e.target.value)}
-                placeholder="Vul je volledige naam in"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-              />
+          {!showDecline ? (
+            <div className="px-8 py-6 space-y-5">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Volledige naam</label>
+                <input
+                  type="text"
+                  value={acceptName}
+                  onChange={(e) => setAcceptName(e.target.value)}
+                  placeholder="Vul je volledige naam in"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                />
+              </div>
+
+              {/* Signature */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Handtekening</label>
+                <SignatureCanvas onSignatureChange={setAcceptSignature} />
+              </div>
+
+              {/* Remarks (optional) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Opmerking <span className="text-gray-400 font-normal">(optioneel)</span>
+                </label>
+                <textarea
+                  value={acceptRemarks}
+                  onChange={(e) => setAcceptRemarks(e.target.value)}
+                  placeholder="Eventuele opmerkingen bij je akkoord..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all resize-none"
+                />
+              </div>
+
+              {/* Terms checkbox */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30 mt-0.5"
+                />
+                <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
+                  Ik ga akkoord met de{' '}
+                  <Link to="/voorwaarden" target="_blank" className="text-primary hover:text-primary-600 underline font-medium">
+                    algemene voorwaarden
+                  </Link>
+                </span>
+              </label>
+
+              {/* Accept button */}
+              <button
+                type="button"
+                onClick={handleAccept}
+                disabled={accepting || !acceptName.trim() || !acceptSignature || !acceptTerms}
+                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {accepting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                {accepting ? 'Bezig met verwerken...' : 'Offerte accepteren'}
+              </button>
+
+              {/* Decline link */}
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowDecline(true)}
+                  className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  Ik wil de offerte afkeuren
+                </button>
+              </div>
             </div>
+          ) : (
+            // Decline form
+            <div className="px-8 py-6 space-y-5">
+              <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+                <p className="text-sm font-medium text-red-800">Offerte afkeuren</p>
+                <p className="text-xs text-red-600 mt-0.5">Laat ons weten waarom de offerte niet akkoord is, zodat we een nieuwe offerte kunnen opstellen.</p>
+              </div>
 
-            {/* Signature */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Handtekening</label>
-              <SignatureCanvas onSignatureChange={setAcceptSignature} />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Reden van afkeuring</label>
+                <textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  placeholder="Beschrijf waarom je de offerte wilt afkeuren..."
+                  rows={4}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-300 focus:bg-white text-sm transition-all resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDecline(false)}
+                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Annuleren
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDecline}
+                  disabled={declining || !declineReason.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {declining ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <XCircle className="w-4 h-4" />
+                  )}
+                  {declining ? 'Verwerken...' : 'Offerte afkeuren'}
+                </button>
+              </div>
             </div>
-
-            {/* Terms checkbox */}
-            <label className="flex items-start gap-3 cursor-pointer group">
-              <input
-                type="checkbox"
-                checked={acceptTerms}
-                onChange={(e) => setAcceptTerms(e.target.checked)}
-                className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30 mt-0.5"
-              />
-              <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
-                Ik ga akkoord met de{' '}
-                <Link to="/voorwaarden" target="_blank" className="text-primary hover:text-primary-600 underline font-medium">
-                  algemene voorwaarden
-                </Link>
-              </span>
-            </label>
-
-            {/* Accept button */}
-            <button
-              type="button"
-              onClick={handleAccept}
-              disabled={accepting || !acceptName.trim() || !acceptSignature || !acceptTerms}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {accepting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-              {accepting ? 'Bezig met verwerken...' : 'Offerte accepteren'}
-            </button>
-
-            {(!acceptName.trim() || !acceptSignature || !acceptTerms) && (
-              <p className="text-xs text-gray-400 text-center">
-                Vul je naam in, plaats je handtekening en ga akkoord met de voorwaarden om de offerte te accepteren.
-              </p>
-            )}
-          </div>
+          )}
         </div>
       )}
     </div>
