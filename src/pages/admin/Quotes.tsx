@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase'
 import type { Quote, QuoteStatus } from '../../types'
 import { Plus, FileCheck, Trash2, Pencil, FlaskConical, X } from 'lucide-react'
 
-const statusLabels: Record<QuoteStatus, string> = { draft: 'Concept', sent: 'Verzonden', accepted: 'Geaccepteerd', declined: 'Afgewezen' }
 const statusColors: Record<QuoteStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', accepted: 'bg-green-100 text-green-700', declined: 'bg-red-100 text-red-700' }
 
 export default function Quotes() {
@@ -30,10 +29,8 @@ export default function Quotes() {
     fetchQuotes()
   }
 
-  const cycleStatus = async (quote: Quote) => {
-    const order: QuoteStatus[] = ['draft', 'sent', 'accepted', 'declined']
-    const nextIndex = (order.indexOf(quote.status) + 1) % order.length
-    await supabase.from('quotes').update({ status: order[nextIndex] }).eq('id', quote.id)
+  const updateStatus = async (id: string, status: QuoteStatus) => {
+    await supabase.from('quotes').update({ status }).eq('id', id)
     fetchQuotes()
   }
 
@@ -137,9 +134,16 @@ export default function Quotes() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-lg font-semibold text-gray-900">&euro;{quote.amount.toFixed(2)}</span>
-                <button onClick={() => cycleStatus(quote)} className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer ${statusColors[quote.status]}`}>
-                  {statusLabels[quote.status]}
-                </button>
+                <select
+                  value={quote.status}
+                  onChange={(e) => updateStatus(quote.id, e.target.value as QuoteStatus)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer border-0 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/30 ${statusColors[quote.status]}`}
+                >
+                  <option value="draft">Concept</option>
+                  <option value="sent">Verstuurd</option>
+                  <option value="accepted">Akkoord</option>
+                  <option value="declined">Afgewezen</option>
+                </select>
                 <button
                   onClick={() => navigate(`/admin/offertes/${quote.id}`)}
                   className="p-2 text-gray-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"

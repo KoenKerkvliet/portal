@@ -855,6 +855,7 @@ export default function Projects() {
                                             <CardElementsEditor
                                               elements={step.elements || []}
                                               onChange={(elements) => updateInstanceStep(index, 'elements', elements)}
+                                              projectId={project.id}
                                             />
                                           </div>
                                         )}

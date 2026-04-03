@@ -32,6 +32,22 @@ function ButtonFormLink({ element, className }: { element: CardElement; classNam
   )
 }
 
+// Wrapper for button with quote action
+function ButtonQuoteLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/offerte/${element.data.quoteId}`)}
+        className={className}
+      >
+        {element.data.label || 'Offerte bekijken'}
+      </button>
+    </div>
+  )
+}
+
 // Render a single card element for the client view
 function CardElementView({ element, project }: { element: CardElement; project: Project }) {
   switch (element.type) {
@@ -100,6 +116,10 @@ function CardElementView({ element, project }: { element: CardElement; project: 
 
       if (action === 'form' && element.data.formId) {
         return <ButtonFormLink element={element} className={btnClasses} />
+      }
+
+      if (action === 'quote' && element.data.quoteId) {
+        return <ButtonQuoteLink element={element} className={btnClasses} />
       }
 
       // Default: URL action

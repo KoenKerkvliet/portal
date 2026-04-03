@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import type { CardElement, CardElementType, Form } from '../types'
+import type { CardElement, CardElementType, Form, Quote } from '../types'
 import { supabase } from '../lib/supabase'
 import {
   Plus, Trash2, Type, Image, Zap, Link2, MousePointer, FileText,
   Calendar, Clock, User, Mail, Phone, Globe, Star, Heart, CheckCircle,
   AlertCircle, Info, MessageSquare, MapPin, Briefcase, Home, Shield,
-  GripVertical, ChevronUp, ChevronDown,
+  GripVertical, ChevronUp, ChevronDown, FileCheck,
   Camera, Code, Coffee, CreditCard, Database, Eye, Flag, Gift,
   Headphones, Key, Layers, Lightbulb, Lock, Monitor, Music,
   Package, Palette, PenTool, Rocket, Search, Send, Settings,
@@ -121,11 +121,11 @@ const elementTypes: { type: CardElementType; label: string; icon: typeof Type; d
   { type: 'button', label: 'Knop', icon: MousePointer, description: 'Call-to-action knop' },
 ]
 
-// Button action types — extensible for future actions (offerte, factuur, etc.)
+// Button action types — extensible for future actions
 export const buttonActionTypes = [
   { value: 'url', label: 'Link naar URL', icon: Link2 },
   { value: 'form', label: 'Open formulier', icon: FileText },
-  // Future: { value: 'quote', label: 'Bekijk offerte', icon: FileText },
+  { value: 'quote', label: 'Bekijk offerte', icon: FileCheck },
   // Future: { value: 'invoice', label: 'Bekijk factuur', icon: FileText },
 ]
 
@@ -245,6 +245,7 @@ function ElementEditor({
   onMoveDown,
   isFirst,
   isLast,
+  projectId,
 }: {
   element: CardElement
   onChange: (data: Record<string, string>) => void
@@ -253,6 +254,7 @@ function ElementEditor({
   onMoveDown: () => void
   isFirst: boolean
   isLast: boolean
+  projectId?: string
 }) {
   const typeInfo = elementTypes.find(t => t.type === element.type)
 
@@ -296,7 +298,7 @@ function ElementEditor({
           <LinkEditor data={element.data} onChange={onChange} />
         )}
         {element.type === 'button' && (
-          <ButtonEditor data={element.data} onChange={onChange} />
+          <ButtonEditor data={element.data} onChange={onChange} projectId={projectId} />
         )}
       </div>
     </div>
@@ -390,9 +392,11 @@ function LinkEditor({ data, onChange }: { data: Record<string, string>; onChange
   )
 }
 
-function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void }) {
+function ButtonEditor({ data, onChange, projectId }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void; projectId?: string }) {
   const [forms, setForms] = useState<Form[]>([])
+  const [quotes, setQuotes] = useState<Quote[]>([])
   const [loadingForms, setLoadingForms] = useState(false)
+  const [loadingQuotes, setLoadingQuotes] = useState(false)
   const action = data.action || 'url'
 
   // Load forms when action is 'form'
@@ -405,6 +409,19 @@ function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChan
       })
     }
   }, [action, forms.length])
+
+  // Load quotes when action is 'quote'
+  useEffect(() => {
+    if (action === 'quote') {
+      setLoadingQuotes(true)
+      let query = supabase.from('quotes').select('*').eq('status', 'sent').order('number')
+      if (projectId) query = query.eq('project_id', projectId)
+      query.then(({ data: quotesData }) => {
+        setQuotes(quotesData || [])
+        setLoadingQuotes(false)
+      })
+    }
+  }, [action, projectId])
 
   return (
     <div className="space-y-2">
@@ -433,7 +450,7 @@ function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChan
         <input type="text" value={data.label || ''}
           onChange={(e) => onChange({ ...data, label: e.target.value })}
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-          placeholder={action === 'form' ? 'Formulier invullen' : 'Bekijk meer'} />
+          placeholder={action === 'form' ? 'Formulier invullen' : action === 'quote' ? 'Offerte bekijken' : 'Bekijk meer'} />
       </div>
 
       {/* Action-specific fields */}
@@ -470,6 +487,29 @@ function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChan
         </div>
       )}
 
+      {action === 'quote' && (
+        <div>
+          <label className="block text-[11px] text-gray-400 mb-1">Offerte</label>
+          {loadingQuotes ? (
+            <p className="text-xs text-gray-400">Laden...</p>
+          ) : quotes.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">Geen verzonden offertes beschikbaar{projectId ? ' voor dit domein' : ''}. Maak eerst een offerte aan en zet de status op "Verstuurd".</p>
+          ) : (
+            <select value={data.quoteId || ''}
+              onChange={(e) => {
+                const selected = quotes.find(q => q.id === e.target.value)
+                onChange({ ...data, quoteId: e.target.value, quoteNumber: selected?.number || '' })
+              }}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+              <option value="">Kies een offerte...</option>
+              {quotes.map((q) => (
+                <option key={q.id} value={q.id}>{q.number} — €{q.amount.toFixed(2)}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {/* Style picker */}
       <div>
         <label className="block text-[11px] text-gray-400 mb-1">Stijl</label>
@@ -494,9 +534,11 @@ function ButtonEditor({ data, onChange }: { data: Record<string, string>; onChan
 export default function CardElementsEditor({
   elements,
   onChange,
+  projectId,
 }: {
   elements: CardElement[]
   onChange: (elements: CardElement[]) => void
+  projectId?: string
 }) {
   const insertAt = (index: number, type: CardElementType) => {
     const newEl = createDefaultElement(type)
@@ -538,6 +580,7 @@ export default function CardElementsEditor({
             onMoveDown={() => moveElement(index, 'down')}
             isFirst={index === 0}
             isLast={index === elements.length - 1}
+            projectId={projectId}
           />
           {/* Insert point after each element */}
           <InsertMenu onInsert={(type) => insertAt(index + 1, type)} />
