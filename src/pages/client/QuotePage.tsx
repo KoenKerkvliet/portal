@@ -437,6 +437,15 @@ export default function QuotePage() {
         },
       })
 
+      // Create admin dashboard notification
+      await supabase.from('admin_notifications').insert({
+        type: 'quote_accepted',
+        title: `Offerte ${quote.number} geaccepteerd`,
+        message: `${client?.name || acceptName.trim()} heeft de offerte geaccepteerd.${acceptRemarks.trim() ? ` Opmerking: "${acceptRemarks.trim()}"` : ''}`,
+        project_id: quote.project_id,
+        client_id: quote.client_id,
+      })
+
       // Refresh quote data
       const { data } = await supabase.from('quotes').select('*, project:projects(name), client:clients(name, company, email)').eq('id', quoteId).single()
       if (data) setQuote(data)
@@ -468,6 +477,15 @@ export default function QuotePage() {
           projectName,
           declineReason: declineReason.trim(),
         },
+      })
+
+      // Create admin dashboard notification
+      await supabase.from('admin_notifications').insert({
+        type: 'quote_declined',
+        title: `Offerte ${quote.number} afgekeurd`,
+        message: `${client?.name || 'De klant'} heeft de offerte afgekeurd. Reden: "${declineReason.trim()}"`,
+        project_id: quote.project_id,
+        client_id: quote.client_id,
       })
 
       // Refresh quote data

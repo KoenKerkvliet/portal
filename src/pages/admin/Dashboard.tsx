@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { FolderKanban, Users, FileText, FileCheck, Mail } from 'lucide-react'
+import { FolderKanban, Users, FileText, FileCheck, Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface DashboardStats {
@@ -10,6 +10,54 @@ interface DashboardStats {
   quotes: number
   unpaidInvoices: number
   activeProjects: number
+}
+
+interface AdminNotification {
+  id: string
+  type: string
+  title: string
+  message: string
+  link_url: string | null
+  read: boolean
+  created_at: string
+  project?: { name: string }
+  client?: { name: string }
+}
+
+function getTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Zojuist'
+  if (mins < 60) return `${mins} min geleden`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} uur geleden`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'Gisteren'
+  return `${days} dagen geleden`
+}
+
+const notifIcons: Record<string, typeof Bell> = {
+  quote_accepted: CheckCircle,
+  quote_declined: XCircle,
+  assignment: ClipboardCheck,
+  card_update: Layers,
+  general: Bell,
+}
+
+const notifColors: Record<string, string> = {
+  quote_accepted: 'bg-green-50 border-green-200',
+  quote_declined: 'bg-red-50 border-red-200',
+  assignment: 'bg-emerald-50 border-emerald-200',
+  card_update: 'bg-amber-50 border-amber-200',
+  general: 'bg-gray-50 border-gray-200',
+}
+
+const notifIconColors: Record<string, string> = {
+  quote_accepted: 'text-green-500',
+  quote_declined: 'text-red-500',
+  assignment: 'text-emerald-500',
+  card_update: 'text-amber-500',
+  general: 'text-gray-400',
 }
 
 export default function Dashboard() {
@@ -22,6 +70,7 @@ export default function Dashboard() {
     activeProjects: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const [sendingTest, setSendingTest] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [testEmailDesignPixels, setTestEmailDesignPixels] = useState(true)
@@ -58,6 +107,28 @@ export default function Dashboard() {
     }
   }
 
+  const fetchNotifications = async () => {
+    const { data } = await supabase
+      .from('admin_notifications')
+      .select('*, project:projects(name), client:clients(name)')
+      .eq('read', false)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    setNotifications(data || [])
+  }
+
+  const dismissNotification = async (id: string) => {
+    await supabase.from('admin_notifications').update({ read: true }).eq('id', id)
+    setNotifications(prev => prev.filter(n => n.id !== id))
+  }
+
+  const dismissAll = async () => {
+    const ids = notifications.map(n => n.id)
+    if (ids.length === 0) return
+    await supabase.from('admin_notifications').update({ read: true }).in('id', ids)
+    setNotifications([])
+  }
+
   useEffect(() => {
     const fetchStats = async () => {
       const [projects, clients, invoices, quotes] = await Promise.all([
@@ -79,6 +150,7 @@ export default function Dashboard() {
     }
 
     fetchStats()
+    fetchNotifications()
   }, [])
 
   const cards = [
@@ -149,6 +221,59 @@ export default function Dashboard() {
               <p className="text-xs text-gray-400 mt-0.5">{card.subtitle}</p>
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* Admin notifications */}
+      {notifications.length > 0 && (
+        <div className="mt-8 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold text-gray-900">Meldingen</h2>
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">{notifications.length}</span>
+            </div>
+            {notifications.length > 1 && (
+              <button onClick={dismissAll} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                Alles gelezen
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {notifications.map((n) => {
+              const Icon = notifIcons[n.type] || Bell
+              const colorClass = notifColors[n.type] || notifColors.general
+              const iconColor = notifIconColors[n.type] || notifIconColors.general
+              const timeAgo = getTimeAgo(n.created_at)
+
+              return (
+                <div key={n.id} className={`flex items-start gap-3 px-4 py-3 rounded-xl border ${colorClass}`}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    <Icon className={`w-4 h-4 ${iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{n.title}</p>
+                    {n.message && <p className="text-xs text-gray-600 mt-0.5">{n.message}</p>}
+                    <div className="flex items-center gap-2 mt-1">
+                      {(n.client as unknown as { name: string })?.name && (
+                        <span className="text-[11px] text-gray-400">{(n.client as unknown as { name: string }).name}</span>
+                      )}
+                      {(n.project as unknown as { name: string })?.name && (
+                        <span className="text-[11px] text-gray-400">• {(n.project as unknown as { name: string }).name}</span>
+                      )}
+                      <span className="text-[11px] text-gray-400">• {timeAgo}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => dismissNotification(n.id)}
+                    className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
