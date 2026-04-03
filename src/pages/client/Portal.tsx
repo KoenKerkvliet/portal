@@ -108,7 +108,7 @@ function CardElementView({ element, project }: { element: CardElement; project: 
     case 'button': {
       const action = element.data.action || 'url'
       const isPrimary = element.data.variant !== 'outline'
-      const btnClasses = `inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+      const btnClasses = `inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
         isPrimary
           ? 'bg-primary hover:bg-primary-600 text-white'
           : 'bg-white border-2 border-primary/30 text-primary hover:bg-primary/5'

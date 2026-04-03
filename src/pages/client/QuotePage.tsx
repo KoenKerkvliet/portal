@@ -187,9 +187,17 @@ export default function QuotePage() {
             doc.setFontSize(7.5)
             doc.setFont('helvetica', 'normal')
             doc.setTextColor(120, 120, 120)
-            const descLines = doc.splitTextToSize(plainDesc, contentWidth - 80)
-            doc.text(descLines, margin, y, { lineHeightFactor: 1.4 })
-            y += descLines.length * 3.2
+            // Render per paragraph/line for tight spacing
+            const paragraphs = plainDesc.split('\n')
+            for (const para of paragraphs) {
+              if (!para.trim()) { y += 1.5; continue }
+              const wrapped = doc.splitTextToSize(para, contentWidth - 80)
+              for (const wline of wrapped) {
+                if (y > 270) { doc.addPage(); y = 25 }
+                doc.text(wline, margin, y)
+                y += 3
+              }
+            }
           }
         }
 
