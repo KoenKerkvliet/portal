@@ -117,8 +117,63 @@ export default function FormPage() {
       if (data) setSubmission(data)
     }
 
+    // Auto-complete the step that links to this form
+    if (submit) {
+      await markStepCompleted()
+    }
+
     setSaving(false)
     setSaved(true)
+  }
+
+  const markStepCompleted = async () => {
+    if (!projectId || !formId) return
+
+    // Get the project's current phase
+    const { data: project } = await supabase
+      .from('projects')
+      .select('current_phase')
+      .eq('id', projectId)
+      .single()
+
+    if (!project) return
+
+    // Get the project_phases record for the current phase
+    const { data: phaseRecord } = await supabase
+      .from('project_phases')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('phase', project.current_phase)
+      .limit(1)
+      .single()
+
+    if (!phaseRecord?.custom_data?.steps) return
+
+    const steps = phaseRecord.custom_data.steps as Array<{
+      id: string
+      completed?: boolean
+      elements?: Array<{ type: string; data: Record<string, string> }>
+    }>
+
+    // Find the step that has a button linking to this form
+    let changed = false
+    for (const step of steps) {
+      if (step.completed) continue
+      const hasFormButton = step.elements?.some(
+        (el) => el.type === 'button' && el.data.action === 'form' && el.data.formId === formId
+      )
+      if (hasFormButton) {
+        step.completed = true
+        changed = true
+      }
+    }
+
+    if (changed) {
+      await supabase
+        .from('project_phases')
+        .update({ custom_data: { ...phaseRecord.custom_data, steps } })
+        .eq('id', phaseRecord.id)
+    }
   }
 
   if (loading) {
@@ -380,7 +435,7 @@ export default function FormPage() {
                   className="flex items-center gap-1.5 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {isSubmitted ? 'Opnieuw opslaan' : 'Verzenden'}
+                  {isSubmitted ? 'Opnieuw opslaan' : 'Opslaan en voltooi stap'}
                 </button>
               ) : (
                 <button
