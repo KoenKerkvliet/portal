@@ -8,11 +8,10 @@ import Dashboard from './pages/admin/Dashboard'
 import Projects from './pages/admin/Projects'
 import Clients from './pages/admin/Clients'
 import Invoices from './pages/admin/Invoices'
-import RecurringInvoices from './pages/admin/RecurringInvoices'
-import InvoiceSettings from './pages/admin/InvoiceSettings'
+// RecurringInvoices and InvoiceSettings are now integrated into Invoices and Settings pages
 import Products from './pages/admin/Products'
 import Quotes from './pages/admin/Quotes'
-import QuoteSettings from './pages/admin/QuoteSettings'
+// QuoteSettings is now integrated into Settings page
 import QuoteBuilder from './pages/admin/QuoteBuilder'
 import Templates from './pages/admin/Templates'
 import Forms from './pages/admin/Forms'
@@ -50,13 +49,11 @@ function AppRoutes() {
         <Route path="projecten" element={<Projects />} />
         <Route path="klanten" element={<Clients />} />
         <Route path="facturen" element={<Invoices />} />
-        <Route path="facturen/terugkerend" element={<RecurringInvoices />} />
-        <Route path="facturen/instellingen" element={<InvoiceSettings />} />
         <Route path="producten" element={<Products />} />
         <Route path="offertes" element={<Quotes />} />
         <Route path="offertes/nieuw" element={<QuoteBuilder />} />
         <Route path="offertes/:id" element={<QuoteBuilder />} />
-        <Route path="offertes/instellingen" element={<QuoteSettings />} />
+{/* Quote settings now in /admin/instellingen */}
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />
         <Route path="instellingen" element={<AdminSettings />} />
