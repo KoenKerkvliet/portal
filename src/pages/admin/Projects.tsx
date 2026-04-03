@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff } from 'lucide-react'
+import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice } from '../../types'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2 } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -46,6 +46,8 @@ interface ProjectPhaseInstance {
   custom_data: {
     content?: string
     steps?: PhaseStep[]
+    linked_quote_id?: string
+    linked_invoice_id?: string
   } | null
   status: string
 }
@@ -130,6 +132,12 @@ export default function Projects() {
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null)
   const [reloadDropdownId, setReloadDropdownId] = useState<string | null>(null)
   const reloadDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Intake link state
+  const [projectQuotes, setProjectQuotes] = useState<Record<string, Quote[]>>({})
+  const [projectInvoices, setProjectInvoices] = useState<Record<string, Invoice[]>>({})
+  const [intakeLinks, setIntakeLinks] = useState<Record<string, { quote_id: string; invoice_id: string }>>({})
+  const [savingIntakeLinks, setSavingIntakeLinks] = useState<string | null>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -269,10 +277,73 @@ export default function Projects() {
   const fetchPhaseInstances = async () => {
     const { data } = await supabase.from('project_phases').select('*')
     const map: Record<string, ProjectPhaseInstance> = {}
+    const newIntakeLinks: Record<string, { quote_id: string; invoice_id: string }> = {}
     ;(data || []).forEach((pi: ProjectPhaseInstance) => {
       map[`${pi.project_id}_${pi.phase}`] = pi
+      // Load intake links from custom_data
+      if (pi.phase === 'intake' && pi.custom_data) {
+        newIntakeLinks[pi.project_id] = {
+          quote_id: pi.custom_data.linked_quote_id || '',
+          invoice_id: pi.custom_data.linked_invoice_id || '',
+        }
+      }
     })
     setPhaseInstances(map)
+    setIntakeLinks(prev => ({ ...prev, ...newIntakeLinks }))
+  }
+
+  const fetchProjectQuotesAndInvoices = async (projectId: string) => {
+    const [{ data: quotes }, { data: invoices }] = await Promise.all([
+      supabase.from('quotes').select('*').eq('project_id', projectId).order('number'),
+      supabase.from('invoices').select('*').eq('project_id', projectId).order('number'),
+    ])
+    setProjectQuotes(prev => ({ ...prev, [projectId]: quotes || [] }))
+    setProjectInvoices(prev => ({ ...prev, [projectId]: invoices || [] }))
+  }
+
+  const saveIntakeLinks = async (projectId: string, quoteId: string, invoiceId: string) => {
+    setSavingIntakeLinks(projectId)
+    const instance = getInstance(projectId, 'intake')
+    if (instance) {
+      const customData = instance.custom_data || { content: '', steps: [] }
+      // Update linked IDs in custom_data
+      const updatedData = { ...customData, linked_quote_id: quoteId || undefined, linked_invoice_id: invoiceId || undefined }
+
+      // Auto-propagate to button elements in intake steps
+      if (updatedData.steps) {
+        for (const step of updatedData.steps) {
+          if (step.elements) {
+            for (const el of step.elements) {
+              if (el.type === 'button' && el.data.action === 'quote' && quoteId) {
+                el.data.quoteId = quoteId
+              }
+              if (el.type === 'button' && el.data.action === 'invoice' && invoiceId) {
+                el.data.invoiceId = invoiceId
+              }
+            }
+          }
+        }
+      }
+
+      await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
+
+      // Auto-set linked quote to 'sent' if draft
+      if (quoteId) {
+        await supabase.from('quotes').update({ status: 'sent' }).eq('id', quoteId).eq('status', 'draft')
+      }
+
+      await fetchPhaseInstances()
+
+      // Update editingInstance if currently editing intake phase
+      if (editingInstance) {
+        const activeTab = activePhaseTab[projectId] || 'intake'
+        if (activeTab === 'intake') {
+          setEditingInstance({ ...updatedData, content: updatedData.content || '', steps: updatedData.steps || [] })
+        }
+      }
+    }
+    setIntakeLinks(prev => ({ ...prev, [projectId]: { quote_id: quoteId, invoice_id: invoiceId } }))
+    setSavingIntakeLinks(null)
   }
 
   useEffect(() => {
@@ -353,9 +424,33 @@ export default function Projects() {
     if (!editingInstance) return
     setSavingInstance(true)
     const instance = getInstance(projectId, phase)
+
+    // Preserve intake links in custom_data
+    const links = intakeLinks[projectId]
+    const dataToSave: Record<string, unknown> = { ...editingInstance }
+    if (phase === 'intake' && links) {
+      dataToSave.linked_quote_id = links.quote_id || undefined
+      dataToSave.linked_invoice_id = links.invoice_id || undefined
+
+      // Auto-propagate linked quote/invoice to buttons
+      const steps = dataToSave.steps as PhaseStep[]
+      for (const step of steps) {
+        if (step.elements) {
+          for (const el of step.elements) {
+            if (el.type === 'button' && el.data.action === 'quote' && links.quote_id) {
+              el.data.quoteId = links.quote_id
+            }
+            if (el.type === 'button' && el.data.action === 'invoice' && links.invoice_id) {
+              el.data.invoiceId = links.invoice_id
+            }
+          }
+        }
+      }
+    }
+
     if (instance) {
       await supabase.from('project_phases').update({
-        custom_data: editingInstance,
+        custom_data: dataToSave,
       }).eq('id', instance.id)
     }
 
@@ -729,6 +824,79 @@ export default function Projects() {
                     </div>
                   </div>
                 </div>
+
+                {/* Intake koppelingen section */}
+                {getInstance(project.id, 'intake') && (
+                  <div className="border-t border-gray-100 px-5 sm:px-6 py-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Link2 className="w-4 h-4 text-blue-500" />
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Intake koppelingen</span>
+                    </div>
+                    {(() => {
+                      const links = intakeLinks[project.id] || { quote_id: '', invoice_id: '' }
+                      const quotes = projectQuotes[project.id]
+                      const invoices = projectInvoices[project.id]
+
+                      // Auto-load quotes/invoices when not yet loaded
+                      if (!quotes && !invoices) {
+                        fetchProjectQuotesAndInvoices(project.id)
+                        return <p className="text-xs text-gray-400">Laden...</p>
+                      }
+
+                      return (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Offerte</label>
+                            <div className="flex items-center gap-2">
+                              <FileCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <select
+                                value={links.quote_id}
+                                onChange={(e) => {
+                                  const newLinks = { ...links, quote_id: e.target.value }
+                                  setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                  saveIntakeLinks(project.id, e.target.value, links.invoice_id)
+                                }}
+                                className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                              >
+                                <option value="">Geen offerte gekoppeld</option>
+                                {(quotes || []).map((q) => (
+                                  <option key={q.id} value={q.id}>
+                                    {q.number} — €{((q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)).toFixed(2)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Factuur</label>
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <select
+                                value={links.invoice_id}
+                                onChange={(e) => {
+                                  const newLinks = { ...links, invoice_id: e.target.value }
+                                  setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                  saveIntakeLinks(project.id, links.quote_id, e.target.value)
+                                }}
+                                className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                              >
+                                <option value="">Geen factuur gekoppeld</option>
+                                {(invoices || []).map((inv) => (
+                                  <option key={inv.id} value={inv.id}>
+                                    {inv.number} — €{inv.amount.toFixed(2)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          {savingIntakeLinks === project.id && (
+                            <p className="text-xs text-primary col-span-2">Opslaan...</p>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
 
                 {/* Template accordion toggle */}
                 <div className="border-t border-gray-100">
