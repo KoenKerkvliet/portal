@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Quote, QuoteItem, InvoiceSettings } from '../../types'
-import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2 } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine } from 'lucide-react'
 
 // Convert HTML to structured plain text for PDF
 function htmlToPlainText(html: string): string {
@@ -24,6 +24,99 @@ function htmlToPlainText(html: string): string {
   return text
 }
 
+// Signature pad component
+function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: string) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [hasSignature, setHasSignature] = useState(false)
+
+  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return
+    setIsDrawing(true)
+    const pos = getPos(e)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+  }
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    if (!isDrawing) return
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return
+    const pos = getPos(e)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.strokeStyle = '#1f2937'
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.stroke()
+    setHasSignature(true)
+  }
+
+  const endDraw = () => {
+    setIsDrawing(false)
+    if (hasSignature && canvasRef.current) {
+      onSignatureChange(canvasRef.current.toDataURL('image/png'))
+    }
+  }
+
+  const clear = () => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    setHasSignature(false)
+    onSignatureChange('')
+  }
+
+  return (
+    <div>
+      <div className="relative border-2 border-dashed border-gray-200 rounded-xl overflow-hidden bg-white">
+        <canvas
+          ref={canvasRef}
+          width={600}
+          height={200}
+          className="w-full h-32 cursor-crosshair touch-none"
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+        {!hasSignature && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-2 text-gray-300">
+              <PenLine className="w-5 h-5" />
+              <span className="text-sm font-medium">Teken hier je handtekening</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {hasSignature && (
+        <button type="button" onClick={clear} className="mt-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors">
+          Handtekening wissen
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function QuotePage() {
   const { quoteId } = useParams()
   const navigate = useNavigate()
@@ -33,6 +126,12 @@ export default function QuotePage() {
   const [clientName, setClientName] = useState('')
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+
+  // Acceptance state
+  const [acceptName, setAcceptName] = useState('')
+  const [acceptSignature, setAcceptSignature] = useState('')
+  const [acceptTerms, setAcceptTerms] = useState(false)
+  const [accepting, setAccepting] = useState(false)
 
   useEffect(() => {
     const fetch = async () => {
@@ -303,6 +402,82 @@ export default function QuotePage() {
     setDownloading(false)
   }
 
+  const handleAccept = async () => {
+    if (!quote || !quoteId || !acceptName.trim() || !acceptSignature || !acceptTerms) return
+    setAccepting(true)
+
+    try {
+      // Update quote status and store acceptance data
+      await supabase.from('quotes').update({
+        status: 'accepted',
+        accepted_at: new Date().toISOString(),
+        accepted_name: acceptName.trim(),
+        accepted_signature: acceptSignature,
+      }).eq('id', quoteId)
+
+      // Mark the step that links to this quote as completed
+      await markQuoteStepCompleted()
+
+      // Refresh quote data
+      const { data } = await supabase.from('quotes').select('*, project:projects(name), client:clients(name, company, email)').eq('id', quoteId).single()
+      if (data) setQuote(data)
+    } catch (err) {
+      console.error('Error accepting quote:', err)
+    } finally {
+      setAccepting(false)
+    }
+  }
+
+  const markQuoteStepCompleted = useCallback(async () => {
+    if (!quote?.project_id || !quoteId) return
+
+    // Get the project's current phase
+    const { data: project } = await supabase
+      .from('projects')
+      .select('current_phase')
+      .eq('id', quote.project_id)
+      .single()
+
+    if (!project) return
+
+    // Check all phases for this project (the quote button could be in any phase)
+    const { data: phaseRecords } = await supabase
+      .from('project_phases')
+      .select('*')
+      .eq('project_id', quote.project_id)
+
+    if (!phaseRecords) return
+
+    for (const phaseRecord of phaseRecords) {
+      if (!phaseRecord.custom_data?.steps) continue
+
+      const steps = phaseRecord.custom_data.steps as Array<{
+        id: string
+        completed?: boolean
+        elements?: Array<{ type: string; data: Record<string, string> }>
+      }>
+
+      let changed = false
+      for (const step of steps) {
+        if (step.completed) continue
+        const hasQuoteButton = step.elements?.some(
+          (el) => el.type === 'button' && el.data.action === 'quote' && el.data.quoteId === quoteId
+        )
+        if (hasQuoteButton) {
+          step.completed = true
+          changed = true
+        }
+      }
+
+      if (changed) {
+        await supabase
+          .from('project_phases')
+          .update({ custom_data: { ...phaseRecord.custom_data, steps } })
+          .eq('id', phaseRecord.id)
+      }
+    }
+  }, [quote?.project_id, quoteId])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -523,6 +698,97 @@ export default function QuotePage() {
           </div>
         )}
       </div>
+
+      {/* Acceptance section */}
+      {quote.accepted_at ? (
+        // Already accepted — show confirmation
+        <div className="mt-6 bg-white rounded-2xl border border-green-200 shadow-sm overflow-hidden">
+          <div className="bg-green-50 px-8 py-5 border-b border-green-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <Check className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-green-900">Offerte geaccepteerd</h3>
+                <p className="text-sm text-green-700">
+                  Geaccepteerd door {quote.accepted_name} op {new Date(quote.accepted_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+          </div>
+          {quote.accepted_signature && (
+            <div className="px-8 py-5">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Handtekening</p>
+              <img src={quote.accepted_signature} alt="Handtekening" className="h-20 object-contain" />
+            </div>
+          )}
+        </div>
+      ) : quote.status !== 'declined' && (
+        // Not yet accepted — show acceptance form
+        <div className="mt-6 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-primary/5 to-primary/10 px-8 py-5 border-b border-gray-100">
+            <h3 className="text-lg font-bold text-gray-900">Opdrachtbevestiging</h3>
+            <p className="text-sm text-gray-500 mt-0.5">Bevestig de offerte door hieronder je gegevens in te vullen en te ondertekenen.</p>
+          </div>
+
+          <div className="px-8 py-6 space-y-5">
+            {/* Name */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Volledige naam</label>
+              <input
+                type="text"
+                value={acceptName}
+                onChange={(e) => setAcceptName(e.target.value)}
+                placeholder="Vul je volledige naam in"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+              />
+            </div>
+
+            {/* Signature */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Handtekening</label>
+              <SignatureCanvas onSignatureChange={setAcceptSignature} />
+            </div>
+
+            {/* Terms checkbox */}
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30 mt-0.5"
+              />
+              <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
+                Ik ga akkoord met de{' '}
+                <Link to="/voorwaarden" target="_blank" className="text-primary hover:text-primary-600 underline font-medium">
+                  algemene voorwaarden
+                </Link>
+              </span>
+            </label>
+
+            {/* Accept button */}
+            <button
+              type="button"
+              onClick={handleAccept}
+              disabled={accepting || !acceptName.trim() || !acceptSignature || !acceptTerms}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {accepting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              {accepting ? 'Bezig met verwerken...' : 'Offerte accepteren'}
+            </button>
+
+            {(!acceptName.trim() || !acceptSignature || !acceptTerms) && (
+              <p className="text-xs text-gray-400 text-center">
+                Vul je naam in, plaats je handtekening en ga akkoord met de voorwaarden om de offerte te accepteren.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

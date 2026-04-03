@@ -215,6 +215,9 @@ export interface Quote {
   discount_percent: number
   btw_percent: number
   notes: string
+  accepted_at: string | null
+  accepted_name: string | null
+  accepted_signature: string | null
   created_at: string
   project?: Project
   client?: Client

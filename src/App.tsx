@@ -21,6 +21,7 @@ import FormPage from './pages/client/FormPage'
 import ClientFiles from './pages/client/Files'
 import ClientQuotePage from './pages/client/QuotePage'
 import ClientSettings from './pages/client/Settings'
+import ClientTerms from './pages/client/Terms'
 import Verify from './pages/Verify'
 
 function AppRoutes() {
@@ -68,6 +69,7 @@ function AppRoutes() {
         <Route index element={<ClientPortal />} />
         <Route path="formulier/:formId" element={<FormPage />} />
         <Route path="offerte/:quoteId" element={<ClientQuotePage />} />
+        <Route path="voorwaarden" element={<ClientTerms />} />
         <Route path="bestanden" element={<ClientFiles />} />
         <Route path="instellingen" element={<ClientSettings />} />
       </Route>

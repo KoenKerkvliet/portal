@@ -136,6 +136,9 @@ create table public.quotes (
   discount_percent numeric(5,2) not null default 0,
   btw_percent numeric(5,2) not null default 21,
   notes text not null default '',
+  accepted_at timestamptz,
+  accepted_name text,
+  accepted_signature text,
   created_at timestamptz not null default now()
 );
 
@@ -290,6 +293,9 @@ create policy "Clients can view own invoices" on public.invoices for select usin
 -- QUOTES policies
 create policy "Admins full access to quotes" on public.quotes for all using (public.is_admin());
 create policy "Clients can view own quotes" on public.quotes for select using (
+  client_id in (select id from public.clients where profile_id = auth.uid())
+);
+create policy "Clients can accept own quotes" on public.quotes for update using (
   client_id in (select id from public.clients where profile_id = auth.uid())
 );
 
