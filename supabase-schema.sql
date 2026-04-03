@@ -255,6 +255,13 @@ create table public.assignments (
   client_id uuid references public.clients on delete cascade not null,
   title text not null,
   content text not null default '',
+  status text not null default 'draft' check (status in ('draft', 'sent', 'accepted', 'declined')),
+  accepted_at timestamptz,
+  accepted_name text,
+  accepted_signature text,
+  accepted_remarks text,
+  declined_at timestamptz,
+  declined_reason text,
   created_at timestamptz not null default now()
 );
 
@@ -375,6 +382,11 @@ create policy "Clients can update own notifications" on public.client_notificati
 -- ASSIGNMENTS policies
 create policy "Admins full access to assignments" on public.assignments for all using (public.is_admin());
 create policy "Clients can view own assignments" on public.assignments for select using (
+  client_id in (
+    select c.id from public.clients c where c.profile_id = auth.uid()
+  )
+);
+create policy "Clients can accept own assignments" on public.assignments for update using (
   client_id in (
     select c.id from public.clients c where c.profile_id = auth.uid()
   )

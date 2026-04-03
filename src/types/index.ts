@@ -240,12 +240,21 @@ export interface ClientNotification {
   created_at: string
 }
 
+export type AssignmentStatus = 'draft' | 'sent' | 'accepted' | 'declined'
+
 export interface Assignment {
   id: string
   project_id: string
   client_id: string
   title: string
   content: string
+  status: AssignmentStatus
+  accepted_at: string | null
+  accepted_name: string | null
+  accepted_signature: string | null
+  accepted_remarks: string | null
+  declined_at: string | null
+  declined_reason: string | null
   created_at: string
   project?: Project
   client?: Client
