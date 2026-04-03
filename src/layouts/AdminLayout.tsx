@@ -15,6 +15,7 @@ import {
   BookOpen,
   ClipboardList,
   Package,
+  ClipboardCheck,
 } from 'lucide-react'
 
 const navItems = [
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
   { to: '/admin/facturen', icon: FileText, label: 'Facturen' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
+  { to: '/admin/opdrachten', icon: ClipboardCheck, label: 'Opdrachten' },
   { to: '/admin/producten', icon: Package, label: 'Producten' },
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
 ]

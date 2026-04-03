@@ -48,6 +48,22 @@ function ButtonQuoteLink({ element, className }: { element: CardElement; classNa
   )
 }
 
+// Wrapper for button with assignment action
+function ButtonAssignmentLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/opdracht/${element.data.assignmentId}`)}
+        className={className}
+      >
+        {element.data.label || 'Opdracht bekijken'}
+      </button>
+    </div>
+  )
+}
+
 // Render a single card element for the client view
 function CardElementView({ element, project }: { element: CardElement; project: Project }) {
   switch (element.type) {
@@ -120,6 +136,10 @@ function CardElementView({ element, project }: { element: CardElement; project: 
 
       if (action === 'quote' && element.data.quoteId) {
         return <ButtonQuoteLink element={element} className={btnClasses} />
+      }
+
+      if (action === 'assignment' && element.data.assignmentId) {
+        return <ButtonAssignmentLink element={element} className={btnClasses} />
       }
 
       // Default: URL action

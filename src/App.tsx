@@ -13,6 +13,7 @@ import Products from './pages/admin/Products'
 import Quotes from './pages/admin/Quotes'
 // QuoteSettings is now integrated into Settings page
 import QuoteBuilder from './pages/admin/QuoteBuilder'
+import Assignments from './pages/admin/Assignments'
 import Templates from './pages/admin/Templates'
 import Forms from './pages/admin/Forms'
 import AdminSettings from './pages/admin/Settings'
@@ -22,6 +23,7 @@ import ClientFiles from './pages/client/Files'
 import ClientQuotePage from './pages/client/QuotePage'
 import ClientSettings from './pages/client/Settings'
 import ClientTerms from './pages/client/Terms'
+import ClientAssignmentPage from './pages/client/AssignmentPage'
 import Verify from './pages/Verify'
 
 function AppRoutes() {
@@ -54,6 +56,7 @@ function AppRoutes() {
         <Route path="offertes" element={<Quotes />} />
         <Route path="offertes/nieuw" element={<QuoteBuilder />} />
         <Route path="offertes/:id" element={<QuoteBuilder />} />
+        <Route path="opdrachten" element={<Assignments />} />
 {/* Quote settings now in /admin/instellingen */}
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />
@@ -69,6 +72,7 @@ function AppRoutes() {
         <Route index element={<ClientPortal />} />
         <Route path="formulier/:formId" element={<FormPage />} />
         <Route path="offerte/:quoteId" element={<ClientQuotePage />} />
+        <Route path="opdracht/:assignmentId" element={<ClientAssignmentPage />} />
         <Route path="voorwaarden" element={<ClientTerms />} />
         <Route path="bestanden" element={<ClientFiles />} />
         <Route path="instellingen" element={<ClientSettings />} />

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2 } from 'lucide-react'
+import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2, ClipboardCheck, AlertTriangle } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -48,6 +48,7 @@ interface ProjectPhaseInstance {
     steps?: PhaseStep[]
     linked_quote_id?: string
     linked_invoice_id?: string
+    linked_assignment_id?: string
   } | null
   status: string
 }
@@ -136,7 +137,8 @@ export default function Projects() {
   // Intake link state
   const [projectQuotes, setProjectQuotes] = useState<Record<string, Quote[]>>({})
   const [projectInvoices, setProjectInvoices] = useState<Record<string, Invoice[]>>({})
-  const [intakeLinks, setIntakeLinks] = useState<Record<string, { quote_id: string; invoice_id: string }>>({})
+  const [projectAssignments, setProjectAssignments] = useState<Record<string, Assignment[]>>({})
+  const [intakeLinks, setIntakeLinks] = useState<Record<string, { quote_id: string; invoice_id: string; assignment_id: string }>>({})
   const [savingIntakeLinks, setSavingIntakeLinks] = useState<string | null>(null)
 
   useEffect(() => {
@@ -277,7 +279,7 @@ export default function Projects() {
   const fetchPhaseInstances = async () => {
     const { data } = await supabase.from('project_phases').select('*')
     const map: Record<string, ProjectPhaseInstance> = {}
-    const newIntakeLinks: Record<string, { quote_id: string; invoice_id: string }> = {}
+    const newIntakeLinks: Record<string, { quote_id: string; invoice_id: string; assignment_id: string }> = {}
     ;(data || []).forEach((pi: ProjectPhaseInstance) => {
       map[`${pi.project_id}_${pi.phase}`] = pi
       // Load intake links from custom_data
@@ -285,6 +287,7 @@ export default function Projects() {
         newIntakeLinks[pi.project_id] = {
           quote_id: pi.custom_data.linked_quote_id || '',
           invoice_id: pi.custom_data.linked_invoice_id || '',
+          assignment_id: pi.custom_data.linked_assignment_id || '',
         }
       }
     })
@@ -293,36 +296,50 @@ export default function Projects() {
   }
 
   const fetchProjectQuotesAndInvoices = async (projectId: string) => {
-    const [{ data: quotes }, { data: invoices }] = await Promise.all([
+    const [{ data: quotes }, { data: invoices }, { data: assignments }] = await Promise.all([
       supabase.from('quotes').select('*').eq('project_id', projectId).order('number'),
       supabase.from('invoices').select('*').eq('project_id', projectId).order('number'),
+      supabase.from('assignments').select('*').eq('project_id', projectId).order('title'),
     ])
     setProjectQuotes(prev => ({ ...prev, [projectId]: quotes || [] }))
     setProjectInvoices(prev => ({ ...prev, [projectId]: invoices || [] }))
+    setProjectAssignments(prev => ({ ...prev, [projectId]: assignments || [] }))
   }
 
-  const saveIntakeLinks = async (projectId: string, quoteId: string, invoiceId: string) => {
+  const saveIntakeLinks = async (projectId: string, quoteId: string, invoiceId: string, assignmentId: string) => {
     setSavingIntakeLinks(projectId)
     const instance = getInstance(projectId, 'intake')
     if (instance) {
       const customData = instance.custom_data || { content: '', steps: [] }
       // Update linked IDs in custom_data
-      const updatedData = { ...customData, linked_quote_id: quoteId || undefined, linked_invoice_id: invoiceId || undefined }
+      const updatedData = { ...customData, linked_quote_id: quoteId || undefined, linked_invoice_id: invoiceId || undefined, linked_assignment_id: assignmentId || undefined }
 
       // Auto-propagate to button elements in intake steps
+      // Also check for faded steps that have linked content
+      const warnings: string[] = []
       if (updatedData.steps) {
         for (const step of updatedData.steps) {
           if (step.elements) {
             for (const el of step.elements) {
               if (el.type === 'button' && el.data.action === 'quote' && quoteId) {
                 el.data.quoteId = quoteId
+                if (step.faded) warnings.push(`Stap "${step.title || 'Naamloos'}" bevat een offerte-knop maar is niet zichtbaar voor de klant.`)
               }
               if (el.type === 'button' && el.data.action === 'invoice' && invoiceId) {
                 el.data.invoiceId = invoiceId
               }
+              if (el.type === 'button' && el.data.action === 'assignment' && assignmentId) {
+                el.data.assignmentId = assignmentId
+                if (step.faded) warnings.push(`Stap "${step.title || 'Naamloos'}" bevat een opdracht-knop maar is niet zichtbaar voor de klant.`)
+              }
             }
           }
         }
+      }
+
+      // Show warnings if any steps with linked buttons are faded
+      if (warnings.length > 0) {
+        alert('⚠️ Let op!\n\n' + warnings.join('\n\n') + '\n\nMaak deze stappen zichtbaar zodat de klant ze kan zien.')
       }
 
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
@@ -342,7 +359,7 @@ export default function Projects() {
         }
       }
     }
-    setIntakeLinks(prev => ({ ...prev, [projectId]: { quote_id: quoteId, invoice_id: invoiceId } }))
+    setIntakeLinks(prev => ({ ...prev, [projectId]: { quote_id: quoteId, invoice_id: invoiceId, assignment_id: assignmentId } }))
     setSavingIntakeLinks(null)
   }
 
@@ -431,8 +448,9 @@ export default function Projects() {
     if (phase === 'intake' && links) {
       dataToSave.linked_quote_id = links.quote_id || undefined
       dataToSave.linked_invoice_id = links.invoice_id || undefined
+      dataToSave.linked_assignment_id = links.assignment_id || undefined
 
-      // Auto-propagate linked quote/invoice to buttons
+      // Auto-propagate linked quote/invoice/assignment to buttons
       const steps = dataToSave.steps as PhaseStep[]
       for (const step of steps) {
         if (step.elements) {
@@ -442,6 +460,9 @@ export default function Projects() {
             }
             if (el.type === 'button' && el.data.action === 'invoice' && links.invoice_id) {
               el.data.invoiceId = links.invoice_id
+            }
+            if (el.type === 'button' && el.data.action === 'assignment' && links.assignment_id) {
+              el.data.assignmentId = links.assignment_id
             }
           }
         }
@@ -833,64 +854,118 @@ export default function Projects() {
                       <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Intake koppelingen</span>
                     </div>
                     {(() => {
-                      const links = intakeLinks[project.id] || { quote_id: '', invoice_id: '' }
+                      const links = intakeLinks[project.id] || { quote_id: '', invoice_id: '', assignment_id: '' }
                       const quotes = projectQuotes[project.id]
                       const invoices = projectInvoices[project.id]
+                      const assignments = projectAssignments[project.id]
 
-                      // Auto-load quotes/invoices when not yet loaded
-                      if (!quotes && !invoices) {
+                      // Auto-load quotes/invoices/assignments when not yet loaded
+                      if (!quotes && !invoices && !assignments) {
                         fetchProjectQuotesAndInvoices(project.id)
                         return <p className="text-xs text-gray-400">Laden...</p>
                       }
 
+                      // Check for faded steps with linked buttons
+                      const intakeInstance = getInstance(project.id, 'intake')
+                      const fadedWarnings: string[] = []
+                      if (intakeInstance?.custom_data?.steps) {
+                        for (const step of intakeInstance.custom_data.steps) {
+                          if (!step.faded || !step.elements) continue
+                          for (const el of step.elements) {
+                            if (el.type === 'button') {
+                              if (el.data.action === 'quote' && links.quote_id) {
+                                fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een offerte-knop`)
+                              }
+                              if (el.data.action === 'assignment' && links.assignment_id) {
+                                fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een opdracht-knop`)
+                              }
+                            }
+                          }
+                        }
+                      }
+
                       return (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Offerte</label>
-                            <div className="flex items-center gap-2">
-                              <FileCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <select
-                                value={links.quote_id}
-                                onChange={(e) => {
-                                  const newLinks = { ...links, quote_id: e.target.value }
-                                  setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
-                                  saveIntakeLinks(project.id, e.target.value, links.invoice_id)
-                                }}
-                                className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                              >
-                                <option value="">Geen offerte gekoppeld</option>
-                                {(quotes || []).map((q) => (
-                                  <option key={q.id} value={q.id}>
-                                    {q.number} — €{((q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)).toFixed(2)}
-                                  </option>
-                                ))}
-                              </select>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Offerte</label>
+                              <div className="flex items-center gap-2">
+                                <FileCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <select
+                                  value={links.quote_id}
+                                  onChange={(e) => {
+                                    const newLinks = { ...links, quote_id: e.target.value }
+                                    setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                    saveIntakeLinks(project.id, e.target.value, links.invoice_id, links.assignment_id)
+                                  }}
+                                  className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                >
+                                  <option value="">Geen offerte</option>
+                                  {(quotes || []).map((q) => (
+                                    <option key={q.id} value={q.id}>
+                                      {q.number} — €{((q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)).toFixed(2)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Opdracht</label>
+                              <div className="flex items-center gap-2">
+                                <ClipboardCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <select
+                                  value={links.assignment_id}
+                                  onChange={(e) => {
+                                    const newLinks = { ...links, assignment_id: e.target.value }
+                                    setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                    saveIntakeLinks(project.id, links.quote_id, links.invoice_id, e.target.value)
+                                  }}
+                                  className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                >
+                                  <option value="">Geen opdracht</option>
+                                  {(assignments || []).map((a) => (
+                                    <option key={a.id} value={a.id}>{a.title}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Factuur</label>
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <select
+                                  value={links.invoice_id}
+                                  onChange={(e) => {
+                                    const newLinks = { ...links, invoice_id: e.target.value }
+                                    setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                    saveIntakeLinks(project.id, links.quote_id, e.target.value, links.assignment_id)
+                                  }}
+                                  className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                >
+                                  <option value="">Geen factuur</option>
+                                  {(invoices || []).map((inv) => (
+                                    <option key={inv.id} value={inv.id}>
+                                      {inv.number} — €{inv.amount.toFixed(2)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
                           </div>
-                          <div>
-                            <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Factuur</label>
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <select
-                                value={links.invoice_id}
-                                onChange={(e) => {
-                                  const newLinks = { ...links, invoice_id: e.target.value }
-                                  setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
-                                  saveIntakeLinks(project.id, links.quote_id, e.target.value)
-                                }}
-                                className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                              >
-                                <option value="">Geen factuur gekoppeld</option>
-                                {(invoices || []).map((inv) => (
-                                  <option key={inv.id} value={inv.id}>
-                                    {inv.number} — €{inv.amount.toFixed(2)}
-                                  </option>
+                          {fadedWarnings.length > 0 && (
+                            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                              <div className="text-xs text-amber-700">
+                                <p className="font-medium mb-0.5">Stappen niet zichtbaar voor klant:</p>
+                                {fadedWarnings.map((w, i) => (
+                                  <p key={i}>• {w}</p>
                                 ))}
-                              </select>
+                                <p className="mt-1 text-amber-600">Maak deze stappen zichtbaar zodat de klant ze kan zien.</p>
+                              </div>
                             </div>
-                          </div>
+                          )}
                           {savingIntakeLinks === project.id && (
-                            <p className="text-xs text-primary col-span-2">Opslaan...</p>
+                            <p className="text-xs text-primary">Opslaan...</p>
                           )}
                         </div>
                       )

@@ -225,3 +225,14 @@ export interface Quote {
   project?: Project
   client?: Client
 }
+
+export interface Assignment {
+  id: string
+  project_id: string
+  client_id: string
+  title: string
+  content: string
+  created_at: string
+  project?: Project
+  client?: Client
+}

@@ -218,6 +218,18 @@ create table public.products (
 );
 
 -- ============================================
+-- ASSIGNMENTS
+-- ============================================
+create table public.assignments (
+  id uuid default uuid_generate_v4() primary key,
+  project_id uuid references public.projects on delete cascade not null,
+  client_id uuid references public.clients on delete cascade not null,
+  title text not null,
+  content text not null default '',
+  created_at timestamptz not null default now()
+);
+
+-- ============================================
 -- ROW LEVEL SECURITY
 -- ============================================
 
@@ -235,6 +247,7 @@ alter table public.form_submissions enable row level security;
 alter table public.invoice_settings enable row level security;
 alter table public.quote_settings enable row level security;
 alter table public.products enable row level security;
+alter table public.assignments enable row level security;
 
 -- Helper function: check if user is admin
 create or replace function public.is_admin()
@@ -310,6 +323,14 @@ create policy "Admins full access to quote_settings" on public.quote_settings fo
 
 -- PRODUCTS policies
 create policy "Admins full access to products" on public.products for all using (public.is_admin());
+
+-- ASSIGNMENTS policies
+create policy "Admins full access to assignments" on public.assignments for all using (public.is_admin());
+create policy "Clients can view own assignments" on public.assignments for select using (
+  client_id in (
+    select c.id from public.clients c where c.profile_id = auth.uid()
+  )
+);
 
 -- FORMS policies
 create policy "Admins full access to forms" on public.forms for all using (public.is_admin());

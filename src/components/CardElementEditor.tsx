@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import type { CardElement, CardElementType, Form, Quote } from '../types'
+import type { CardElement, CardElementType, Form, Quote, Assignment } from '../types'
 import { supabase } from '../lib/supabase'
 import {
   Plus, Trash2, Type, Image, Zap, Link2, MousePointer, FileText,
   Calendar, Clock, User, Mail, Phone, Globe, Star, Heart, CheckCircle,
   AlertCircle, Info, MessageSquare, MapPin, Briefcase, Home, Shield,
-  GripVertical, ChevronUp, ChevronDown, FileCheck,
+  GripVertical, ChevronUp, ChevronDown, FileCheck, ClipboardCheck,
   Camera, Code, Coffee, CreditCard, Database, Eye, Flag, Gift,
   Headphones, Key, Layers, Lightbulb, Lock, Monitor, Music,
   Package, Palette, PenTool, Rocket, Search, Send, Settings,
@@ -126,6 +126,7 @@ export const buttonActionTypes = [
   { value: 'url', label: 'Link naar URL', icon: Link2 },
   { value: 'form', label: 'Open formulier', icon: FileText },
   { value: 'quote', label: 'Bekijk offerte', icon: FileCheck },
+  { value: 'assignment', label: 'Bekijk opdracht', icon: ClipboardCheck },
   // Future: { value: 'invoice', label: 'Bekijk factuur', icon: FileText },
 ]
 
@@ -395,8 +396,10 @@ function LinkEditor({ data, onChange }: { data: Record<string, string>; onChange
 function ButtonEditor({ data, onChange, projectId }: { data: Record<string, string>; onChange: (d: Record<string, string>) => void; projectId?: string }) {
   const [forms, setForms] = useState<Form[]>([])
   const [quotes, setQuotes] = useState<Quote[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loadingForms, setLoadingForms] = useState(false)
   const [loadingQuotes, setLoadingQuotes] = useState(false)
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
   const action = data.action || 'url'
 
   // Load forms when action is 'form'
@@ -419,6 +422,19 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
       query.then(({ data: quotesData }) => {
         setQuotes(quotesData || [])
         setLoadingQuotes(false)
+      })
+    }
+  }, [action, projectId])
+
+  // Load assignments when action is 'assignment'
+  useEffect(() => {
+    if (action === 'assignment') {
+      setLoadingAssignments(true)
+      let query = supabase.from('assignments').select('*').order('title')
+      if (projectId) query = query.eq('project_id', projectId)
+      query.then(({ data: assignmentsData }) => {
+        setAssignments(assignmentsData || [])
+        setLoadingAssignments(false)
       })
     }
   }, [action, projectId])
@@ -450,7 +466,7 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
         <input type="text" value={data.label || ''}
           onChange={(e) => onChange({ ...data, label: e.target.value })}
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-          placeholder={action === 'form' ? 'Formulier invullen' : action === 'quote' ? 'Offerte bekijken' : 'Bekijk meer'} />
+          placeholder={action === 'form' ? 'Formulier invullen' : action === 'quote' ? 'Offerte bekijken' : action === 'assignment' ? 'Opdracht bekijken' : 'Bekijk meer'} />
       </div>
 
       {/* Action-specific fields */}
@@ -504,6 +520,29 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
               <option value="">Kies een offerte...</option>
               {quotes.map((q) => (
                 <option key={q.id} value={q.id}>{q.number} — €{q.amount.toFixed(2)}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      {action === 'assignment' && (
+        <div>
+          <label className="block text-[11px] text-gray-400 mb-1">Opdracht</label>
+          {loadingAssignments ? (
+            <p className="text-xs text-gray-400">Laden...</p>
+          ) : assignments.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">Geen opdrachten beschikbaar{projectId ? ' voor dit domein' : ''}. Maak eerst een opdracht aan via Opdrachten.</p>
+          ) : (
+            <select value={data.assignmentId || ''}
+              onChange={(e) => {
+                const selected = assignments.find(a => a.id === e.target.value)
+                onChange({ ...data, assignmentId: e.target.value, assignmentTitle: selected?.title || '' })
+              }}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+              <option value="">Kies een opdracht...</option>
+              {assignments.map((a) => (
+                <option key={a.id} value={a.id}>{a.title}</option>
               ))}
             </select>
           )}
