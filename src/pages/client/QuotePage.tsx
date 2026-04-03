@@ -36,8 +36,15 @@ export default function QuotePage() {
   }, [quoteId])
 
   const handleDownloadPdf = async () => {
-    if (!quote || !settings) return
+    if (!quote) return
     setDownloading(true)
+
+    // Fallback als invoice_settings niet bestaat
+    const s = settings || {
+      company_name: '', address_line1: '', address_line2: '',
+      postal_code: '', city: '', country: '', iban: '',
+      btw_number: '', kvk_number: '', kor_enabled: false,
+    } as Partial<InvoiceSettings>
 
     const { default: jsPDF } = await import('jspdf')
     const doc = new jsPDF()
@@ -50,21 +57,21 @@ export default function QuotePage() {
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(40, 40, 40)
-    doc.text(settings.company_name || 'DesignPixels', margin, y)
+    doc.text(s.company_name || 'DesignPixels', margin, y)
 
     // Company details right-aligned
     doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(120, 120, 120)
     const companyLines = [
-      settings.address_line1,
-      settings.address_line2,
-      `${settings.postal_code} ${settings.city}`,
-      settings.country,
-      settings.kvk_number ? `KVK: ${settings.kvk_number}` : '',
-      !settings.kor_enabled && settings.btw_number ? `BTW: ${settings.btw_number}` : '',
-      settings.iban ? `IBAN: ${settings.iban}` : '',
-    ].filter(Boolean)
+      s.address_line1,
+      s.address_line2,
+      `${s.postal_code || ''} ${s.city || ''}`.trim(),
+      s.country,
+      s.kvk_number ? `KVK: ${s.kvk_number}` : '',
+      !s.kor_enabled && s.btw_number ? `BTW: ${s.btw_number}` : '',
+      s.iban ? `IBAN: ${s.iban}` : '',
+    ].filter((l): l is string => Boolean(l))
     companyLines.forEach((line, i) => {
       doc.text(line, pageWidth - margin, 20 + i * 4, { align: 'right' })
     })
@@ -205,7 +212,7 @@ export default function QuotePage() {
       y += 6
     }
 
-    if (!settings.kor_enabled && quote.btw_percent > 0) {
+    if (!s.kor_enabled && quote.btw_percent > 0) {
       doc.setTextColor(100, 100, 100)
       doc.text(`BTW (${quote.btw_percent}%):`, totalsX, y, { align: 'right' })
       doc.setTextColor(40, 40, 40)
@@ -241,7 +248,7 @@ export default function QuotePage() {
     }
 
     // KOR notice
-    if (settings.kor_enabled) {
+    if (s.kor_enabled) {
       y += 12
       if (y > 270) { doc.addPage(); y = 25 }
       doc.setFontSize(7)
@@ -257,7 +264,7 @@ export default function QuotePage() {
       doc.setFontSize(7)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(180, 180, 180)
-      doc.text(`${settings.company_name} — Offerte ${quote.number}`, margin, 290)
+      doc.text(`${s.company_name || 'DesignPixels'} — Offerte ${quote.number}`, margin, 290)
       doc.text(`Pagina ${i} van ${pageCount}`, pageWidth - margin, 290, { align: 'right' })
     }
 
