@@ -381,7 +381,9 @@ export default function Projects() {
     }
     // Create notifications for newly linked items
     const oldLinks = intakeLinks[projectId] || { quote_id: '', invoice_id: '', assignment_id: '' }
+    console.log('[IntakeLinks] old:', oldLinks, 'new quote:', quoteId, 'new invoice:', invoiceId, 'new assignment:', assignmentId)
     if (quoteId && quoteId !== oldLinks.quote_id) {
+      console.log('[IntakeLinks] Quote changed, creating notification...')
       const q = (projectQuotes[projectId] || []).find(q => q.id === quoteId)
       createNotification(projectId, 'quote', 'Nieuwe offerte beschikbaar', q ? `Offerte ${q.number} staat voor je klaar.` : 'Er is een offerte voor je klaargezet.', `/offerte/${quoteId}`)
     }
