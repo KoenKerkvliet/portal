@@ -418,6 +418,8 @@ export default function Projects() {
   }
 
   const saveDesignHtml = async (projectId: string) => {
+    console.log('[DesignHtml] saveDesignHtml called for project:', projectId)
+    console.log('[DesignHtml] current designHtml state:', designHtml[projectId])
     setSavingDesignHtml(projectId)
     let instance = getInstance(projectId, 'design')
     const html = designHtml[projectId] || { styleguide: '', homepage: '', tweede: '' }
