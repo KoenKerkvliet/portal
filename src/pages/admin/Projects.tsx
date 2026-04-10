@@ -50,6 +50,9 @@ interface ProjectPhaseInstance {
     linked_invoice_id?: string
     linked_assignment_id?: string
     design_html?: string
+    design_html_styleguide?: string
+    design_html_homepage?: string
+    design_html_tweede?: string
   } | null
   status: string
 }
@@ -144,7 +147,7 @@ export default function Projects() {
 
   // Domain card tabs & design state
   const [domainCardTab, setDomainCardTab] = useState<Record<string, 'intake' | 'design'>>({})
-  const [designHtml, setDesignHtml] = useState<Record<string, string>>({})
+  const [designHtml, setDesignHtml] = useState<Record<string, { styleguide: string; homepage: string; tweede: string }>>({})
   const [savingDesignHtml, setSavingDesignHtml] = useState<string | null>(null)
 
   useEffect(() => {
@@ -306,7 +309,7 @@ export default function Projects() {
     const { data } = await supabase.from('project_phases').select('*')
     const map: Record<string, ProjectPhaseInstance> = {}
     const newIntakeLinks: Record<string, { quote_id: string; invoice_id: string; assignment_id: string }> = {}
-    const newDesignHtml: Record<string, string> = {}
+    const newDesignHtml: Record<string, { styleguide: string; homepage: string; tweede: string }> = {}
     ;(data || []).forEach((pi: ProjectPhaseInstance) => {
       map[`${pi.project_id}_${pi.phase}`] = pi
       // Load intake links from custom_data
@@ -318,7 +321,11 @@ export default function Projects() {
         }
       }
       if (pi.phase === 'design' && pi.custom_data) {
-        newDesignHtml[pi.project_id] = pi.custom_data.design_html || ''
+        newDesignHtml[pi.project_id] = {
+          styleguide: pi.custom_data.design_html_styleguide || pi.custom_data.design_html || '',
+          homepage: pi.custom_data.design_html_homepage || '',
+          tweede: pi.custom_data.design_html_tweede || '',
+        }
       }
     })
     setPhaseInstances(map)
@@ -410,12 +417,18 @@ export default function Projects() {
     setSavingIntakeLinks(null)
   }
 
-  const saveDesignHtml = async (projectId: string, html: string) => {
+  const saveDesignHtml = async (projectId: string) => {
     setSavingDesignHtml(projectId)
     const instance = getInstance(projectId, 'design')
     if (instance) {
+      const html = designHtml[projectId] || { styleguide: '', homepage: '', tweede: '' }
       const customData = instance.custom_data || { content: '', steps: [] }
-      const updatedData = { ...customData, design_html: html }
+      const updatedData = {
+        ...customData,
+        design_html_styleguide: html.styleguide,
+        design_html_homepage: html.homepage,
+        design_html_tweede: html.tweede,
+      }
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
       await fetchPhaseInstances()
     }
@@ -1067,46 +1080,59 @@ export default function Projects() {
                     )}
 
                     {/* Design tab content */}
-                    {(domainCardTab[project.id] || 'intake') === 'design' && getInstance(project.id, 'design') && (
-                      <div className="px-5 sm:px-6 py-4 space-y-4">
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-1.5">
-                              <Code className="w-3.5 h-3.5 text-gray-400" />
-                              <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">HTML</label>
-                            </div>
+                    {(domainCardTab[project.id] || 'intake') === 'design' && getInstance(project.id, 'design') && (() => {
+                      const html = designHtml[project.id] || { styleguide: '', homepage: '', tweede: '' }
+                      const fields: { key: 'styleguide' | 'homepage' | 'tweede'; label: string }[] = [
+                        { key: 'styleguide', label: 'Styleguide' },
+                        { key: 'homepage', label: 'Homepage' },
+                        { key: 'tweede', label: 'Tweede designfile' },
+                      ]
+                      return (
+                        <div className="px-5 sm:px-6 py-4 space-y-5">
+                          <div className="flex items-center justify-end">
                             <button
-                              onClick={() => saveDesignHtml(project.id, designHtml[project.id] || '')}
+                              onClick={() => saveDesignHtml(project.id)}
                               className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
                             >
                               <Save className="w-3 h-3" />
-                              Opslaan
+                              Alles opslaan
                             </button>
                           </div>
-                          <textarea
-                            value={designHtml[project.id] || ''}
-                            onChange={(e) => setDesignHtml(prev => ({ ...prev, [project.id]: e.target.value }))}
-                            placeholder="Plak hier je HTML code..."
-                            className="w-full h-32 text-xs font-mono bg-gray-900 text-gray-100 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all resize-y"
-                          />
+                          {fields.map(({ key, label }) => (
+                            <div key={key}>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <Code className="w-3.5 h-3.5 text-gray-400" />
+                                <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{label}</label>
+                              </div>
+                              <textarea
+                                value={html[key]}
+                                onChange={(e) => setDesignHtml(prev => ({
+                                  ...prev,
+                                  [project.id]: { ...html, [key]: e.target.value }
+                                }))}
+                                placeholder={`Plak hier de HTML voor ${label.toLowerCase()}...`}
+                                className="w-full h-28 text-xs font-mono bg-gray-900 text-gray-100 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all resize-y"
+                              />
+                              {html[key].trim() && (
+                                <div className="mt-2">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <Eye className="w-3 h-3 text-gray-400" />
+                                    <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Preview</span>
+                                  </div>
+                                  <div
+                                    className="bg-white border border-gray-200 rounded-lg p-4 overflow-auto max-h-48"
+                                    dangerouslySetInnerHTML={{ __html: html[key] }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
                           {savingDesignHtml === project.id && (
-                            <p className="text-xs text-primary mt-1">Opslaan...</p>
+                            <p className="text-xs text-primary">Opslaan...</p>
                           )}
                         </div>
-                        {(designHtml[project.id] || '').trim() && (
-                          <div>
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <Eye className="w-3.5 h-3.5 text-gray-400" />
-                              <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Preview</label>
-                            </div>
-                            <div
-                              className="bg-white border border-gray-200 rounded-lg p-4 overflow-auto max-h-64"
-                              dangerouslySetInnerHTML={{ __html: designHtml[project.id] || '' }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      )
+                    })()}
                   </div>
                 )}
 
