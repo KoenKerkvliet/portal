@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2, ClipboardCheck, AlertTriangle } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2, ClipboardCheck, AlertTriangle, Palette, Code } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -49,6 +49,7 @@ interface ProjectPhaseInstance {
     linked_quote_id?: string
     linked_invoice_id?: string
     linked_assignment_id?: string
+    design_html?: string
   } | null
   status: string
 }
@@ -140,6 +141,11 @@ export default function Projects() {
   const [projectAssignments, setProjectAssignments] = useState<Record<string, Assignment[]>>({})
   const [intakeLinks, setIntakeLinks] = useState<Record<string, { quote_id: string; invoice_id: string; assignment_id: string }>>({})
   const [savingIntakeLinks, setSavingIntakeLinks] = useState<string | null>(null)
+
+  // Domain card tabs & design state
+  const [domainCardTab, setDomainCardTab] = useState<Record<string, 'intake' | 'design'>>({})
+  const [designHtml, setDesignHtml] = useState<Record<string, string>>({})
+  const [savingDesignHtml, setSavingDesignHtml] = useState<string | null>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -300,6 +306,7 @@ export default function Projects() {
     const { data } = await supabase.from('project_phases').select('*')
     const map: Record<string, ProjectPhaseInstance> = {}
     const newIntakeLinks: Record<string, { quote_id: string; invoice_id: string; assignment_id: string }> = {}
+    const newDesignHtml: Record<string, string> = {}
     ;(data || []).forEach((pi: ProjectPhaseInstance) => {
       map[`${pi.project_id}_${pi.phase}`] = pi
       // Load intake links from custom_data
@@ -310,9 +317,13 @@ export default function Projects() {
           assignment_id: pi.custom_data.linked_assignment_id || '',
         }
       }
+      if (pi.phase === 'design' && pi.custom_data) {
+        newDesignHtml[pi.project_id] = pi.custom_data.design_html || ''
+      }
     })
     setPhaseInstances(map)
     setIntakeLinks(prev => ({ ...prev, ...newIntakeLinks }))
+    setDesignHtml(prev => ({ ...prev, ...newDesignHtml }))
   }
 
   const fetchProjectQuotesAndInvoices = async (projectId: string) => {
@@ -397,6 +408,18 @@ export default function Projects() {
 
     setIntakeLinks(prev => ({ ...prev, [projectId]: { quote_id: quoteId, invoice_id: invoiceId, assignment_id: assignmentId } }))
     setSavingIntakeLinks(null)
+  }
+
+  const saveDesignHtml = async (projectId: string, html: string) => {
+    setSavingDesignHtml(projectId)
+    const instance = getInstance(projectId, 'design')
+    if (instance) {
+      const customData = instance.custom_data || { content: '', steps: [] }
+      const updatedData = { ...customData, design_html: html }
+      await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
+      await fetchPhaseInstances()
+    }
+    setSavingDesignHtml(null)
   }
 
   useEffect(() => {
@@ -889,130 +912,201 @@ export default function Projects() {
                   </div>
                 </div>
 
-                {/* Intake koppelingen section */}
-                {getInstance(project.id, 'intake') && (
-                  <div className="border-t border-gray-100 px-5 sm:px-6 py-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Link2 className="w-4 h-4 text-blue-500" />
-                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Intake koppelingen</span>
+                {/* Phase tabs: Intake & Design */}
+                {(getInstance(project.id, 'intake') || getInstance(project.id, 'design')) && (
+                  <div className="border-t border-gray-100">
+                    {/* Tab bar */}
+                    <div className="flex border-b border-gray-100 px-5 sm:px-6">
+                      {getInstance(project.id, 'intake') && (
+                        <button
+                          onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'intake' }))}
+                          className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+                            (domainCardTab[project.id] || 'intake') === 'intake'
+                              ? 'border-blue-500 text-blue-600'
+                              : 'border-transparent text-gray-400 hover:text-gray-600'
+                          }`}
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
+                          Intake
+                        </button>
+                      )}
+                      {getInstance(project.id, 'design') && (
+                        <button
+                          onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'design' }))}
+                          className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+                            (domainCardTab[project.id] || 'intake') === 'design'
+                              ? 'border-purple-500 text-purple-600'
+                              : 'border-transparent text-gray-400 hover:text-gray-600'
+                          }`}
+                        >
+                          <Palette className="w-3.5 h-3.5" />
+                          Design
+                        </button>
+                      )}
                     </div>
-                    {(() => {
-                      const links = intakeLinks[project.id] || { quote_id: '', invoice_id: '', assignment_id: '' }
-                      const quotes = projectQuotes[project.id]
-                      const invoices = projectInvoices[project.id]
-                      const assignments = projectAssignments[project.id]
 
-                      // Auto-load quotes/invoices/assignments when not yet loaded
-                      if (!quotes && !invoices && !assignments) {
-                        fetchProjectQuotesAndInvoices(project.id)
-                        return <p className="text-xs text-gray-400">Laden...</p>
-                      }
+                    {/* Intake tab content */}
+                    {(domainCardTab[project.id] || 'intake') === 'intake' && getInstance(project.id, 'intake') && (
+                      <div className="px-5 sm:px-6 py-4">
+                        {(() => {
+                          const links = intakeLinks[project.id] || { quote_id: '', invoice_id: '', assignment_id: '' }
+                          const quotes = projectQuotes[project.id]
+                          const invoices = projectInvoices[project.id]
+                          const assignments = projectAssignments[project.id]
 
-                      // Check for faded steps with linked buttons
-                      const intakeInstance = getInstance(project.id, 'intake')
-                      const fadedWarnings: string[] = []
-                      if (intakeInstance?.custom_data?.steps) {
-                        for (const step of intakeInstance.custom_data.steps) {
-                          if (!step.faded || !step.elements) continue
-                          for (const el of step.elements) {
-                            if (el.type === 'button') {
-                              if (el.data.action === 'quote' && links.quote_id) {
-                                fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een offerte-knop`)
-                              }
-                              if (el.data.action === 'assignment' && links.assignment_id) {
-                                fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een opdracht-knop`)
+                          if (!quotes && !invoices && !assignments) {
+                            fetchProjectQuotesAndInvoices(project.id)
+                            return <p className="text-xs text-gray-400">Laden...</p>
+                          }
+
+                          const intakeInstance = getInstance(project.id, 'intake')
+                          const fadedWarnings: string[] = []
+                          if (intakeInstance?.custom_data?.steps) {
+                            for (const step of intakeInstance.custom_data.steps) {
+                              if (!step.faded || !step.elements) continue
+                              for (const el of step.elements) {
+                                if (el.type === 'button') {
+                                  if (el.data.action === 'quote' && links.quote_id) {
+                                    fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een offerte-knop`)
+                                  }
+                                  if (el.data.action === 'assignment' && links.assignment_id) {
+                                    fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een opdracht-knop`)
+                                  }
+                                }
                               }
                             }
                           }
-                        }
-                      }
 
-                      return (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Offerte</label>
-                              <div className="flex items-center gap-2">
-                                <FileCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                <select
-                                  value={links.quote_id}
-                                  onChange={(e) => {
-                                    const newLinks = { ...links, quote_id: e.target.value }
-                                    setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
-                                    saveIntakeLinks(project.id, e.target.value, links.invoice_id, links.assignment_id)
-                                  }}
-                                  className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                                >
-                                  <option value="">Geen offerte</option>
-                                  {(quotes || []).map((q) => (
-                                    <option key={q.id} value={q.id}>
-                                      {q.number} — €{((q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)).toFixed(2)}
-                                    </option>
-                                  ))}
-                                </select>
+                          return (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Offerte</label>
+                                  <div className="flex items-center gap-2">
+                                    <FileCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                    <select
+                                      value={links.quote_id}
+                                      onChange={(e) => {
+                                        const newLinks = { ...links, quote_id: e.target.value }
+                                        setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                        saveIntakeLinks(project.id, e.target.value, links.invoice_id, links.assignment_id)
+                                      }}
+                                      className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                    >
+                                      <option value="">Geen offerte</option>
+                                      {(quotes || []).map((q) => (
+                                        <option key={q.id} value={q.id}>
+                                          {q.number} — €{((q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)).toFixed(2)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Opdracht</label>
+                                  <div className="flex items-center gap-2">
+                                    <ClipboardCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                    <select
+                                      value={links.assignment_id}
+                                      onChange={(e) => {
+                                        const newLinks = { ...links, assignment_id: e.target.value }
+                                        setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                        saveIntakeLinks(project.id, links.quote_id, links.invoice_id, e.target.value)
+                                      }}
+                                      className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                    >
+                                      <option value="">Geen opdracht</option>
+                                      {(assignments || []).map((a) => (
+                                        <option key={a.id} value={a.id}>{a.title}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Factuur</label>
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                    <select
+                                      value={links.invoice_id}
+                                      onChange={(e) => {
+                                        const newLinks = { ...links, invoice_id: e.target.value }
+                                        setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                        saveIntakeLinks(project.id, links.quote_id, e.target.value, links.assignment_id)
+                                      }}
+                                      className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                    >
+                                      <option value="">Geen factuur</option>
+                                      {(invoices || []).map((inv) => (
+                                        <option key={inv.id} value={inv.id}>
+                                          {inv.number} — €{inv.amount.toFixed(2)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
                               </div>
+                              {fadedWarnings.length > 0 && (
+                                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                  <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                                  <div className="text-xs text-amber-700">
+                                    <p className="font-medium mb-0.5">Stappen niet zichtbaar voor klant:</p>
+                                    {fadedWarnings.map((w, i) => (
+                                      <p key={i}>• {w}</p>
+                                    ))}
+                                    <p className="mt-1 text-amber-600">Maak deze stappen zichtbaar zodat de klant ze kan zien.</p>
+                                  </div>
+                                </div>
+                              )}
+                              {savingIntakeLinks === project.id && (
+                                <p className="text-xs text-primary">Opslaan...</p>
+                              )}
                             </div>
-                            <div>
-                              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Opdracht</label>
-                              <div className="flex items-center gap-2">
-                                <ClipboardCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                <select
-                                  value={links.assignment_id}
-                                  onChange={(e) => {
-                                    const newLinks = { ...links, assignment_id: e.target.value }
-                                    setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
-                                    saveIntakeLinks(project.id, links.quote_id, links.invoice_id, e.target.value)
-                                  }}
-                                  className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                                >
-                                  <option value="">Geen opdracht</option>
-                                  {(assignments || []).map((a) => (
-                                    <option key={a.id} value={a.id}>{a.title}</option>
-                                  ))}
-                                </select>
-                              </div>
+                          )
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Design tab content */}
+                    {(domainCardTab[project.id] || 'intake') === 'design' && getInstance(project.id, 'design') && (
+                      <div className="px-5 sm:px-6 py-4 space-y-4">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <Code className="w-3.5 h-3.5 text-gray-400" />
+                              <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">HTML</label>
                             </div>
-                            <div>
-                              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Factuur</label>
-                              <div className="flex items-center gap-2">
-                                <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                <select
-                                  value={links.invoice_id}
-                                  onChange={(e) => {
-                                    const newLinks = { ...links, invoice_id: e.target.value }
-                                    setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
-                                    saveIntakeLinks(project.id, links.quote_id, e.target.value, links.assignment_id)
-                                  }}
-                                  className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                                >
-                                  <option value="">Geen factuur</option>
-                                  {(invoices || []).map((inv) => (
-                                    <option key={inv.id} value={inv.id}>
-                                      {inv.number} — €{inv.amount.toFixed(2)}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
+                            <button
+                              onClick={() => saveDesignHtml(project.id, designHtml[project.id] || '')}
+                              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                            >
+                              <Save className="w-3 h-3" />
+                              Opslaan
+                            </button>
                           </div>
-                          {fadedWarnings.length > 0 && (
-                            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                              <div className="text-xs text-amber-700">
-                                <p className="font-medium mb-0.5">Stappen niet zichtbaar voor klant:</p>
-                                {fadedWarnings.map((w, i) => (
-                                  <p key={i}>• {w}</p>
-                                ))}
-                                <p className="mt-1 text-amber-600">Maak deze stappen zichtbaar zodat de klant ze kan zien.</p>
-                              </div>
-                            </div>
-                          )}
-                          {savingIntakeLinks === project.id && (
-                            <p className="text-xs text-primary">Opslaan...</p>
+                          <textarea
+                            value={designHtml[project.id] || ''}
+                            onChange={(e) => setDesignHtml(prev => ({ ...prev, [project.id]: e.target.value }))}
+                            placeholder="Plak hier je HTML code..."
+                            className="w-full h-32 text-xs font-mono bg-gray-900 text-gray-100 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all resize-y"
+                          />
+                          {savingDesignHtml === project.id && (
+                            <p className="text-xs text-primary mt-1">Opslaan...</p>
                           )}
                         </div>
-                      )
-                    })()}
+                        {(designHtml[project.id] || '').trim() && (
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <Eye className="w-3.5 h-3.5 text-gray-400" />
+                              <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Preview</label>
+                            </div>
+                            <div
+                              className="bg-white border border-gray-200 rounded-lg p-4 overflow-auto max-h-64"
+                              dangerouslySetInnerHTML={{ __html: designHtml[project.id] || '' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
