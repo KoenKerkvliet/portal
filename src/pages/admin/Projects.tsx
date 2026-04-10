@@ -418,15 +418,12 @@ export default function Projects() {
   }
 
   const saveDesignHtml = async (projectId: string) => {
-    console.log('[DesignHtml] saveDesignHtml called for project:', projectId)
-    console.log('[DesignHtml] current designHtml state:', designHtml[projectId])
     setSavingDesignHtml(projectId)
     let instance = getInstance(projectId, 'design')
     const html = designHtml[projectId] || { styleguide: '', homepage: '', tweede: '' }
 
     // Create design phase instance if it doesn't exist yet
     if (!instance) {
-      console.log('[DesignHtml] No design instance, creating...', { projectId, html })
       const { data, error } = await supabase.from('project_phases').insert({
         project_id: projectId,
         phase: 'design',
@@ -440,7 +437,6 @@ export default function Projects() {
         },
         status: 'active',
       }).select().single()
-      console.log('[DesignHtml] Insert result:', { data, error })
       if (data) {
         await fetchPhaseInstances()
       }
@@ -456,15 +452,11 @@ export default function Projects() {
         design_html_homepage: html.homepage,
         design_html_tweede: html.tweede,
       }
-      console.log('[DesignHtml] Updating instance', instance.id, updatedData)
-      const { data: updateResult, error } = await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id).select().single()
-      console.log('[DesignHtml] Update result:', { updateResult, error })
-      if (updateResult?.custom_data) {
-        console.log('[DesignHtml] Saved custom_data:', updateResult.custom_data)
-      }
+      await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
-      // Auto-propagate styleguide to buttons with action 'styleguide' in all phases
+      // Auto-propagate styleguide to buttons with action 'styleguide' in all phases (skip design — we just updated it)
       for (const phase of phases) {
+        if (phase === 'design') continue
         const pi = getInstance(projectId, phase)
         if (!pi?.custom_data?.steps) continue
         let changed = false
