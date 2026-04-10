@@ -25,6 +25,7 @@ import ClientSettings from './pages/client/Settings'
 import ClientTerms from './pages/client/Terms'
 import ClientAssignmentPage from './pages/client/AssignmentPage'
 import ClientInvoicePage from './pages/client/InvoicePage'
+import ClientStyleguidePage from './pages/client/StyleguidePage'
 import Verify from './pages/Verify'
 
 function AppRoutes() {
@@ -75,6 +76,7 @@ function AppRoutes() {
         <Route path="offerte/:quoteId" element={<ClientQuotePage />} />
         <Route path="opdracht/:assignmentId" element={<ClientAssignmentPage />} />
         <Route path="factuur/:invoiceId" element={<ClientInvoicePage />} />
+        <Route path="styleguide/:projectId" element={<ClientStyleguidePage />} />
         <Route path="voorwaarden" element={<ClientTerms />} />
         <Route path="bestanden" element={<ClientFiles />} />
         <Route path="instellingen" element={<ClientSettings />} />

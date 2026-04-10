@@ -128,6 +128,7 @@ export const buttonActionTypes = [
   { value: 'quote', label: 'Bekijk offerte', icon: FileCheck },
   { value: 'assignment', label: 'Bekijk opdracht', icon: ClipboardCheck },
   { value: 'invoice', label: 'Bekijk factuur', icon: FileText },
+  { value: 'styleguide', label: 'Bekijk styleguide', icon: Palette },
 ]
 
 function createDefaultElement(type: CardElementType): CardElement {
@@ -481,7 +482,7 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
         <input type="text" value={data.label || ''}
           onChange={(e) => onChange({ ...data, label: e.target.value })}
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-          placeholder={action === 'form' ? 'Formulier invullen' : action === 'quote' ? 'Offerte bekijken' : action === 'assignment' ? 'Opdracht bekijken' : action === 'invoice' ? 'Factuur bekijken' : 'Bekijk meer'} />
+          placeholder={action === 'form' ? 'Formulier invullen' : action === 'quote' ? 'Offerte bekijken' : action === 'assignment' ? 'Opdracht bekijken' : action === 'invoice' ? 'Factuur bekijken' : action === 'styleguide' ? 'Styleguide bekijken' : 'Bekijk meer'} />
       </div>
 
       {/* Action-specific fields */}

@@ -430,6 +430,26 @@ export default function Projects() {
         design_html_tweede: html.tweede,
       }
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
+
+      // Auto-propagate styleguide to buttons with action 'styleguide' in all phases
+      for (const phase of phases) {
+        const pi = getInstance(projectId, phase)
+        if (!pi?.custom_data?.steps) continue
+        let changed = false
+        for (const step of pi.custom_data.steps) {
+          if (!step.elements) continue
+          for (const el of step.elements) {
+            if (el.type === 'button' && el.data.action === 'styleguide') {
+              el.data.styleguideProjectId = html.styleguide ? projectId : ''
+              changed = true
+            }
+          }
+        }
+        if (changed) {
+          await supabase.from('project_phases').update({ custom_data: pi.custom_data }).eq('id', pi.id)
+        }
+      }
+
       await fetchPhaseInstances()
     }
     setSavingDesignHtml(null)

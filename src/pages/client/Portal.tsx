@@ -80,6 +80,22 @@ function ButtonInvoiceLink({ element, className }: { element: CardElement; class
   )
 }
 
+// Wrapper for button with styleguide action
+function ButtonStyleguideLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/styleguide/${element.data.styleguideProjectId}`)}
+        className={className}
+      >
+        {element.data.label || 'Styleguide bekijken'}
+      </button>
+    </div>
+  )
+}
+
 // Render a single card element for the client view
 function CardElementView({ element, project }: { element: CardElement; project: Project }) {
   switch (element.type) {
@@ -159,6 +175,9 @@ function CardElementView({ element, project }: { element: CardElement; project: 
       }
       if (action === 'invoice' && element.data.invoiceId) {
         return <ButtonInvoiceLink element={element} className={btnClasses} />
+      }
+      if (action === 'styleguide' && element.data.styleguideProjectId) {
+        return <ButtonStyleguideLink element={element} className={btnClasses} />
       }
 
       // Default: URL action
