@@ -457,8 +457,11 @@ export default function Projects() {
         design_html_tweede: html.tweede,
       }
       console.log('[DesignHtml] Updating instance', instance.id, updatedData)
-      const { error } = await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
-      if (error) console.error('[DesignHtml] Update error:', error)
+      const { data: updateResult, error } = await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id).select().single()
+      console.log('[DesignHtml] Update result:', { updateResult, error })
+      if (updateResult?.custom_data) {
+        console.log('[DesignHtml] Saved custom_data:', updateResult.custom_data)
+      }
 
       // Auto-propagate styleguide to buttons with action 'styleguide' in all phases
       for (const phase of phases) {
