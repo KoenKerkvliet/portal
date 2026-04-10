@@ -424,7 +424,8 @@ export default function Projects() {
 
     // Create design phase instance if it doesn't exist yet
     if (!instance) {
-      const { data } = await supabase.from('project_phases').insert({
+      console.log('[DesignHtml] No design instance, creating...', { projectId, html })
+      const { data, error } = await supabase.from('project_phases').insert({
         project_id: projectId,
         phase: 'design',
         template_id: null,
@@ -437,6 +438,7 @@ export default function Projects() {
         },
         status: 'active',
       }).select().single()
+      console.log('[DesignHtml] Insert result:', { data, error })
       if (data) {
         await fetchPhaseInstances()
       }
@@ -452,7 +454,9 @@ export default function Projects() {
         design_html_homepage: html.homepage,
         design_html_tweede: html.tweede,
       }
-      await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
+      console.log('[DesignHtml] Updating instance', instance.id, updatedData)
+      const { error } = await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
+      if (error) console.error('[DesignHtml] Update error:', error)
 
       // Auto-propagate styleguide to buttons with action 'styleguide' in all phases
       for (const phase of phases) {
