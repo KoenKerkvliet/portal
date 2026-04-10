@@ -1113,18 +1113,6 @@ export default function Projects() {
                                 placeholder={`Plak hier de HTML voor ${label.toLowerCase()}...`}
                                 className="w-full h-28 text-xs font-mono bg-gray-900 text-gray-100 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all resize-y"
                               />
-                              {html[key].trim() && (
-                                <div className="mt-2">
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Eye className="w-3 h-3 text-gray-400" />
-                                    <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Preview</span>
-                                  </div>
-                                  <div
-                                    className="bg-white border border-gray-200 rounded-lg p-4 overflow-auto max-h-48"
-                                    dangerouslySetInnerHTML={{ __html: html[key] }}
-                                  />
-                                </div>
-                              )}
                             </div>
                           ))}
                           {savingDesignHtml === project.id && (

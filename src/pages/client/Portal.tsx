@@ -64,6 +64,22 @@ function ButtonAssignmentLink({ element, className }: { element: CardElement; cl
   )
 }
 
+// Wrapper for button with invoice action
+function ButtonInvoiceLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/factuur/${element.data.invoiceId}`)}
+        className={className}
+      >
+        {element.data.label || 'Factuur bekijken'}
+      </button>
+    </div>
+  )
+}
+
 // Render a single card element for the client view
 function CardElementView({ element, project }: { element: CardElement; project: Project }) {
   switch (element.type) {
@@ -140,6 +156,9 @@ function CardElementView({ element, project }: { element: CardElement; project: 
 
       if (action === 'assignment' && element.data.assignmentId) {
         return <ButtonAssignmentLink element={element} className={btnClasses} />
+      }
+      if (action === 'invoice' && element.data.invoiceId) {
+        return <ButtonInvoiceLink element={element} className={btnClasses} />
       }
 
       // Default: URL action
