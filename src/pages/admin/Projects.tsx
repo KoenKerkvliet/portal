@@ -419,9 +419,32 @@ export default function Projects() {
 
   const saveDesignHtml = async (projectId: string) => {
     setSavingDesignHtml(projectId)
-    const instance = getInstance(projectId, 'design')
-    if (instance) {
-      const html = designHtml[projectId] || { styleguide: '', homepage: '', tweede: '' }
+    let instance = getInstance(projectId, 'design')
+    const html = designHtml[projectId] || { styleguide: '', homepage: '', tweede: '' }
+
+    // Create design phase instance if it doesn't exist yet
+    if (!instance) {
+      const { data } = await supabase.from('project_phases').insert({
+        project_id: projectId,
+        phase: 'design',
+        template_id: null,
+        custom_data: {
+          content: '',
+          steps: [],
+          design_html_styleguide: html.styleguide,
+          design_html_homepage: html.homepage,
+          design_html_tweede: html.tweede,
+        },
+        status: 'active',
+      }).select().single()
+      if (data) {
+        await fetchPhaseInstances()
+      }
+      setSavingDesignHtml(null)
+      return
+    }
+
+    {
       const customData = instance.custom_data || { content: '', steps: [] }
       const updatedData = {
         ...customData,
@@ -945,11 +968,10 @@ export default function Projects() {
                   </div>
                 </div>
 
-                {/* Phase tabs: Intake & Design */}
-                {(getInstance(project.id, 'intake') || getInstance(project.id, 'design')) && (
-                  <div className="border-t border-gray-100">
-                    {/* Tab bar */}
-                    <div className="flex border-b border-gray-100 px-5 sm:px-6">
+                {/* Phase tabs: always show Design, show Intake only if instance exists */}
+                <div className="border-t border-gray-100">
+                  {/* Tab bar */}
+                  <div className="flex border-b border-gray-100 px-5 sm:px-6">
                       {getInstance(project.id, 'intake') && (
                         <button
                           onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'intake' }))}
@@ -963,19 +985,17 @@ export default function Projects() {
                           Intake
                         </button>
                       )}
-                      {getInstance(project.id, 'design') && (
-                        <button
-                          onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'design' }))}
-                          className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-                            (domainCardTab[project.id] || 'intake') === 'design'
-                              ? 'border-purple-500 text-purple-600'
-                              : 'border-transparent text-gray-400 hover:text-gray-600'
-                          }`}
-                        >
-                          <Palette className="w-3.5 h-3.5" />
-                          Design
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'design' }))}
+                        className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
+                          (domainCardTab[project.id] || 'intake') === 'design'
+                            ? 'border-purple-500 text-purple-600'
+                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        <Palette className="w-3.5 h-3.5" />
+                        Design
+                      </button>
                     </div>
 
                     {/* Intake tab content */}
@@ -1100,7 +1120,7 @@ export default function Projects() {
                     )}
 
                     {/* Design tab content */}
-                    {(domainCardTab[project.id] || 'intake') === 'design' && getInstance(project.id, 'design') && (() => {
+                    {(domainCardTab[project.id] || 'intake') === 'design' && (() => {
                       const html = designHtml[project.id] || { styleguide: '', homepage: '', tweede: '' }
                       const fields: { key: 'styleguide' | 'homepage' | 'tweede'; label: string }[] = [
                         { key: 'styleguide', label: 'Styleguide' },
@@ -1141,8 +1161,7 @@ export default function Projects() {
                         </div>
                       )
                     })()}
-                  </div>
-                )}
+                </div>
 
                 {/* Template accordion toggle */}
                 <div className="border-t border-gray-100">
