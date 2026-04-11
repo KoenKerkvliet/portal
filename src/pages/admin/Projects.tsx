@@ -152,7 +152,7 @@ export default function Projects() {
   const [savingIntakeLinks, setSavingIntakeLinks] = useState<string | null>(null)
 
   // Domain card tabs & design state
-  const [domainCardTab, setDomainCardTab] = useState<Record<string, 'intake' | 'design'>>({})
+  const [domainCardTab, setDomainCardTab] = useState<Record<string, string>>({})
   const [designImages, setDesignImages] = useState<Record<string, { styleguide: string; homepage: string; tweede: string }>>({})
   const [savingDesignImages, setSavingDesignImages] = useState<string | null>(null)
   const [uploadingDesignImage, setUploadingDesignImage] = useState<string | null>(null)
@@ -1313,37 +1313,31 @@ export default function Projects() {
                   )}
                 </div>
 
-                {/* ── Sectie 5: Fase-inhoud (Intake/Design tabs) ── */}
+                {/* ── Sectie 5: Fase-inhoud tabs ── */}
                 <div className="border-t border-gray-100">
-                  <div className="flex border-b border-gray-100 px-5 sm:px-6">
-                      {getInstance(project.id, 'intake') && (
-                        <button
-                          onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'intake' }))}
-                          className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-                            (domainCardTab[project.id] || 'intake') === 'intake'
-                              ? 'border-blue-500 text-blue-600'
-                              : 'border-transparent text-gray-400 hover:text-gray-600'
+                  <div className="flex border-b border-gray-100 px-5 sm:px-6 overflow-x-auto">
+                    {phases.map((phase) => {
+                      const hasInstance = !!getInstance(project.id, phase)
+                      if (phase === 'intake' && !hasInstance) return null
+                      const activeTab = domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')
+                      const colors = phaseTabColors[phase]
+                      return (
+                        <button key={phase}
+                          onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: phase }))}
+                          className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors whitespace-nowrap ${
+                            activeTab === phase
+                              ? colors.active
+                              : `border-transparent ${colors.inactive}`
                           }`}
                         >
-                          <Link2 className="w-3.5 h-3.5" />
-                          Intake
+                          {phaseLabels[phase]}
                         </button>
-                      )}
-                      <button
-                        onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'design' }))}
-                        className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-                          (domainCardTab[project.id] || 'intake') === 'design'
-                            ? 'border-purple-500 text-purple-600'
-                            : 'border-transparent text-gray-400 hover:text-gray-600'
-                        }`}
-                      >
-                        <Palette className="w-3.5 h-3.5" />
-                        Design
-                      </button>
-                    </div>
+                      )
+                    })}
+                  </div>
 
                     {/* Intake tab content */}
-                    {(domainCardTab[project.id] || 'intake') === 'intake' && getInstance(project.id, 'intake') && (
+                    {(domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')) === 'intake' && getInstance(project.id, 'intake') && (
                       <div className="px-5 sm:px-6 py-4">
                         {(() => {
                           const links = intakeLinks[project.id] || { quote_id: '', invoice_id: '', assignment_id: '' }
@@ -1464,7 +1458,7 @@ export default function Projects() {
                     )}
 
                     {/* Design tab content */}
-                    {(domainCardTab[project.id] || 'intake') === 'design' && (() => {
+                    {(domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')) === 'design' && (() => {
                       const imgs = designImages[project.id] || { styleguide: '', homepage: '', tweede: '' }
                       const designInstance = getInstance(project.id, 'design')
                       const approvals = (designInstance?.custom_data?.design_approvals || {}) as Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string }>
@@ -1576,6 +1570,15 @@ export default function Projects() {
                         </div>
                       )
                     })()}
+
+                    {/* Other phases — empty state */}
+                    {!['intake', 'design'].includes(domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')) && (
+                      <div className="px-5 sm:px-6 py-8 text-center">
+                        <p className="text-sm text-gray-400">
+                          Beheer de inhoud van deze fase via de Templates sectie hierboven.
+                        </p>
+                      </div>
+                    )}
                 </div>
 
               </div>
