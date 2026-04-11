@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2, ClipboardCheck, AlertTriangle, Palette, Code } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2, ClipboardCheck, AlertTriangle, Palette, Code, Upload } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -1006,6 +1006,15 @@ export default function Projects() {
                           onChange={(e) => updateProject(project.id, { start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
                           className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors" />
                       </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Bestanden delen</p>
+                      <InlineEdit
+                        value={project.file_sharing_url || ''}
+                        onSave={(url) => updateProject(project.id, { file_sharing_url: url || null })}
+                        placeholder="URL toevoegen"
+                        Icon={Upload}
+                      />
                     </div>
                   </div>
                 </div>

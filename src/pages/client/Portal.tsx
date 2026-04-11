@@ -475,6 +475,34 @@ export default function ClientPortal() {
               </div>
             )}
           </div>
+
+          {/* File sharing footer */}
+          {project?.file_sharing_url && (
+            <div className="mt-10 sm:mt-12">
+              <div className="max-w-xl mx-auto bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-8 py-6 text-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <ExternalLink className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Bestanden delen</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed mb-3">
+                      Heb je bestanden die je met ons wilt delen? Gebruik de onderstaande knop om je bestanden te uploaden.
+                    </p>
+                  </div>
+                  <a
+                    href={project.file_sharing_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-medium transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Bestanden uploaden
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

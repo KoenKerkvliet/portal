@@ -38,6 +38,7 @@ export interface Project {
   status: ProjectStatus
   due_date: string | null
   start_meeting_at: string | null
+  file_sharing_url: string | null
   created_at: string
   client?: Client
 }
