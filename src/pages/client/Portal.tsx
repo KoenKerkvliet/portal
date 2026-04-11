@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import TicketSystem from './TicketSystem'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement } from '../../types'
@@ -346,6 +347,7 @@ export default function ClientPortal() {
   const nextPhase = currentPhaseIndex < phases.length - 1 ? phases[currentPhaseIndex + 1] : null
   const steps = phaseSteps
   const isOnderhoud = project.current_phase === 'onderhoud'
+  const isOplevering = project.current_phase === 'oplevering'
 
   // Format due date in Dutch
   const formattedDueDate = project.due_date
@@ -421,12 +423,16 @@ export default function ClientPortal() {
         <section className="bg-[#f8f7fc] min-h-[400px]">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
             {/* Phase title */}
-            <h2 className="text-2xl sm:text-3xl font-light text-gray-700 text-center mb-10 sm:mb-12">
-              {phaseLabels[project.current_phase]}
-            </h2>
+            {!isOplevering && (
+              <h2 className="text-2xl sm:text-3xl font-light text-gray-700 text-center mb-10 sm:mb-12">
+                {phaseLabels[project.current_phase]}
+              </h2>
+            )}
 
-            {/* Step cards */}
-            {steps.length > 0 ? (
+            {/* Oplevering: Ticket system */}
+            {isOplevering ? (
+              <TicketSystem projectId={project.id} projectName={project.name} />
+            ) : steps.length > 0 ? (
               <div className="flex flex-wrap justify-center gap-5 sm:gap-6">
                 {steps.map((step) => {
                   const hasElements = step.elements && step.elements.length > 0

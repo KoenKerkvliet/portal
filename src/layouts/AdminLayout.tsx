@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Package,
   ClipboardCheck,
+  MessageSquare,
 } from 'lucide-react'
 
 const navItems = [
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/admin/opdrachten', icon: ClipboardCheck, label: 'Opdrachten' },
   { to: '/admin/producten', icon: Package, label: 'Producten' },
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
+  { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
 ]
 
 const contentItems = [

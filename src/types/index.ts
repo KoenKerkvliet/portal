@@ -263,3 +263,33 @@ export interface Assignment {
   project?: Project
   client?: Client
 }
+
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+
+export interface Ticket {
+  id: string
+  number: number
+  project_id: string
+  created_by: string
+  created_by_name: string
+  title: string
+  description: string
+  status: TicketStatus
+  attachment_url: string | null
+  created_at: string
+  updated_at: string
+  resolved_at: string | null
+  project?: Project
+  reply_count?: number
+}
+
+export interface TicketReply {
+  id: string
+  ticket_id: string
+  author_id: string
+  author_name: string
+  author_role: 'admin' | 'client'
+  content: string
+  attachment_url: string | null
+  created_at: string
+}

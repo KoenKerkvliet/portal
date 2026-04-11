@@ -28,6 +28,7 @@ import ClientAssignmentPage from './pages/client/AssignmentPage'
 import ClientInvoicePage from './pages/client/InvoicePage'
 import ClientStyleguidePage from './pages/client/StyleguidePage'
 import ContentPages from './pages/admin/ContentPages'
+import Tickets from './pages/admin/Tickets'
 import ClientContentPage from './pages/client/ContentPage'
 import Verify from './pages/Verify'
 
@@ -72,6 +73,7 @@ function AppRoutes() {
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />
         <Route path="contentpaginas" element={<ContentPages />} />
+        <Route path="tickets" element={<Tickets />} />
         <Route path="instellingen" element={<AdminSettings />} />
       </Route>
 
