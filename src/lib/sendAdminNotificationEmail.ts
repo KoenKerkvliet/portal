@@ -94,10 +94,15 @@ export async function sendAdminNotificationEmail(params: NotificationEmailParams
     : `${itemLabel} is afgekeurd door ${clientName || 'klant'}`
 
   try {
-    await supabase.functions.invoke('send-test-email', {
+    console.log('[NotifyEmail] Sending to:', ADMIN_EMAIL, 'Subject:', subject)
+    const { data, error } = await supabase.functions.invoke('send-test-email', {
       body: { to: ADMIN_EMAIL, subject, html },
     })
+    console.log('[NotifyEmail] Response:', { data, error })
+    if (error) {
+      console.error('[NotifyEmail] Error:', error)
+    }
   } catch (err) {
-    console.error('Failed to send admin notification email:', err)
+    console.error('[NotifyEmail] Failed:', err)
   }
 }
