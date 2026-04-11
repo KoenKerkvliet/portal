@@ -143,12 +143,22 @@ export default function TicketSystem({ projectId, projectName }: Props) {
     await supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', selectedTicket.id)
 
     // Notify admin
+    const ticketNumber = `#${String(selectedTicket.number).padStart(3, '0')}`
     await supabase.from('admin_notifications').insert({
       type: 'general',
-      title: `Reactie op ticket #${String(selectedTicket.number).padStart(3, '0')}`,
+      title: `Reactie op ticket ${ticketNumber}`,
       message: `${profile.full_name || 'Klant'} heeft gereageerd op ticket "${selectedTicket.title}"`,
       project_id: projectId,
       client_id: null,
+    })
+
+    // Send email to admin
+    await sendAdminNotificationEmail({
+      type: 'ticket',
+      itemLabel: `Ticket ${ticketNumber}: ${selectedTicket.title}`,
+      clientName: profile.full_name || 'Klant',
+      projectName,
+      ticketDescription: replyText.trim(),
     })
 
     setReplyText('')

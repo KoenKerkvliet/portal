@@ -62,10 +62,10 @@ export async function sendAdminNotificationEmail(params: NotificationEmailParams
           <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">DesignPixels</h1>
         </div>
         <div style="padding:32px;">
-          <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">${statusEmoji} ${isTicket ? `Nieuw ticket van ${clientName || 'klant'}` : `${itemLabel} ${statusLabel}`}</h2>
+          <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">${statusEmoji} ${isTicket ? `Ticketmelding van ${clientName || 'klant'}` : `${itemLabel} ${statusLabel}`}</h2>
           <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 24px;">
             ${isTicket
-              ? `<strong>${clientName || 'Een klant'}</strong> heeft een nieuw ticket aangemaakt: <strong>${itemLabel}</strong>.`
+              ? `<strong>${clientName || 'Een klant'}</strong> heeft een melding geplaatst bij <strong>${itemLabel}</strong>.`
               : `<strong>${itemLabel}</strong> is ${statusLabel} door <strong>${clientName || 'de klant'}</strong>.`
             }
           </p>
@@ -103,7 +103,7 @@ export async function sendAdminNotificationEmail(params: NotificationEmailParams
   `
 
   const subject = isTicket
-    ? `Nieuw ticket: ${itemLabel} — ${clientName || 'klant'}`
+    ? `Ticketmelding: ${itemLabel} — ${clientName || 'klant'}`
     : isAccepted
       ? `${itemLabel} is geaccepteerd door ${clientName || 'klant'}`
       : `${itemLabel} is afgekeurd door ${clientName || 'klant'}`
