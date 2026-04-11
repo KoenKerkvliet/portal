@@ -189,22 +189,31 @@ export default function TicketSystem({ projectId, projectName }: Props) {
 
           {/* Conversation */}
           <div className="px-6 py-4 space-y-4 max-h-[50vh] overflow-y-auto bg-gray-50/50">
-            {/* Original message */}
-            <div className="flex justify-start">
-              <div className="max-w-[80%]">
-                <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-gray-100">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTicket.description}</p>
-                  {selectedTicket.attachment_url && (
-                    <a href={selectedTicket.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                      <img src={selectedTicket.attachment_url} alt="Bijlage" className="max-w-full max-h-48 rounded-lg border border-gray-200" />
-                    </a>
-                  )}
+            {/* Original message — right if own, left if other client */}
+            {(() => {
+              const isOwnMessage = selectedTicket.created_by === profile?.id
+              return (
+                <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                  <div className="max-w-[80%]">
+                    <div className={`rounded-2xl px-4 py-3 ${
+                      isOwnMessage
+                        ? 'bg-primary text-white rounded-tr-sm'
+                        : 'bg-white rounded-tl-sm shadow-sm border border-gray-100'
+                    }`}>
+                      <p className={`text-sm whitespace-pre-wrap ${isOwnMessage ? 'text-white' : 'text-gray-700'}`}>{selectedTicket.description}</p>
+                      {selectedTicket.attachment_url && (
+                        <a href={selectedTicket.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+                          <img src={selectedTicket.attachment_url} alt="Bijlage" className="max-w-full max-h-48 rounded-lg" />
+                        </a>
+                      )}
+                    </div>
+                    <p className={`text-[10px] text-gray-400 mt-1 px-1 ${isOwnMessage ? 'text-right' : ''}`}>
+                      {selectedTicket.created_by_name} • {new Date(selectedTicket.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1 px-1">
-                  {selectedTicket.created_by_name} • {new Date(selectedTicket.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
-            </div>
+              )
+            })()}
 
             {loadingReplies ? (
               <div className="flex justify-center py-4">
@@ -212,7 +221,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
               </div>
             ) : (
               replies.map((reply) => {
-                const isOwn = reply.author_role === 'client'
+                const isOwn = reply.author_id === profile?.id
                 return (
                   <div key={reply.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
                     <div className="max-w-[80%]">
