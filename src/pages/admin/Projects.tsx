@@ -53,6 +53,7 @@ interface ProjectPhaseInstance {
     design_html_styleguide?: string
     design_html_homepage?: string
     design_html_tweede?: string
+    design_approvals?: Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string; accepted_name?: string }>
   } | null
   status: string
 }
