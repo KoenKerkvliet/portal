@@ -223,6 +223,7 @@ export default function ClientPortal() {
   const [project, setProject] = useState<Project | null>(null)
   const [phaseContent, setPhaseContent] = useState<string>('')
   const [phaseSteps, setPhaseSteps] = useState<PhaseStep[]>([])
+  const [showFileFooter, setShowFileFooter] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -264,6 +265,7 @@ export default function ClientPortal() {
         if (phaseInstance?.custom_data) {
           setPhaseContent(phaseInstance.custom_data.content || '')
           setPhaseSteps(phaseInstance.custom_data.steps || [])
+          setShowFileFooter(phaseInstance.custom_data.show_file_footer || false)
         } else {
           // Fallback: load from template directly
           const { data: templateData } = await supabase
@@ -275,6 +277,7 @@ export default function ClientPortal() {
 
           if (templateData) {
             setPhaseContent(templateData.content || templateData.description || '')
+            setShowFileFooter((templateData as unknown as { show_file_footer?: boolean }).show_file_footer || false)
             setPhaseSteps(templateData.steps || [])
           }
         }
@@ -477,7 +480,7 @@ export default function ClientPortal() {
           </div>
 
           {/* File sharing footer */}
-          {project?.file_sharing_url && (
+          {project?.file_sharing_url && showFileFooter && (
             <div className="mt-10 sm:mt-12 pb-8 sm:pb-12">
               <div className="max-w-xl mx-auto bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100/60 px-6 sm:px-8 py-6 text-center">
                 <div className="flex flex-col items-center gap-3">

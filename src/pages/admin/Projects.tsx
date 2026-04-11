@@ -54,6 +54,7 @@ interface ProjectPhaseInstance {
     design_html_homepage?: string
     design_html_tweede?: string
     design_approvals?: Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string; accepted_name?: string }>
+    show_file_footer?: boolean
   } | null
   status: string
 }
@@ -133,7 +134,7 @@ export default function Projects() {
   const [phaseInstances, setPhaseInstances] = useState<Record<string, ProjectPhaseInstance>>({})
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
   const [activePhaseTab, setActivePhaseTab] = useState<Record<string, ProjectPhase>>({})
-  const [editingInstance, setEditingInstance] = useState<{ content: string; steps: PhaseStep[] } | null>(null)
+  const [editingInstance, setEditingInstance] = useState<{ content: string; steps: PhaseStep[]; show_file_footer?: boolean } | null>(null)
   const [savingInstance, setSavingInstance] = useState(false)
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null)
   const [reloadDropdownId, setReloadDropdownId] = useState<string | null>(null)
@@ -566,6 +567,7 @@ export default function Projects() {
     const customData = {
       content: template.content || '',
       steps: template.steps.map(s => ({ ...s, id: crypto.randomUUID() })),
+      show_file_footer: (template as unknown as { show_file_footer?: boolean }).show_file_footer || false,
     }
 
     if (existing) {
@@ -583,7 +585,7 @@ export default function Projects() {
       })
     }
     await fetchPhaseInstances()
-    setEditingInstance({ content: customData.content, steps: customData.steps })
+    setEditingInstance({ content: customData.content, steps: customData.steps, show_file_footer: customData.show_file_footer })
   }
 
   const openInstanceEditor = (instance: ProjectPhaseInstance) => {
@@ -591,6 +593,7 @@ export default function Projects() {
     setEditingInstance({
       content: customData.content || '',
       steps: customData.steps || [],
+      show_file_footer: customData.show_file_footer || false,
     })
   }
 
@@ -1373,6 +1376,17 @@ export default function Projects() {
                                 className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm resize-none"
                                 rows={3} placeholder="Tekst of instructies voor de klant..." />
                             </div>
+
+                            {/* File sharing footer toggle */}
+                            <label className="flex items-center gap-2.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editingInstance.show_file_footer || false}
+                                onChange={(e) => setEditingInstance({ ...editingInstance, show_file_footer: e.target.checked })}
+                                className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
+                              />
+                              <span className="text-xs text-gray-600">Bestanden delen footer tonen</span>
+                            </label>
 
                             {/* Cards */}
                             <div>

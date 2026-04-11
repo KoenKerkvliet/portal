@@ -28,6 +28,7 @@ interface FormData {
   description: string
   content: string
   steps: PhaseStep[]
+  show_file_footer: boolean
 }
 
 const emptyForm: FormData = {
@@ -36,6 +37,7 @@ const emptyForm: FormData = {
   description: '',
   content: '',
   steps: [],
+  show_file_footer: false,
 }
 
 export default function Templates() {
@@ -73,6 +75,7 @@ export default function Templates() {
       description: template.description,
       content: template.content || '',
       steps: template.steps || [],
+      show_file_footer: (template as unknown as { show_file_footer?: boolean }).show_file_footer || false,
     })
     setEditingId(template.id)
     setShowForm(true)
@@ -116,6 +119,7 @@ export default function Templates() {
       description: formData.description,
       content: formData.content,
       steps: formData.steps,
+      show_file_footer: formData.show_file_footer,
     }
 
     if (editingId) {
@@ -235,6 +239,17 @@ export default function Templates() {
                   placeholder="Tekst, uitleg, of instructies die de klant te zien krijgt in deze fase..."
                 />
               </div>
+
+              {/* File footer toggle */}
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.show_file_footer}
+                  onChange={(e) => setFormData({ ...formData, show_file_footer: e.target.checked })}
+                  className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30"
+                />
+                <span className="text-sm text-gray-700">Bestanden delen footer tonen</span>
+              </label>
 
               {/* Steps */}
               <div>
