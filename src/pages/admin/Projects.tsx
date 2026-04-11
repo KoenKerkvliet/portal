@@ -1013,7 +1013,7 @@ export default function Projects() {
                         value={project.file_sharing_url || ''}
                         onSave={(url) => updateProject(project.id, { file_sharing_url: url || null })}
                         placeholder="URL toevoegen"
-                        Icon={Upload}
+                        icon={Upload}
                       />
                     </div>
                   </div>
