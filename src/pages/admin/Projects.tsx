@@ -461,11 +461,13 @@ export default function Projects() {
         contactpage: html.tweede,
       }
       for (const phase of phases) {
-        if (phase === 'design') continue
-        const pi = getInstance(projectId, phase)
-        if (!pi?.custom_data?.steps) continue
+        // For design phase, use the just-saved updatedData; for others, use instance from state
+        const isDesign = phase === 'design'
+        const customData = isDesign ? updatedData : getInstance(projectId, phase)?.custom_data
+        const phaseId = isDesign ? instance.id : getInstance(projectId, phase)?.id
+        if (!customData?.steps || !phaseId) continue
         let changed = false
-        for (const step of pi.custom_data.steps) {
+        for (const step of customData.steps) {
           if (!step.elements) continue
           for (const el of step.elements) {
             if (el.type === 'button' && el.data.action in actionToHtml) {
@@ -478,20 +480,11 @@ export default function Projects() {
                 step.faded = true
                 changed = true
               }
-              // Propagate project IDs
-              if (el.data.action === 'styleguide') {
-                el.data.styleguideProjectId = hasHtml ? projectId : ''
-              } else if (el.data.action === 'homepage') {
-                el.data.homepageProjectId = hasHtml ? projectId : ''
-              } else if (el.data.action === 'contactpage') {
-                el.data.contactpageProjectId = hasHtml ? projectId : ''
-              }
-              changed = true
             }
           }
         }
         if (changed) {
-          await supabase.from('project_phases').update({ custom_data: pi.custom_data }).eq('id', pi.id)
+          await supabase.from('project_phases').update({ custom_data: customData }).eq('id', phaseId)
         }
       }
 
