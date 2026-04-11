@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Client } from '../../types'
-import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban } from 'lucide-react'
+import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil } from 'lucide-react'
 
 interface NewUser {
   id: string
@@ -24,6 +24,7 @@ export default function Clients() {
   const [showForm, setShowForm] = useState(false)
   const [linkingUser, setLinkingUser] = useState<NewUser | null>(null)
   const [domainMode, setDomainMode] = useState<'existing' | 'new'>('existing')
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' })
   const [selectedDomainId, setSelectedDomainId] = useState('')
   const [newDomain, setNewDomain] = useState({ name: '', url: '' })
@@ -48,6 +49,7 @@ export default function Clients() {
 
   const resetForm = () => {
     setShowForm(false)
+    setEditingId(null)
     setLinkingUser(null)
     setDomainMode('existing')
     setFormData({ name: '', email: '', phone: '', company: '' })
@@ -55,8 +57,32 @@ export default function Clients() {
     setNewDomain({ name: '', url: '' })
   }
 
+  const handleEdit = (client: Client) => {
+    setEditingId(client.id)
+    setFormData({
+      name: client.name,
+      email: client.email,
+      phone: client.phone || '',
+      company: client.company || '',
+    })
+    setShowForm(true)
+  }
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (editingId) {
+      // Update existing client
+      await supabase.from('clients').update({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        company: formData.company || null,
+      }).eq('id', editingId)
+      resetForm()
+      fetchData()
+      return
+    }
 
     // 1. Create client record
     const { data: clientRecord, error: clientError } = await supabase.from('clients').insert({
@@ -71,10 +97,8 @@ export default function Clients() {
 
     // 2. Link or create domain
     if (domainMode === 'existing' && selectedDomainId) {
-      // Link existing domain to this client
       await supabase.from('projects').update({ client_id: clientRecord.id }).eq('id', selectedDomainId)
     } else if (domainMode === 'new' && newDomain.name) {
-      // Create new domain and link to this client
       await supabase.from('projects').insert({
         name: newDomain.name,
         url: newDomain.url || null,
@@ -188,7 +212,7 @@ export default function Clients() {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">
-              {linkingUser ? `Koppel ${linkingUser.full_name} als klant` : 'Nieuwe klant aanmaken'}
+              {editingId ? 'Klant bewerken' : linkingUser ? `Koppel ${linkingUser.full_name} als klant` : 'Nieuwe klant aanmaken'}
             </h3>
             <button onClick={resetForm} className="text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
@@ -249,8 +273,8 @@ export default function Clients() {
               </div>
             </div>
 
-            {/* Domain section */}
-            <div className="border-t border-gray-100 pt-4">
+            {/* Domain section — hide when editing */}
+            {!editingId && <div className="border-t border-gray-100 pt-4">
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 <FolderKanban className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
                 Domein koppelen
@@ -345,11 +369,11 @@ export default function Clients() {
                   </div>
                 </div>
               )}
-            </div>
+            </div>}
 
             <div className="flex gap-3 pt-2">
               <button type="submit" className="bg-primary hover:bg-primary-600 text-white px-5 py-2.5 rounded-lg font-medium transition-colors text-sm">
-                {linkingUser ? 'Koppelen & aanmaken' : 'Aanmaken'}
+                {editingId ? 'Opslaan' : linkingUser ? 'Koppelen & aanmaken' : 'Aanmaken'}
               </button>
               <button type="button" onClick={resetForm} className="px-4 py-2.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors text-sm">
                 Annuleren
@@ -429,13 +453,22 @@ export default function Clients() {
                 {/* Card Footer */}
                 <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                   <span className="text-xs text-gray-400">Klant sinds {formatDate(client.created_at)}</span>
-                  <button
-                    onClick={() => handleDelete(client.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
-                    title="Verwijderen"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleEdit(client)}
+                      className="p-1.5 text-gray-400 hover:text-primary transition-colors rounded-md hover:bg-primary/5"
+                      title="Bewerken"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(client.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
+                      title="Verwijderen"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
