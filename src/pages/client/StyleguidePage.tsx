@@ -161,10 +161,10 @@ export default function StyleguidePage() {
 
   // Pre-fill name from profile
   useEffect(() => {
-    if (profile?.name && !acceptName) {
+    if (profile?.full_name && !acceptName) {
       setAcceptName(profile.name)
     }
-  }, [profile?.name])
+  }, [profile?.full_name])
 
   const markDesignStepCompleted = useCallback(async () => {
     if (!projectId) return
@@ -223,7 +223,7 @@ export default function StyleguidePage() {
       await markDesignStepCompleted()
 
       // Get client info for notification
-      const clientName = profile?.name || acceptName.trim()
+      const clientName = profile?.full_name || acceptName.trim()
 
       // Create admin dashboard notification
       await supabase.from('admin_notifications').insert({
