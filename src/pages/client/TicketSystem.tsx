@@ -85,10 +85,11 @@ export default function TicketSystem({ projectId, projectName }: Props) {
       })
 
       await sendAdminNotificationEmail({
-        type: 'declined',
+        type: 'ticket',
         itemLabel: `Ticket #${String(ticket.number).padStart(3, '0')}: ${newTitle.trim()}`,
         clientName: profile.full_name || 'Klant',
         projectName,
+        ticketDescription: newDescription.trim() || null,
       })
     }
 

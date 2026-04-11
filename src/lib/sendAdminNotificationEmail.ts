@@ -3,25 +3,35 @@ import { supabase } from './supabase'
 const ADMIN_EMAIL = 'koen.kerkvliet@designpixels.nl'
 
 interface NotificationEmailParams {
-  type: 'accepted' | 'declined'
-  itemLabel: string // e.g. "Offerte OFF-2024-001", "Opdracht: Website redesign", "Design: Styleguide"
+  type: 'accepted' | 'declined' | 'ticket'
+  itemLabel: string // e.g. "Offerte OFF-2024-001", "Opdracht: Website redesign", "Ticket #001: Bug"
   clientName: string
   projectName: string
   remarks?: string | null
   declineReason?: string | null
+  ticketDescription?: string | null
 }
 
 export async function sendAdminNotificationEmail(params: NotificationEmailParams) {
-  const { type, itemLabel, clientName, projectName, remarks, declineReason } = params
+  const { type, itemLabel, clientName, projectName, remarks, declineReason, ticketDescription } = params
 
+  const isTicket = type === 'ticket'
   const isAccepted = type === 'accepted'
-  const statusLabel = isAccepted ? 'geaccepteerd' : 'afgekeurd'
-  const statusColor = isAccepted ? '#16a34a' : '#dc2626'
-  const statusBg = isAccepted ? '#f0fdf4' : '#fef2f2'
-  const statusBorder = isAccepted ? '#bbf7d0' : '#fecaca'
-  const statusEmoji = isAccepted ? '✅' : '❌'
+  const statusLabel = isTicket ? 'nieuw ticket' : isAccepted ? 'geaccepteerd' : 'afgekeurd'
+  const statusColor = isTicket ? '#7c3aed' : isAccepted ? '#16a34a' : '#dc2626'
+  const statusBg = isTicket ? '#f5f3ff' : isAccepted ? '#f0fdf4' : '#fef2f2'
+  const statusBorder = isTicket ? '#ddd6fe' : isAccepted ? '#bbf7d0' : '#fecaca'
+  const statusEmoji = isTicket ? '🎫' : isAccepted ? '✅' : '❌'
 
   let detailsHtml = ''
+  if (ticketDescription) {
+    detailsHtml += `
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-top:16px;">
+        <p style="color:#6b7280;font-size:12px;font-weight:600;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em;">Beschrijving</p>
+        <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">${ticketDescription}</p>
+      </div>
+    `
+  }
   if (remarks) {
     detailsHtml += `
       <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-top:16px;">
@@ -52,9 +62,12 @@ export async function sendAdminNotificationEmail(params: NotificationEmailParams
           <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">DesignPixels</h1>
         </div>
         <div style="padding:32px;">
-          <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">${statusEmoji} ${itemLabel} ${statusLabel}</h2>
+          <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">${statusEmoji} ${isTicket ? `Nieuw ticket van ${clientName || 'klant'}` : `${itemLabel} ${statusLabel}`}</h2>
           <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 24px;">
-            <strong>${itemLabel}</strong> is ${statusLabel} door <strong>${clientName || 'de klant'}</strong>.
+            ${isTicket
+              ? `<strong>${clientName || 'Een klant'}</strong> heeft een nieuw ticket aangemaakt: <strong>${itemLabel}</strong>.`
+              : `<strong>${itemLabel}</strong> is ${statusLabel} door <strong>${clientName || 'de klant'}</strong>.`
+            }
           </p>
           <div style="background:${statusBg};border:1px solid ${statusBorder};border-radius:12px;padding:16px;">
             <table style="width:100%;border-collapse:collapse;">
@@ -72,7 +85,7 @@ export async function sendAdminNotificationEmail(params: NotificationEmailParams
               </tr>
               <tr>
                 <td style="color:#6b7280;font-size:13px;padding:4px 0;">Status</td>
-                <td style="color:${statusColor};font-size:13px;font-weight:700;text-align:right;padding:4px 0;">${statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}</td>
+                <td style="color:${statusColor};font-size:13px;font-weight:700;text-align:right;padding:4px 0;">${isTicket ? 'Nieuw' : statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}</td>
               </tr>
             </table>
           </div>
@@ -89,9 +102,11 @@ export async function sendAdminNotificationEmail(params: NotificationEmailParams
     </html>
   `
 
-  const subject = isAccepted
-    ? `${itemLabel} is geaccepteerd door ${clientName || 'klant'}`
-    : `${itemLabel} is afgekeurd door ${clientName || 'klant'}`
+  const subject = isTicket
+    ? `Nieuw ticket: ${itemLabel} — ${clientName || 'klant'}`
+    : isAccepted
+      ? `${itemLabel} is geaccepteerd door ${clientName || 'klant'}`
+      : `${itemLabel} is afgekeurd door ${clientName || 'klant'}`
 
   try {
     console.log('[NotifyEmail] Sending to:', ADMIN_EMAIL, 'Subject:', subject)
