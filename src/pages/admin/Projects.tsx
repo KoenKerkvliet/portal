@@ -463,28 +463,34 @@ export default function Projects() {
       for (const phase of phases) {
         // For design phase, use the just-saved updatedData; for others, use instance from state
         const isDesign = phase === 'design'
-        const customData = isDesign ? updatedData : getInstance(projectId, phase)?.custom_data
+        const phaseCustomData = isDesign ? updatedData : getInstance(projectId, phase)?.custom_data
         const phaseId = isDesign ? instance.id : getInstance(projectId, phase)?.id
-        if (!customData?.steps || !phaseId) continue
+        console.log(`[AutoFade] Phase: ${phase}, hasSteps: ${!!phaseCustomData?.steps}, stepCount: ${phaseCustomData?.steps?.length || 0}, phaseId: ${phaseId}`)
+        if (!phaseCustomData?.steps || !phaseId) continue
         let changed = false
-        for (const step of customData.steps) {
+        for (const step of phaseCustomData.steps) {
+          const buttonActions = (step.elements || []).filter((el: CardElement) => el.type === 'button').map((el: CardElement) => el.data.action)
+          console.log(`[AutoFade]   Step "${step.title}", faded: ${step.faded}, buttonActions: [${buttonActions.join(', ')}]`)
           if (!step.elements) continue
           for (const el of step.elements) {
             if (el.type === 'button' && el.data.action in actionToHtml) {
               const hasHtml = !!actionToHtml[el.data.action]?.trim()
-              // Auto-unfade when HTML is filled, auto-fade when empty
+              console.log(`[AutoFade]     Button action="${el.data.action}", hasHtml=${hasHtml}, stepFaded=${step.faded}`)
               if (hasHtml && step.faded) {
                 step.faded = false
                 changed = true
+                console.log(`[AutoFade]     -> UNFADING step`)
               } else if (!hasHtml && !step.faded) {
                 step.faded = true
                 changed = true
+                console.log(`[AutoFade]     -> FADING step`)
               }
             }
           }
         }
         if (changed) {
-          await supabase.from('project_phases').update({ custom_data: customData }).eq('id', phaseId)
+          console.log(`[AutoFade] Saving phase ${phase} with changes`)
+          await supabase.from('project_phases').update({ custom_data: phaseCustomData }).eq('id', phaseId)
         }
       }
 
