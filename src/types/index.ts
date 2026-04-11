@@ -92,6 +92,7 @@ export interface ProjectClient {
   notify_invoices: boolean
   notify_quotes: boolean
   notify_portal: boolean
+  notify_tickets: boolean
   created_at: string
   client?: Client
 }

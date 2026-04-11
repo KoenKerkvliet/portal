@@ -106,7 +106,7 @@ export default function Tickets() {
     if (selectedTicket.status === 'open') statusUpdate.status = 'in_progress'
     await supabase.from('tickets').update(statusUpdate).eq('id', selectedTicket.id)
 
-    // Notify client
+    // Notify client (in-app)
     await supabase.from('client_notifications').insert({
       project_id: selectedTicket.project_id,
       client_id: null,
@@ -116,6 +116,59 @@ export default function Tickets() {
       link_url: null,
       read: false,
     })
+
+    // Send email to clients with notify_tickets enabled
+    try {
+      const { data: projectClients } = await supabase
+        .from('project_clients')
+        .select('client:clients(email, name)')
+        .eq('project_id', selectedTicket.project_id)
+        .eq('notify_tickets', true)
+
+      if (projectClients) {
+        const ticketNumber = `#${String(selectedTicket.number).padStart(3, '0')}`
+        const projectName = (selectedTicket.project as unknown as { name: string })?.name || ''
+        for (const pc of projectClients) {
+          const client = pc.client as unknown as { email: string; name: string }
+          if (!client?.email) continue
+          const emailHtml = `
+            <!DOCTYPE html><html><head><meta charset="utf-8"></head>
+            <body style="margin:0;padding:0;background:#f8f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+              <div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05);">
+                <div style="background:linear-gradient(135deg,#9e86ff,#7c3aed);padding:32px;text-align:center;">
+                  <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">DesignPixels</h1>
+                </div>
+                <div style="padding:32px;">
+                  <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">💬 Reactie op ticket ${ticketNumber}</h2>
+                  <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 24px;">
+                    Er is een reactie op je ticket <strong>"${selectedTicket.title}"</strong> voor <strong>${projectName}</strong>.
+                  </p>
+                  <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px;">
+                    <p style="color:#6b7280;font-size:12px;font-weight:600;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em;">Reactie van DesignPixels</p>
+                    <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">${replyText.trim()}</p>
+                  </div>
+                  <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;">
+                    Log in op het klantportaal om te reageren.
+                  </p>
+                </div>
+                <div style="padding:16px 32px;background:#f9fafb;text-align:center;">
+                  <p style="color:#9ca3af;font-size:11px;margin:0;">&copy; ${new Date().getFullYear()} DesignPixels</p>
+                </div>
+              </div>
+            </body></html>
+          `
+          await supabase.functions.invoke('send-test-email', {
+            body: {
+              to: client.email,
+              subject: `Reactie op ticket ${ticketNumber}: ${selectedTicket.title}`,
+              html: emailHtml,
+            },
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Error sending ticket reply emails:', err)
+    }
 
     setReplyText('')
     setReplyFile(null)
