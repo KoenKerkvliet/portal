@@ -39,6 +39,8 @@ export interface Project {
   due_date: string | null
   start_meeting_at: string | null
   file_sharing_url: string | null
+  feedback_title: string | null
+  feedback_url: string | null
   created_at: string
   client?: Client
 }

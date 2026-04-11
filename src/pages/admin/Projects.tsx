@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2, ClipboardCheck, AlertTriangle, Palette, Code, Upload } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, Link2, ClipboardCheck, AlertTriangle, Palette, Code, Upload, Star } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -55,6 +55,7 @@ interface ProjectPhaseInstance {
     design_html_tweede?: string
     design_approvals?: Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string; accepted_name?: string }>
     show_file_footer?: boolean
+    show_feedback_footer?: boolean
   } | null
   status: string
 }
@@ -134,7 +135,7 @@ export default function Projects() {
   const [phaseInstances, setPhaseInstances] = useState<Record<string, ProjectPhaseInstance>>({})
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
   const [activePhaseTab, setActivePhaseTab] = useState<Record<string, ProjectPhase>>({})
-  const [editingInstance, setEditingInstance] = useState<{ content: string; steps: PhaseStep[]; show_file_footer?: boolean } | null>(null)
+  const [editingInstance, setEditingInstance] = useState<{ content: string; steps: PhaseStep[]; show_file_footer?: boolean; show_feedback_footer?: boolean } | null>(null)
   const [savingInstance, setSavingInstance] = useState(false)
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null)
   const [reloadDropdownId, setReloadDropdownId] = useState<string | null>(null)
@@ -568,6 +569,7 @@ export default function Projects() {
       content: template.content || '',
       steps: template.steps.map(s => ({ ...s, id: crypto.randomUUID() })),
       show_file_footer: (template as unknown as { show_file_footer?: boolean }).show_file_footer || false,
+      show_feedback_footer: (template as unknown as { show_feedback_footer?: boolean }).show_feedback_footer || false,
     }
 
     if (existing) {
@@ -585,7 +587,7 @@ export default function Projects() {
       })
     }
     await fetchPhaseInstances()
-    setEditingInstance({ content: customData.content, steps: customData.steps, show_file_footer: customData.show_file_footer })
+    setEditingInstance({ content: customData.content, steps: customData.steps, show_file_footer: customData.show_file_footer, show_feedback_footer: customData.show_feedback_footer })
   }
 
   const openInstanceEditor = (instance: ProjectPhaseInstance) => {
@@ -594,6 +596,7 @@ export default function Projects() {
       content: customData.content || '',
       steps: customData.steps || [],
       show_file_footer: customData.show_file_footer || false,
+      show_feedback_footer: customData.show_feedback_footer || false,
     })
   }
 
@@ -1020,6 +1023,26 @@ export default function Projects() {
                       />
                     </div>
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 mt-3">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Titel feedbacklink</p>
+                      <InlineEdit
+                        value={project.feedback_title || ''}
+                        onSave={(title) => updateProject(project.id, { feedback_title: title || null })}
+                        placeholder="Bijv. Google Review"
+                        icon={Star}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Feedback URL</p>
+                      <InlineEdit
+                        value={project.feedback_url || ''}
+                        onSave={(url) => updateProject(project.id, { feedback_url: url || null })}
+                        placeholder="URL toevoegen"
+                        icon={ExternalLink}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Phase tabs: always show Design, show Intake only if instance exists */}
@@ -1377,16 +1400,27 @@ export default function Projects() {
                                 rows={3} placeholder="Tekst of instructies voor de klant..." />
                             </div>
 
-                            {/* File sharing footer toggle */}
-                            <label className="flex items-center gap-2.5 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={editingInstance.show_file_footer || false}
-                                onChange={(e) => setEditingInstance({ ...editingInstance, show_file_footer: e.target.checked })}
-                                className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
-                              />
-                              <span className="text-xs text-gray-600">Bestanden delen footer tonen</span>
-                            </label>
+                            {/* Footer toggles */}
+                            <div className="flex flex-wrap gap-x-6 gap-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editingInstance.show_file_footer || false}
+                                  onChange={(e) => setEditingInstance({ ...editingInstance, show_file_footer: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
+                                />
+                                <span className="text-xs text-gray-600">Bestanden delen footer</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editingInstance.show_feedback_footer || false}
+                                  onChange={(e) => setEditingInstance({ ...editingInstance, show_feedback_footer: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
+                                />
+                                <span className="text-xs text-gray-600">Feedback/review footer</span>
+                              </label>
+                            </div>
 
                             {/* Cards */}
                             <div>
