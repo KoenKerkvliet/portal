@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Loader2, Palette, Home, FileText, ZoomIn, ZoomOut, CheckCircle, PenLine } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
 const pageConfig: Record<string, { title: string; field: string; icon: typeof Palette; bgGradient: string; iconBg: string; iconColor: string }> = {
   styleguide: { title: 'Styleguide', field: 'design_html_styleguide', icon: Palette, bgGradient: 'from-purple-50 to-purple-100/50', iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
@@ -235,14 +236,11 @@ export default function StyleguidePage() {
       })
 
       // Send email notification to admin
-      await supabase.functions.invoke('notify-quote-response', {
-        body: {
-          action: 'accepted',
-          quoteNumber: `Design: ${config.title}`,
-          clientName,
-          projectName,
-          remarks: null,
-        },
+      await sendAdminNotificationEmail({
+        type: 'accepted',
+        itemLabel: `Design: ${config.title}`,
+        clientName,
+        projectName,
       })
 
       setApproval(newApproval)

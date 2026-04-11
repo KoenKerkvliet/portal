@@ -22,7 +22,11 @@ Deno.serve(async (req) => {
 
     const now = new Date().toLocaleString('nl-NL', { dateStyle: 'full', timeStyle: 'short' })
 
-    const html = `
+    // Support custom subject/html for notification emails, otherwise use default test template
+    const customSubject = body.subject as string | undefined
+    const customHtml = body.html as string | undefined
+
+    const html = customHtml || `
       <!DOCTYPE html>
       <html>
       <head>
@@ -52,6 +56,8 @@ Deno.serve(async (req) => {
       </html>
     `
 
+    const subject = customSubject || 'Testmail — DesignPixels Klantportaal'
+
     const response = await fetch('https://api.emailit.com/v2/emails', {
       method: 'POST',
       headers: {
@@ -61,7 +67,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: EMAILIT_FROM,
         to,
-        subject: 'Testmail — DesignPixels Klantportaal',
+        subject,
         html,
       }),
     })

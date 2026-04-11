@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Quote, QuoteItem, InvoiceSettings } from '../../types'
 import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle } from 'lucide-react'
+import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
 // Convert HTML to structured plain text for PDF
 function htmlToPlainText(html: string): string {
@@ -427,14 +428,12 @@ export default function QuotePage() {
 
       // Send notification email to admin
       const client = quote.client as unknown as { name: string; company: string }
-      await supabase.functions.invoke('notify-quote-response', {
-        body: {
-          action: 'accepted',
-          quoteNumber: quote.number,
-          clientName: client?.name || acceptName.trim(),
-          projectName,
-          remarks: acceptRemarks.trim() || null,
-        },
+      await sendAdminNotificationEmail({
+        type: 'accepted',
+        itemLabel: `Offerte ${quote.number}`,
+        clientName: client?.name || acceptName.trim(),
+        projectName,
+        remarks: acceptRemarks.trim() || null,
       })
 
       // Create admin dashboard notification
@@ -469,14 +468,12 @@ export default function QuotePage() {
 
       // Send notification email to admin
       const client = quote.client as unknown as { name: string; company: string }
-      await supabase.functions.invoke('notify-quote-response', {
-        body: {
-          action: 'declined',
-          quoteNumber: quote.number,
-          clientName: client?.name || '',
-          projectName,
-          declineReason: declineReason.trim(),
-        },
+      await sendAdminNotificationEmail({
+        type: 'declined',
+        itemLabel: `Offerte ${quote.number}`,
+        clientName: client?.name || '',
+        projectName,
+        declineReason: declineReason.trim(),
       })
 
       // Create admin dashboard notification

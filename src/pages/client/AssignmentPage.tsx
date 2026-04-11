@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import type { Assignment } from '../../types'
 import { ArrowLeft, Loader2, ClipboardCheck, Download, Check, PenLine, XCircle } from 'lucide-react'
 import DOMPurify from 'dompurify'
+import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
 // Signature pad component (same as QuotePage)
 function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: string) => void }) {
@@ -197,14 +198,12 @@ export default function ClientAssignmentPage() {
       })
 
       // Send email notification to admin
-      await supabase.functions.invoke('notify-quote-response', {
-        body: {
-          action: 'accepted',
-          quoteNumber: `Opdracht: ${assignment.title}`,
-          clientName: client?.name || acceptName.trim(),
-          projectName: (assignment.project as unknown as { name: string })?.name || '',
-          remarks: acceptRemarks.trim() || null,
-        },
+      await sendAdminNotificationEmail({
+        type: 'accepted',
+        itemLabel: `Opdracht: ${assignment.title}`,
+        clientName: client?.name || acceptName.trim(),
+        projectName: (assignment.project as unknown as { name: string })?.name || '',
+        remarks: acceptRemarks.trim() || null,
       })
 
       // Refresh
@@ -243,14 +242,12 @@ export default function ClientAssignmentPage() {
       })
 
       // Send email notification to admin
-      await supabase.functions.invoke('notify-quote-response', {
-        body: {
-          action: 'declined',
-          quoteNumber: `Opdracht: ${assignment.title}`,
-          clientName: client?.name || '',
-          projectName: (assignment.project as unknown as { name: string })?.name || '',
-          declineReason: declineReason.trim(),
-        },
+      await sendAdminNotificationEmail({
+        type: 'declined',
+        itemLabel: `Opdracht: ${assignment.title}`,
+        clientName: client?.name || '',
+        projectName: (assignment.project as unknown as { name: string })?.name || '',
+        declineReason: declineReason.trim(),
       })
 
       // Refresh
