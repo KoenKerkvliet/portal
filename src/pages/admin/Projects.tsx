@@ -1307,19 +1307,19 @@ export default function Projects() {
                                     </div>
                                   </div>
                                 ) : (
-                                  <label className={`flex flex-col items-center justify-center gap-2 w-full h-28 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                                  <label className={`flex flex-col items-center justify-center gap-1.5 w-full h-16 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
                                     isUploading ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary hover:bg-gray-50'
                                   }`}>
                                     {isUploading ? (
                                       <>
-                                        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                                        <span className="text-xs text-primary">Uploaden...</span>
+                                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                        <span className="text-[11px] text-primary">Uploaden...</span>
                                       </>
                                     ) : (
-                                      <>
-                                        <Upload className="w-5 h-5 text-gray-400" />
-                                        <span className="text-xs text-gray-500">Klik om afbeelding te uploaden</span>
-                                      </>
+                                      <div className="flex items-center gap-2">
+                                        <Upload className="w-3.5 h-3.5 text-gray-400" />
+                                        <span className="text-[11px] text-gray-500">Klik om afbeelding te uploaden</span>
+                                      </div>
                                     )}
                                     <input
                                       type="file"

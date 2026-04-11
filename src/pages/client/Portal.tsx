@@ -399,7 +399,7 @@ export default function ClientPortal() {
       {/* ============================================ */}
       {/* SECTION 2: Light background — Phase Cards */}
       {/* ============================================ */}
-      {!isOnderhoud && (
+      {!isOnderhoud && (<>
         <section className="bg-[#f8f7fc] min-h-[400px]">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
             {/* Phase title */}
@@ -542,7 +542,7 @@ export default function ClientPortal() {
             </div>
           </section>
         ) : null}
-      )}
+      </>)}
 
       {/* Onderhoud fase — simplified view */}
       {isOnderhoud && (
