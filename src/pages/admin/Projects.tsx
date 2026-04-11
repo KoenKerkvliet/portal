@@ -1022,24 +1022,13 @@ export default function Projects() {
                         icon={Upload}
                       />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 mt-3">
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Titel feedbacklink</p>
-                      <InlineEdit
-                        value={project.feedback_title || ''}
-                        onSave={(title) => updateProject(project.id, { feedback_title: title || null })}
-                        placeholder="Bijv. Google Review"
-                        icon={Star}
-                      />
-                    </div>
                     <div className="space-y-1">
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Feedback URL</p>
                       <InlineEdit
                         value={project.feedback_url || ''}
                         onSave={(url) => updateProject(project.id, { feedback_url: url || null })}
                         placeholder="URL toevoegen"
-                        icon={ExternalLink}
+                        icon={Star}
                       />
                     </div>
                   </div>
