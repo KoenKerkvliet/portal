@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Login from './pages/Login'
@@ -27,6 +28,12 @@ import ClientAssignmentPage from './pages/client/AssignmentPage'
 import ClientInvoicePage from './pages/client/InvoicePage'
 import ClientStyleguidePage from './pages/client/StyleguidePage'
 import Verify from './pages/Verify'
+
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  return null
+}
 
 function AppRoutes() {
   const { profile, loading } = useAuth()
@@ -95,6 +102,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter basename="/portal">
+      <ScrollToTop />
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
