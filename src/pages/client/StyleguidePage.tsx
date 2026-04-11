@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Loader2, Palette, Home, FileText, ZoomIn, ZoomOut, CheckCircle, PenLine } from 'lucide-react'
+import { ArrowLeft, Loader2, Palette, Home, FileText, ZoomIn, ZoomOut, CheckCircle, XCircle } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
@@ -12,102 +12,12 @@ const pageConfig: Record<string, { title: string; field: string; icon: typeof Pa
 }
 
 interface DesignApproval {
-  accepted_at: string
-  accepted_name: string
-  accepted_signature: string
-}
-
-// Signature pad component
-function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: string) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [hasSignature, setHasSignature] = useState(false)
-
-  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    if ('touches' in e) {
-      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
-    }
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
-  }
-
-  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    const ctx = canvasRef.current?.getContext('2d')
-    if (!ctx) return
-    setIsDrawing(true)
-    const pos = getPos(e)
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y)
-  }
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    if (!isDrawing) return
-    const ctx = canvasRef.current?.getContext('2d')
-    if (!ctx) return
-    const pos = getPos(e)
-    ctx.lineTo(pos.x, pos.y)
-    ctx.strokeStyle = '#1f2937'
-    ctx.lineWidth = 2.5
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.stroke()
-    setHasSignature(true)
-  }
-
-  const endDraw = () => {
-    setIsDrawing(false)
-    if (hasSignature && canvasRef.current) {
-      onSignatureChange(canvasRef.current.toDataURL('image/png'))
-    }
-  }
-
-  const clear = () => {
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx) return
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    setHasSignature(false)
-    onSignatureChange('')
-  }
-
-  return (
-    <div>
-      <div className="relative border-2 border-dashed border-gray-200 rounded-xl overflow-hidden bg-white">
-        <canvas
-          ref={canvasRef}
-          width={600}
-          height={200}
-          className="w-full h-32 cursor-crosshair touch-none"
-          onMouseDown={startDraw}
-          onMouseMove={draw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
-          onTouchStart={startDraw}
-          onTouchMove={draw}
-          onTouchEnd={endDraw}
-        />
-        {!hasSignature && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="flex items-center gap-2 text-gray-300">
-              <PenLine className="w-5 h-5" />
-              <span className="text-sm font-medium">Teken hier je handtekening</span>
-            </div>
-          </div>
-        )}
-      </div>
-      {hasSignature && (
-        <button type="button" onClick={clear} className="mt-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors">
-          Handtekening wissen
-        </button>
-      )}
-    </div>
-  )
+  accepted_at?: string
+  accepted_name?: string
+  declined_at?: string
+  declined_name?: string
+  declined_reason?: string
+  status: 'accepted' | 'declined'
 }
 
 export default function StyleguidePage() {
@@ -126,9 +36,10 @@ export default function StyleguidePage() {
 
   // Approval state
   const [approval, setApproval] = useState<DesignApproval | null>(null)
-  const [acceptName, setAcceptName] = useState('')
-  const [acceptSignature, setAcceptSignature] = useState('')
   const [accepting, setAccepting] = useState(false)
+  const [showDecline, setShowDecline] = useState(false)
+  const [declineReason, setDeclineReason] = useState('')
+  const [declining, setDeclining] = useState(false)
   const [phaseInstanceId, setPhaseInstanceId] = useState<string | null>(null)
   const [phaseCustomData, setPhaseCustomData] = useState<Record<string, unknown> | null>(null)
 
@@ -147,9 +58,12 @@ export default function StyleguidePage() {
         setPhaseCustomData(cd)
         setHtml(cd[config.field] || '')
         // Load approval status
-        const approvals = cd.design_approvals as Record<string, DesignApproval> | undefined
+        const approvals = cd.design_approvals as Record<string, DesignApproval & { accepted_signature?: string }> | undefined
         if (approvals?.[designType]) {
-          setApproval(approvals[designType])
+          const a = approvals[designType]
+          // Backwards compat: old approvals without status field
+          if (!a.status && a.accepted_at) a.status = 'accepted'
+          setApproval(a)
         }
       }
       if (projectRes.data) {
@@ -159,13 +73,6 @@ export default function StyleguidePage() {
     }
     fetch()
   }, [projectId, config.field, designType])
-
-  // Pre-fill name from profile
-  useEffect(() => {
-    if (profile?.full_name && !acceptName) {
-      setAcceptName(profile.full_name)
-    }
-  }, [profile?.full_name])
 
   const markDesignStepCompleted = useCallback(async () => {
     if (!projectId) return
@@ -202,17 +109,17 @@ export default function StyleguidePage() {
   }, [projectId, designType])
 
   const handleAccept = async () => {
-    if (!acceptName.trim() || !acceptSignature || !phaseInstanceId || !phaseCustomData) return
+    if (!phaseInstanceId || !phaseCustomData) return
     setAccepting(true)
 
     try {
+      const clientName = profile?.full_name || 'Klant'
       const newApproval: DesignApproval = {
+        status: 'accepted',
         accepted_at: new Date().toISOString(),
-        accepted_name: acceptName.trim(),
-        accepted_signature: acceptSignature,
+        accepted_name: clientName,
       }
 
-      // Update design phase custom_data with approval
       const existingApprovals = (phaseCustomData.design_approvals as Record<string, DesignApproval>) || {}
       const updatedCustomData = {
         ...phaseCustomData,
@@ -220,13 +127,8 @@ export default function StyleguidePage() {
       }
       await supabase.from('project_phases').update({ custom_data: updatedCustomData }).eq('id', phaseInstanceId)
 
-      // Mark the step as completed
       await markDesignStepCompleted()
 
-      // Get client info for notification
-      const clientName = profile?.full_name || acceptName.trim()
-
-      // Create admin dashboard notification
       await supabase.from('admin_notifications').insert({
         type: 'quote_accepted',
         title: `Design "${config.title}" goedgekeurd`,
@@ -235,7 +137,6 @@ export default function StyleguidePage() {
         client_id: profile?.id || null,
       })
 
-      // Send email notification to admin
       await sendAdminNotificationEmail({
         type: 'accepted',
         itemLabel: `Design: ${config.title}`,
@@ -248,6 +149,50 @@ export default function StyleguidePage() {
       console.error('Error accepting design:', err)
     } finally {
       setAccepting(false)
+    }
+  }
+
+  const handleDecline = async () => {
+    if (!phaseInstanceId || !phaseCustomData || !declineReason.trim()) return
+    setDeclining(true)
+
+    try {
+      const clientName = profile?.full_name || 'Klant'
+      const newApproval: DesignApproval = {
+        status: 'declined',
+        declined_at: new Date().toISOString(),
+        declined_name: clientName,
+        declined_reason: declineReason.trim(),
+      }
+
+      const existingApprovals = (phaseCustomData.design_approvals as Record<string, DesignApproval>) || {}
+      const updatedCustomData = {
+        ...phaseCustomData,
+        design_approvals: { ...existingApprovals, [designType]: newApproval },
+      }
+      await supabase.from('project_phases').update({ custom_data: updatedCustomData }).eq('id', phaseInstanceId)
+
+      await supabase.from('admin_notifications').insert({
+        type: 'quote_declined',
+        title: `Design "${config.title}" afgekeurd`,
+        message: `${clientName} heeft het design "${config.title}" afgekeurd. Reden: "${declineReason.trim()}"`,
+        project_id: projectId,
+        client_id: profile?.id || null,
+      })
+
+      await sendAdminNotificationEmail({
+        type: 'declined',
+        itemLabel: `Design: ${config.title}`,
+        clientName,
+        projectName,
+        declineReason: declineReason.trim(),
+      })
+
+      setApproval(newApproval)
+    } catch (err) {
+      console.error('Error declining design:', err)
+    } finally {
+      setDeclining(false)
     }
   }
 
@@ -367,61 +312,87 @@ export default function StyleguidePage() {
           {/* Approval section */}
           {html.trim() && (
             <div className="border-t border-gray-100 px-6 sm:px-8 py-8">
-              {approval ? (
-                // Already approved
+              {approval?.status === 'accepted' ? (
                 <div className="max-w-lg mx-auto text-center">
                   <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-50 mb-4">
                     <CheckCircle className="w-7 h-7 text-green-600" />
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-1">Design goedgekeurd</h3>
-                  <p className="text-sm text-gray-500 mb-4">
+                  <p className="text-sm text-gray-500">
                     Goedgekeurd door <strong>{approval.accepted_name}</strong> op{' '}
-                    {new Date(approval.accepted_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {new Date(approval.accepted_at!).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
-                  {approval.accepted_signature && (
-                    <div className="inline-block border border-gray-200 rounded-xl p-3 bg-gray-50">
-                      <img src={approval.accepted_signature} alt="Handtekening" className="h-16" />
-                    </div>
-                  )}
+                </div>
+              ) : approval?.status === 'declined' ? (
+                <div className="max-w-lg mx-auto text-center">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-red-50 mb-4">
+                    <XCircle className="w-7 h-7 text-red-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">Feedback verzonden</h3>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Afgekeurd door <strong>{approval.declined_name}</strong> op{' '}
+                    {new Date(approval.declined_at!).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-left">
+                    <p className="text-xs font-medium text-red-400 uppercase tracking-wider mb-1">Feedback</p>
+                    <p className="text-sm text-gray-700">{approval.declined_reason}</p>
+                  </div>
                 </div>
               ) : (
-                // Approval form
                 <div className="max-w-lg mx-auto">
-                  <h3 className="text-lg font-bold text-gray-900 mb-1 text-center">Design goedkeuren</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1 text-center">Wat vind je van dit design?</h3>
                   <p className="text-sm text-gray-500 text-center mb-6">
-                    Ben je tevreden met dit design? Keur het goed met je naam en handtekening.
+                    Bekijk het design en geef je goedkeuring of laat weten wat je anders wilt.
                   </p>
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Volledige naam</label>
-                      <input
-                        type="text"
-                        value={acceptName}
-                        onChange={(e) => setAcceptName(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
-                        placeholder="Je volledige naam"
-                      />
+                  {!showDecline ? (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleAccept}
+                        disabled={accepting}
+                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-medium text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        {accepting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        {accepting ? 'Goedkeuren...' : 'Goedkeuren'}
+                      </button>
+                      <button
+                        onClick={() => setShowDecline(true)}
+                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-red-200 text-red-600 rounded-xl font-medium text-sm hover:bg-red-50 transition-colors"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Feedback geven
+                      </button>
                     </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Handtekening</label>
-                      <SignatureCanvas onSignatureChange={setAcceptSignature} />
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Wat kan er beter?</label>
+                        <textarea
+                          value={declineReason}
+                          onChange={(e) => setDeclineReason(e.target.value)}
+                          rows={4}
+                          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400 text-sm resize-y"
+                          placeholder="Beschrijf wat je anders wilt zien..."
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={handleDecline}
+                          disabled={!declineReason.trim() || declining}
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {declining ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                          {declining ? 'Verzenden...' : 'Feedback verzenden'}
+                        </button>
+                        <button
+                          onClick={() => { setShowDecline(false); setDeclineReason('') }}
+                          className="px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-200 transition-colors"
+                        >
+                          Annuleren
+                        </button>
+                      </div>
                     </div>
-
-                    <button
-                      onClick={handleAccept}
-                      disabled={!acceptName.trim() || !acceptSignature || accepting}
-                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-medium text-sm hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {accepting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="w-4 h-4" />
-                      )}
-                      {accepting ? 'Goedkeuren...' : 'Design goedkeuren'}
-                    </button>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
