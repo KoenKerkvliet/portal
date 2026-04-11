@@ -212,23 +212,23 @@ export default function TicketSystem({ projectId, projectName }: Props) {
               </div>
             ) : (
               replies.map((reply) => {
-                const isAdmin = reply.author_role === 'admin'
+                const isOwn = reply.author_role === 'client'
                 return (
-                  <div key={reply.id} className={`flex ${isAdmin ? 'justify-start' : 'justify-end'}`}>
+                  <div key={reply.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
                     <div className="max-w-[80%]">
                       <div className={`rounded-2xl px-4 py-3 ${
-                        isAdmin
-                          ? 'bg-white rounded-tl-sm shadow-sm border border-gray-100'
-                          : 'bg-primary text-white rounded-tr-sm'
+                        isOwn
+                          ? 'bg-primary text-white rounded-tr-sm'
+                          : 'bg-white rounded-tl-sm shadow-sm border border-gray-100'
                       }`}>
-                        <p className={`text-sm whitespace-pre-wrap ${isAdmin ? 'text-gray-700' : 'text-white'}`}>{reply.content}</p>
+                        <p className={`text-sm whitespace-pre-wrap ${isOwn ? 'text-white' : 'text-gray-700'}`}>{reply.content}</p>
                         {reply.attachment_url && (
                           <a href={reply.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
                             <img src={reply.attachment_url} alt="Bijlage" className="max-w-full max-h-48 rounded-lg" />
                           </a>
                         )}
                       </div>
-                      <p className={`text-[10px] text-gray-400 mt-1 px-1 ${isAdmin ? '' : 'text-right'}`}>
+                      <p className={`text-[10px] text-gray-400 mt-1 px-1 ${isOwn ? 'text-right' : ''}`}>
                         {reply.author_name} • {new Date(reply.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
