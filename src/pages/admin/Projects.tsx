@@ -884,9 +884,9 @@ export default function Projects() {
 
             return (
               <div key={project.id} className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow overflow-hidden">
-                {/* Card header */}
-                <div className="p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-4">
+                {/* ── Sectie 1: Header ── */}
+                <div className="bg-gray-50/80 px-5 sm:px-6 py-4 border-b border-gray-100">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <InlineEdit value={project.name} onSave={(name) => updateProject(project.id, { name })} displayValue={project.name} placeholder="Domeinnaam" />
                     </div>
@@ -916,13 +916,14 @@ export default function Projects() {
                   </div>
                 </div>
 
-                {/* Card details */}
-                <div className="px-5 sm:px-6 pb-5 sm:pb-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-gray-100">
+                {/* ── Sectie 2: Website & Klanten ── */}
+                <div className="px-5 sm:px-6 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Website</p>
                       {project.url && (
                         <div className="flex items-center gap-1.5">
+                          <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                           <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:text-primary-600 transition-colors truncate">
                             {project.url.replace(/^https?:\/\//, '')}
                           </a>
@@ -930,13 +931,11 @@ export default function Projects() {
                         </div>
                       )}
                       <InlineEdit value={project.url || ''} onSave={(url) => updateProject(project.id, { url: url || null })} type="url"
-                        placeholder={project.url ? 'Wijzig URL' : 'URL toevoegen'} icon={Globe} displayValue={project.url ? '' : 'URL toevoegen'} />
+                        placeholder={project.url ? 'Wijzig URL' : 'URL toevoegen'} icon={Pencil} displayValue={project.url ? '' : 'URL toevoegen'} />
                     </div>
-                    <div className="space-y-1.5 col-span-2">
+                    <div className="space-y-1.5 sm:col-span-2">
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>
-                      {/* Linked clients */}
                       <div className="space-y-1">
-                        {/* Fallback: show client from old client_id if no project_clients entries */}
                         {(projectClients[project.id] || []).length === 0 && project.client_id && (() => {
                           const clientName = (project.client as unknown as { name: string })?.name || 'Onbekend'
                           return (
@@ -955,18 +954,18 @@ export default function Projects() {
                         {(projectClients[project.id] || []).map((pc) => {
                           const clientName = (pc.client as unknown as { name: string })?.name || 'Onbekend'
                           const clientEmail = (pc.client as unknown as { email: string })?.email || ''
-                          const isExpanded = expandedClientId === pc.id
+                          const isClientExpanded = expandedClientId === pc.id
                           return (
                             <div key={pc.id} className="bg-gray-50 rounded-lg border border-gray-100">
                               <button
-                                onClick={() => setExpandedClientId(isExpanded ? null : pc.id)}
+                                onClick={() => setExpandedClientId(isClientExpanded ? null : pc.id)}
                                 className="flex items-center gap-2 w-full px-3 py-2 text-left"
                               >
                                 <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                                 <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
-                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isClientExpanded ? 'rotate-180' : ''}`} />
                               </button>
-                              {isExpanded && (
+                              {isClientExpanded && (
                                 <div className="px-3 pb-3 pt-1 border-t border-gray-100">
                                   <p className="text-xs text-gray-400 mb-2">{clientEmail}</p>
                                   <div className="space-y-1.5">
@@ -1005,7 +1004,6 @@ export default function Projects() {
                           )
                         })}
                       </div>
-                      {/* Add client dropdown */}
                       <div className="relative" ref={clientDropdownId === project.id ? clientDropdownRef : undefined}>
                         <button onClick={() => setClientDropdownId(clientDropdownId === project.id ? null : project.id)}
                           className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-primary transition-colors mt-1">
@@ -1030,6 +1028,12 @@ export default function Projects() {
                         )}
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* ── Sectie 3: Projectdetails ── */}
+                <div className="bg-gray-50/50 border-t border-b border-gray-100 px-5 sm:px-6 py-4">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="space-y-1">
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Opleverdatum</p>
                       <div className="flex items-center gap-1.5">
@@ -1081,9 +1085,236 @@ export default function Projects() {
                   </div>
                 </div>
 
-                {/* Phase tabs: always show Design, show Intake only if instance exists */}
+                {/* ── Sectie 4: Templates ── */}
                 <div className="border-t border-gray-100">
-                  {/* Tab bar */}
+                  <button onClick={() => toggleExpand(project.id)}
+                    className="w-full px-5 sm:px-6 py-3 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-gray-400" />
+                      <span className="font-medium text-gray-600">Templates</span>
+                      {(() => {
+                        const loadedCount = phases.filter(p => getInstance(project.id, p)).length
+                        return loadedCount > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 font-medium">
+                            {loadedCount}/{phases.length} fases
+                          </span>
+                        ) : null
+                      })()}
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-gray-100">
+                      <div className="flex overflow-x-auto border-b border-gray-100">
+                        {phases.map((phase) => {
+                          const isActive = currentTab === phase
+                          const hasInstance = !!getInstance(project.id, phase)
+                          const isCurrent = phase === project.current_phase
+                          const colors = phaseTabColors[phase]
+                          return (
+                            <button key={phase} onClick={() => switchPhaseTab(project.id, phase)}
+                              className={`relative flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                                isActive ? colors.active : `border-transparent ${colors.inactive}`
+                              }`}>
+                              {hasInstance && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                              )}
+                              {phaseLabels[phase]}
+                              {isCurrent && (
+                                <span className="text-[9px] font-bold uppercase tracking-wider opacity-50">actief</span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <div className="px-5 sm:px-6 py-5 sm:py-6">
+                        {!tabInstance && (
+                          <div>
+                            {tabTemplates.length > 0 ? (
+                              <div>
+                                <p className="text-sm text-gray-500 mb-3">
+                                  Kies een template om in te laden voor de fase <span className="font-medium">{phaseLabels[currentTab]}</span>:
+                                </p>
+                                <div className="space-y-2">
+                                  {tabTemplates.map((t) => (
+                                    <button key={t.id} onClick={() => loadTemplate(project.id, currentTab, t)}
+                                      className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors text-left">
+                                      <div>
+                                        <p className="text-sm font-medium text-gray-900">{t.title}</p>
+                                        <p className="text-xs text-gray-400 mt-0.5">{t.steps?.length || 0} stappen</p>
+                                      </div>
+                                      <Layers className="w-4 h-4 text-gray-400" />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center py-6">
+                                <p className="text-sm text-gray-400">Geen templates beschikbaar voor de fase &quot;{phaseLabels[currentTab]}&quot;.</p>
+                                <p className="text-xs text-gray-400 mt-1">Maak eerst een template aan via het Templates menu.</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {tabInstance && editingInstance && (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-gray-400">
+                                Template ingeladen voor <span className="font-medium">{phaseLabels[currentTab]}</span>. Bewerk hieronder de inhoud specifiek voor dit domein.
+                              </p>
+                              {tabTemplates.length > 0 && (
+                                <div className="relative" ref={reloadDropdownId === `${project.id}_${currentTab}` ? reloadDropdownRef : undefined}>
+                                  {tabTemplates.length === 1 ? (
+                                    <button onClick={() => { if (confirm('Template opnieuw inladen? Domein-specifieke aanpassingen worden overschreven.')) loadTemplate(project.id, currentTab, tabTemplates[0]) }}
+                                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors whitespace-nowrap">
+                                      <RotateCcw className="w-3 h-3" />
+                                      Herlaad
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button onClick={() => setReloadDropdownId(reloadDropdownId === `${project.id}_${currentTab}` ? null : `${project.id}_${currentTab}`)}
+                                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors whitespace-nowrap">
+                                        <RotateCcw className="w-3 h-3" />
+                                        Herlaad
+                                      </button>
+                                      {reloadDropdownId === `${project.id}_${currentTab}` && (
+                                        <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 min-w-[180px]">
+                                          {tabTemplates.map((t) => (
+                                            <button key={t.id} onClick={() => { setReloadDropdownId(null); if (confirm(`Template "${t.title}" opnieuw inladen?`)) loadTemplate(project.id, currentTab, t) }}
+                                              className="w-full px-3 py-2 text-xs text-left text-gray-600 hover:bg-gray-50 transition-colors">
+                                              {t.title}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1.5">Inhoud (zichtbaar voor klant)</label>
+                              <textarea value={editingInstance.content}
+                                onChange={(e) => setEditingInstance({ ...editingInstance, content: e.target.value })}
+                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm resize-none"
+                                rows={3} placeholder="Tekst of instructies voor de klant..." />
+                            </div>
+
+                            <div className="flex flex-wrap gap-x-6 gap-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editingInstance.show_file_footer || false}
+                                  onChange={(e) => setEditingInstance({ ...editingInstance, show_file_footer: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
+                                />
+                                <span className="text-xs text-gray-600">Bestanden delen footer</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editingInstance.show_feedback_footer || false}
+                                  onChange={(e) => setEditingInstance({ ...editingInstance, show_feedback_footer: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
+                                />
+                                <span className="text-xs text-gray-600">Feedback/review footer</span>
+                              </label>
+                            </div>
+
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="text-xs font-medium text-gray-500">Cards (zichtbaar voor klant)</label>
+                                <button type="button" onClick={addInstanceStep}
+                                  className="flex items-center gap-1 text-xs text-primary hover:text-primary-600 font-medium transition-colors">
+                                  <Plus className="w-3 h-3" />
+                                  Card toevoegen
+                                </button>
+                              </div>
+                              {editingInstance.steps.length === 0 ? (
+                                <div className="border border-dashed border-gray-200 rounded-lg p-4 text-center">
+                                  <p className="text-xs text-gray-400">Nog geen cards.</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {editingInstance.steps.map((step, index) => {
+                                    const isStepExpanded = expandedStepId === step.id
+                                    const elemCount = step.elements?.length || 0
+                                    return (
+                                      <div key={step.id} className={`border border-gray-200 rounded-lg overflow-hidden ${step.faded ? 'bg-amber-50/50 border-amber-200' : 'bg-gray-50'} ${step.completed ? 'ring-2 ring-green-200' : ''}`}>
+                                        <div className="flex gap-2 items-start p-3">
+                                          <div className="flex-1">
+                                            <input type="text" value={step.title}
+                                              onChange={(e) => updateInstanceStep(index, 'title', e.target.value)}
+                                              className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                                              placeholder="Card titel" />
+                                          </div>
+                                          <div className="flex items-center gap-0.5 mt-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleStepCompleted(project.id, currentTab, step.id)}
+                                              className={`p-1 rounded transition-colors ${step.completed ? 'text-green-500 hover:text-green-700 bg-green-50' : 'text-gray-400 hover:text-green-500 hover:bg-green-50'}`}
+                                              title={step.completed ? 'Markeer als niet voltooid' : 'Markeer als voltooid'}
+                                            >
+                                              <CheckCircle className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleStepFaded(index)}
+                                              className={`p-1 rounded transition-colors ${step.faded ? 'text-amber-500 hover:text-amber-700 bg-amber-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
+                                              title={step.faded ? 'Zichtbaar maken' : 'Faden (nog niet aan de beurt)'}
+                                            >
+                                              {step.faded ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                            </button>
+                                            <button type="button" onClick={() => removeInstanceStep(index)}
+                                              className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors">
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <button type="button" onClick={() => setExpandedStepId(isStepExpanded ? null : step.id)}
+                                          className="w-full flex items-center justify-between px-3 py-2 border-t border-gray-200 hover:bg-gray-100 transition-colors">
+                                          <span className="text-xs font-medium text-gray-500">
+                                            {elemCount} {elemCount === 1 ? 'element' : 'elementen'}
+                                          </span>
+                                          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isStepExpanded ? 'rotate-180' : ''}`} />
+                                        </button>
+                                        {isStepExpanded && (
+                                          <div className="px-3 pb-3 pt-2 border-t border-gray-200 bg-white">
+                                            <CardElementsEditor
+                                              elements={step.elements || []}
+                                              onChange={(elements) => updateInstanceStep(index, 'elements', elements)}
+                                              projectId={project.id}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex justify-end">
+                              <button onClick={() => saveInstance(project.id, currentTab)}
+                                disabled={savingInstance}
+                                className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+                                <Save className="w-4 h-4" />
+                                {savingInstance ? 'Opslaan...' : 'Opslaan'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Sectie 5: Fase-inhoud (Intake/Design tabs) ── */}
+                <div className="border-t border-gray-100">
                   <div className="flex border-b border-gray-100 px-5 sm:px-6">
                       {getInstance(project.id, 'intake') && (
                         <button
@@ -1347,247 +1578,6 @@ export default function Projects() {
                     })()}
                 </div>
 
-                {/* Template accordion toggle */}
-                <div className="border-t border-gray-100">
-                  <button onClick={() => toggleExpand(project.id)}
-                    className="w-full px-5 sm:px-6 py-3 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-gray-400" />
-                      <span className="font-medium text-gray-600">Templates</span>
-                      {/* Show count of loaded phases */}
-                      {(() => {
-                        const loadedCount = phases.filter(p => getInstance(project.id, p)).length
-                        return loadedCount > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 font-medium">
-                            {loadedCount}/{phases.length} fases
-                          </span>
-                        ) : null
-                      })()}
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {/* Expanded template panel with phase tabs */}
-                  {isExpanded && (
-                    <div className="border-t border-gray-100">
-                      {/* Phase tabs */}
-                      <div className="flex overflow-x-auto border-b border-gray-100">
-                        {phases.map((phase) => {
-                          const isActive = currentTab === phase
-                          const hasInstance = !!getInstance(project.id, phase)
-                          const isCurrent = phase === project.current_phase
-                          const colors = phaseTabColors[phase]
-                          return (
-                            <button key={phase} onClick={() => switchPhaseTab(project.id, phase)}
-                              className={`relative flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
-                                isActive ? colors.active : `border-transparent ${colors.inactive}`
-                              }`}>
-                              {hasInstance && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                              )}
-                              {phaseLabels[phase]}
-                              {isCurrent && (
-                                <span className="text-[9px] font-bold uppercase tracking-wider opacity-50">actief</span>
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      {/* Tab content */}
-                      <div className="px-5 sm:px-6 py-5 sm:py-6">
-                        {/* No instance loaded for this phase */}
-                        {!tabInstance && (
-                          <div>
-                            {tabTemplates.length > 0 ? (
-                              <div>
-                                <p className="text-sm text-gray-500 mb-3">
-                                  Kies een template om in te laden voor de fase <span className="font-medium">{phaseLabels[currentTab]}</span>:
-                                </p>
-                                <div className="space-y-2">
-                                  {tabTemplates.map((t) => (
-                                    <button key={t.id} onClick={() => loadTemplate(project.id, currentTab, t)}
-                                      className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors text-left">
-                                      <div>
-                                        <p className="text-sm font-medium text-gray-900">{t.title}</p>
-                                        <p className="text-xs text-gray-400 mt-0.5">{t.steps?.length || 0} stappen</p>
-                                      </div>
-                                      <Layers className="w-4 h-4 text-gray-400" />
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-center py-6">
-                                <p className="text-sm text-gray-400">Geen templates beschikbaar voor de fase "{phaseLabels[currentTab]}".</p>
-                                <p className="text-xs text-gray-400 mt-1">Maak eerst een template aan via het Templates menu.</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Instance loaded — editing */}
-                        {tabInstance && editingInstance && (
-                          <div className="space-y-4">
-                            {/* Reload template option */}
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-gray-400">
-                                Template ingeladen voor <span className="font-medium">{phaseLabels[currentTab]}</span>. Bewerk hieronder de inhoud specifiek voor dit domein.
-                              </p>
-                              {tabTemplates.length > 0 && (
-                                <div className="relative" ref={reloadDropdownId === `${project.id}_${currentTab}` ? reloadDropdownRef : undefined}>
-                                  {tabTemplates.length === 1 ? (
-                                    <button onClick={() => { if (confirm('Template opnieuw inladen? Domein-specifieke aanpassingen worden overschreven.')) loadTemplate(project.id, currentTab, tabTemplates[0]) }}
-                                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors whitespace-nowrap">
-                                      <RotateCcw className="w-3 h-3" />
-                                      Herlaad
-                                    </button>
-                                  ) : (
-                                    <>
-                                      <button onClick={() => setReloadDropdownId(reloadDropdownId === `${project.id}_${currentTab}` ? null : `${project.id}_${currentTab}`)}
-                                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors whitespace-nowrap">
-                                        <RotateCcw className="w-3 h-3" />
-                                        Herlaad
-                                      </button>
-                                      {reloadDropdownId === `${project.id}_${currentTab}` && (
-                                        <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 min-w-[180px]">
-                                          {tabTemplates.map((t) => (
-                                            <button key={t.id} onClick={() => { setReloadDropdownId(null); if (confirm(`Template "${t.title}" opnieuw inladen?`)) loadTemplate(project.id, currentTab, t) }}
-                                              className="w-full px-3 py-2 text-xs text-left text-gray-600 hover:bg-gray-50 transition-colors">
-                                              {t.title}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Content */}
-                            <div>
-                              <label className="block text-xs font-medium text-gray-500 mb-1.5">Inhoud (zichtbaar voor klant)</label>
-                              <textarea value={editingInstance.content}
-                                onChange={(e) => setEditingInstance({ ...editingInstance, content: e.target.value })}
-                                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm resize-none"
-                                rows={3} placeholder="Tekst of instructies voor de klant..." />
-                            </div>
-
-                            {/* Footer toggles */}
-                            <div className="flex flex-wrap gap-x-6 gap-y-2">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={editingInstance.show_file_footer || false}
-                                  onChange={(e) => setEditingInstance({ ...editingInstance, show_file_footer: e.target.checked })}
-                                  className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
-                                />
-                                <span className="text-xs text-gray-600">Bestanden delen footer</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={editingInstance.show_feedback_footer || false}
-                                  onChange={(e) => setEditingInstance({ ...editingInstance, show_feedback_footer: e.target.checked })}
-                                  className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
-                                />
-                                <span className="text-xs text-gray-600">Feedback/review footer</span>
-                              </label>
-                            </div>
-
-                            {/* Cards */}
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <label className="text-xs font-medium text-gray-500">Cards (zichtbaar voor klant)</label>
-                                <button type="button" onClick={addInstanceStep}
-                                  className="flex items-center gap-1 text-xs text-primary hover:text-primary-600 font-medium transition-colors">
-                                  <Plus className="w-3 h-3" />
-                                  Card toevoegen
-                                </button>
-                              </div>
-                              {editingInstance.steps.length === 0 ? (
-                                <div className="border border-dashed border-gray-200 rounded-lg p-4 text-center">
-                                  <p className="text-xs text-gray-400">Nog geen cards.</p>
-                                </div>
-                              ) : (
-                                <div className="space-y-3">
-                                  {editingInstance.steps.map((step, index) => {
-                                    const isStepExpanded = expandedStepId === step.id
-                                    const elemCount = step.elements?.length || 0
-                                    return (
-                                      <div key={step.id} className={`border border-gray-200 rounded-lg overflow-hidden ${step.faded ? 'bg-amber-50/50 border-amber-200' : 'bg-gray-50'} ${step.completed ? 'ring-2 ring-green-200' : ''}`}>
-                                        {/* Card header */}
-                                        <div className="flex gap-2 items-start p-3">
-                                          <div className="flex-1">
-                                            <input type="text" value={step.title}
-                                              onChange={(e) => updateInstanceStep(index, 'title', e.target.value)}
-                                              className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-                                              placeholder="Card titel" />
-                                          </div>
-                                          <div className="flex items-center gap-0.5 mt-1">
-                                            <button
-                                              type="button"
-                                              onClick={() => toggleStepCompleted(project.id, currentTab, step.id)}
-                                              className={`p-1 rounded transition-colors ${step.completed ? 'text-green-500 hover:text-green-700 bg-green-50' : 'text-gray-400 hover:text-green-500 hover:bg-green-50'}`}
-                                              title={step.completed ? 'Markeer als niet voltooid' : 'Markeer als voltooid'}
-                                            >
-                                              <CheckCircle className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => toggleStepFaded(index)}
-                                              className={`p-1 rounded transition-colors ${step.faded ? 'text-amber-500 hover:text-amber-700 bg-amber-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`}
-                                              title={step.faded ? 'Zichtbaar maken' : 'Faden (nog niet aan de beurt)'}
-                                            >
-                                              {step.faded ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                            </button>
-                                            <button type="button" onClick={() => removeInstanceStep(index)}
-                                              className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors">
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                        {/* Elements toggle */}
-                                        <button type="button" onClick={() => setExpandedStepId(isStepExpanded ? null : step.id)}
-                                          className="w-full flex items-center justify-between px-3 py-2 border-t border-gray-200 hover:bg-gray-100 transition-colors">
-                                          <span className="text-xs font-medium text-gray-500">
-                                            {elemCount} {elemCount === 1 ? 'element' : 'elementen'}
-                                          </span>
-                                          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isStepExpanded ? 'rotate-180' : ''}`} />
-                                        </button>
-                                        {/* Elements editor */}
-                                        {isStepExpanded && (
-                                          <div className="px-3 pb-3 pt-2 border-t border-gray-200 bg-white">
-                                            <CardElementsEditor
-                                              elements={step.elements || []}
-                                              onChange={(elements) => updateInstanceStep(index, 'elements', elements)}
-                                              projectId={project.id}
-                                            />
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Save button */}
-                            <div className="flex justify-end">
-                              <button onClick={() => saveInstance(project.id, currentTab)}
-                                disabled={savingInstance}
-                                className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-                                <Save className="w-4 h-4" />
-                                {savingInstance ? 'Opslaan...' : 'Opslaan'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             )
           })}
