@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Ticket, TicketReply, TicketStatus } from '../../types'
 import { MessageSquare, ArrowLeft, Send, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, Loader2, Image as ImageIcon } from 'lucide-react'
-import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
 const statusConfig: Record<TicketStatus, { label: string; color: string; bg: string; icon: typeof Clock }> = {
   open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: AlertCircle },
@@ -60,7 +59,6 @@ export default function Tickets() {
 
     // Notify client
     if (selectedTicket) {
-      const projectName = (selectedTicket.project as unknown as { name: string })?.name || ''
       await supabase.from('client_notifications').insert({
         project_id: selectedTicket.project_id,
         client_id: null,
@@ -109,7 +107,6 @@ export default function Tickets() {
     await supabase.from('tickets').update(statusUpdate).eq('id', selectedTicket.id)
 
     // Notify client
-    const projectName = (selectedTicket.project as unknown as { name: string })?.name || ''
     await supabase.from('client_notifications').insert({
       project_id: selectedTicket.project_id,
       client_id: null,
@@ -128,12 +125,11 @@ export default function Tickets() {
   }
 
   const filtered = filterStatus === 'all' ? tickets : tickets.filter(t => t.status === filterStatus)
-  const counts = { all: tickets.length, ...Object.fromEntries(statusOrder.map(s => [s, tickets.filter(t => t.status === s).length])) }
+  const counts: Record<string, number> = { all: tickets.length, ...Object.fromEntries(statusOrder.map(s => [s, tickets.filter(t => t.status === s).length])) }
 
   // Detail view
   if (selectedTicket) {
     const sc = statusConfig[selectedTicket.status]
-    const StatusIcon = sc.icon
     return (
       <div className="space-y-6">
         <button onClick={() => { setSelectedTicket(null); fetchTickets() }}
