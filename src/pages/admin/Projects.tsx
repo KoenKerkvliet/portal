@@ -1017,7 +1017,13 @@ export default function Projects() {
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Bestanden delen</p>
                       <InlineEdit
                         value={project.file_sharing_url || ''}
-                        onSave={(url) => updateProject(project.id, { file_sharing_url: url || null })}
+                        onSave={(url) => {
+                          let finalUrl = url?.trim() || null
+                          if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                            finalUrl = `https://${finalUrl}`
+                          }
+                          updateProject(project.id, { file_sharing_url: finalUrl })
+                        }}
                         placeholder="URL toevoegen"
                         icon={Upload}
                       />
@@ -1025,9 +1031,15 @@ export default function Projects() {
                     <div className="space-y-1">
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Feedback URL</p>
                       <InlineEdit
-                        value={project.feedback_url || ''}
-                        onSave={(url) => updateProject(project.id, { feedback_url: url || null })}
-                        placeholder="URL toevoegen"
+                        value={project.feedback_url || 'https://feedback.designpixels.nl'}
+                        onSave={(url) => {
+                          let finalUrl = url?.trim() || null
+                          if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                            finalUrl = `https://${finalUrl}`
+                          }
+                          updateProject(project.id, { feedback_url: finalUrl })
+                        }}
+                        placeholder="https://feedback.designpixels.nl"
                         icon={Star}
                       />
                     </div>

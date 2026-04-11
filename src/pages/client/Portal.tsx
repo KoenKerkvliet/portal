@@ -511,7 +511,7 @@ export default function ClientPortal() {
           )}
 
           {/* Feedback/review footer */}
-          {project?.feedback_url && showFeedbackFooter && (
+          {(project?.feedback_url || showFeedbackFooter) && showFeedbackFooter && (
             <div className={`${project?.file_sharing_url && showFileFooter ? 'mt-4' : 'mt-10 sm:mt-12'} pb-8 sm:pb-12`}>
               <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-8 py-6 text-center">
                 <div className="flex flex-col items-center gap-3">
@@ -525,7 +525,7 @@ export default function ClientPortal() {
                     </p>
                   </div>
                   <a
-                    href={project.feedback_url}
+                    href={project.feedback_url || 'https://feedback.designpixels.nl'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-colors"
