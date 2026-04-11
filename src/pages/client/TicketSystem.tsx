@@ -142,7 +142,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
 
     await supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', selectedTicket.id)
 
-    // Notify admin
+    // Notify admin (in-app always)
     const ticketNumber = `#${String(selectedTicket.number).padStart(3, '0')}`
     await supabase.from('admin_notifications').insert({
       type: 'general',
@@ -152,14 +152,26 @@ export default function TicketSystem({ projectId, projectName }: Props) {
       client_id: null,
     })
 
-    // Send email to admin
-    await sendAdminNotificationEmail({
-      type: 'ticket',
-      itemLabel: `Ticket ${ticketNumber}: ${selectedTicket.title}`,
-      clientName: profile.full_name || 'Klant',
-      projectName,
-      ticketDescription: replyText.trim(),
-    })
+    // Email throttle: only send if no client reply in last 5 minutes
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const { data: recentReplies } = await supabase
+      .from('ticket_replies')
+      .select('id')
+      .eq('ticket_id', selectedTicket.id)
+      .eq('author_role', 'client')
+      .gte('created_at', fiveMinAgo)
+      .limit(2)
+
+    // Only send email if this is the first client reply in 5 min (the one we just inserted counts as 1)
+    if (!recentReplies || recentReplies.length <= 1) {
+      await sendAdminNotificationEmail({
+        type: 'ticket',
+        itemLabel: `Ticket ${ticketNumber}: ${selectedTicket.title}`,
+        clientName: profile.full_name || 'Klant',
+        projectName,
+        ticketDescription: replyText.trim(),
+      })
+    }
 
     setReplyText('')
     setReplyFile(null)
@@ -261,14 +273,15 @@ export default function TicketSystem({ projectId, projectName }: Props) {
           {/* Reply input */}
           {selectedTicket.status !== 'closed' && (
             <div className="px-6 py-4 border-t border-gray-100">
+              <p className="text-[11px] text-gray-400 mb-2">Beschrijf alles in één bericht zodat we je zo goed mogelijk kunnen helpen.</p>
               <div className="flex gap-3">
                 <div className="flex-1">
                   <textarea
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    rows={2}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm resize-none"
-                    placeholder="Typ een reactie..."
+                    rows={4}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm resize-y"
+                    placeholder="Beschrijf je vraag of opmerking zo volledig mogelijk..."
                   />
                   {replyFile && (
                     <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">

@@ -117,8 +117,21 @@ export default function Tickets() {
       read: false,
     })
 
+    // Email throttle: only send if no admin reply in last 5 minutes
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const { data: recentAdminReplies } = await supabase
+      .from('ticket_replies')
+      .select('id')
+      .eq('ticket_id', selectedTicket.id)
+      .eq('author_role', 'admin')
+      .gte('created_at', fiveMinAgo)
+      .limit(2)
+
+    // Only send email if this is the first admin reply in 5 min
+    const shouldSendEmail = !recentAdminReplies || recentAdminReplies.length <= 1
+
     // Send email to clients with notify_tickets enabled
-    try {
+    if (shouldSendEmail) try {
       const { data: projectClients } = await supabase
         .from('project_clients')
         .select('client:clients(email, name)')
@@ -280,8 +293,8 @@ export default function Tickets() {
                   <textarea
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    rows={2}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm resize-none"
+                    rows={4}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm resize-y"
                     placeholder="Typ een reactie..."
                   />
                   {replyFile && (
