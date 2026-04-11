@@ -329,9 +329,9 @@ export default function Projects() {
       }
       if (pi.phase === 'design' && pi.custom_data) {
         newDesignImages[pi.project_id] = {
-          styleguide: pi.custom_data.design_image_styleguide || pi.custom_data.design_html_styleguide || pi.custom_data.design_html || '',
-          homepage: pi.custom_data.design_image_homepage || pi.custom_data.design_html_homepage || '',
-          tweede: pi.custom_data.design_image_tweede || pi.custom_data.design_html_tweede || '',
+          styleguide: pi.custom_data.design_image_styleguide || '',
+          homepage: pi.custom_data.design_image_homepage || '',
+          tweede: pi.custom_data.design_image_tweede || '',
         }
       }
     })
@@ -493,9 +493,9 @@ export default function Projects() {
       const fieldToType: Record<string, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
       const fieldToLabel: Record<string, string> = { styleguide: 'Styleguide', homepage: 'Homepage', tweede: 'Contactpagina' }
       const oldImages = {
-        styleguide: customData.design_image_styleguide || customData.design_html_styleguide || '',
-        homepage: customData.design_image_homepage || customData.design_html_homepage || '',
-        tweede: customData.design_image_tweede || customData.design_html_tweede || '',
+        styleguide: customData.design_image_styleguide || '',
+        homepage: customData.design_image_homepage || '',
+        tweede: customData.design_image_tweede || '',
       }
       for (const [field, approvalType] of Object.entries(fieldToType)) {
         const fieldKey = field as 'styleguide' | 'homepage' | 'tweede'

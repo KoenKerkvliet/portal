@@ -53,8 +53,7 @@ export default function StyleguidePage() {
         setPhaseInstanceId(phaseRes.data.id)
         const cd = phaseRes.data.custom_data || {}
         setPhaseCustomData(cd)
-        // Try new image field first, fall back to legacy HTML field
-        setImageUrl(cd[config.field] || cd[config.legacyField] || '')
+        setImageUrl(cd[config.field] || '')
         // Load approval status
         const approvals = cd.design_approvals as Record<string, DesignApproval & { accepted_signature?: string }> | undefined
         if (approvals?.[designType]) {
