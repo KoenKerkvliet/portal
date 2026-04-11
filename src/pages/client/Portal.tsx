@@ -97,7 +97,7 @@ function ButtonDesignPreviewLink({ element, className, type, defaultLabel, proje
 }
 
 // Render a single card element for the client view
-function CardElementView({ element, project }: { element: CardElement; project: Project }) {
+function CardElementView({ element, project, disabled }: { element: CardElement; project: Project; disabled?: boolean }) {
   switch (element.type) {
     case 'icon': {
       const IconComp = getIconComponent(element.data.name || 'star')
@@ -156,6 +156,23 @@ function CardElementView({ element, project }: { element: CardElement; project: 
     case 'button': {
       const action = element.data.action || 'url'
       const isPrimary = element.data.variant !== 'outline'
+
+      // Disabled buttons (faded step)
+      if (disabled) {
+        const disabledClasses = `inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium cursor-not-allowed ${
+          isPrimary
+            ? 'bg-gray-300 text-gray-500'
+            : 'bg-white border-2 border-gray-200 text-gray-400'
+        }`
+        return (
+          <div className="flex justify-center pt-2">
+            <button type="button" disabled className={disabledClasses}>
+              {element.data.label || 'Binnenkort beschikbaar'}
+            </button>
+          </div>
+        )
+      }
+
       const btnClasses = `inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
         isPrimary
           ? 'bg-primary hover:bg-primary-600 text-white'
@@ -428,7 +445,7 @@ export default function ClientPortal() {
                               {buttonElements.length > 0 && (
                                 <div className="mt-auto pt-4 space-y-2">
                                   {buttonElements.map((element) => (
-                                    <CardElementView key={element.id} element={element} project={project} />
+                                    <CardElementView key={element.id} element={element} project={project} disabled={step.faded} />
                                   ))}
                                 </div>
                               )}

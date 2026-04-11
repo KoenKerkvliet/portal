@@ -454,7 +454,12 @@ export default function Projects() {
       }
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
-      // Auto-propagate design preview buttons in all phases (skip design — we just updated it)
+      // Auto-fade/unfade steps with design preview buttons and propagate IDs
+      const actionToHtml: Record<string, string> = {
+        styleguide: html.styleguide,
+        homepage: html.homepage,
+        contactpage: html.tweede,
+      }
       for (const phase of phases) {
         if (phase === 'design') continue
         const pi = getInstance(projectId, phase)
@@ -463,16 +468,24 @@ export default function Projects() {
         for (const step of pi.custom_data.steps) {
           if (!step.elements) continue
           for (const el of step.elements) {
-            if (el.type === 'button' && el.data.action === 'styleguide') {
-              el.data.styleguideProjectId = html.styleguide ? projectId : ''
-              changed = true
-            }
-            if (el.type === 'button' && el.data.action === 'homepage') {
-              el.data.homepageProjectId = html.homepage ? projectId : ''
-              changed = true
-            }
-            if (el.type === 'button' && el.data.action === 'contactpage') {
-              el.data.contactpageProjectId = html.tweede ? projectId : ''
+            if (el.type === 'button' && el.data.action in actionToHtml) {
+              const hasHtml = !!actionToHtml[el.data.action]?.trim()
+              // Auto-unfade when HTML is filled, auto-fade when empty
+              if (hasHtml && step.faded) {
+                step.faded = false
+                changed = true
+              } else if (!hasHtml && !step.faded) {
+                step.faded = true
+                changed = true
+              }
+              // Propagate project IDs
+              if (el.data.action === 'styleguide') {
+                el.data.styleguideProjectId = hasHtml ? projectId : ''
+              } else if (el.data.action === 'homepage') {
+                el.data.homepageProjectId = hasHtml ? projectId : ''
+              } else if (el.data.action === 'contactpage') {
+                el.data.contactpageProjectId = hasHtml ? projectId : ''
+              }
               changed = true
             }
           }
