@@ -478,8 +478,8 @@ export default function ClientPortal() {
 
           {/* File sharing footer */}
           {project?.file_sharing_url && (
-            <div className="mt-10 sm:mt-12">
-              <div className="max-w-xl mx-auto bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-8 py-6 text-center">
+            <div className="mt-10 sm:mt-12 pb-8 sm:pb-12">
+              <div className="max-w-xl mx-auto bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100/60 px-6 sm:px-8 py-6 text-center">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                     <ExternalLink className="w-5 h-5 text-primary" />
