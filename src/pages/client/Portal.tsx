@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement } from '../../types'
@@ -205,9 +205,9 @@ function CardElementView({ element, project, disabled }: { element: CardElement;
       if (action === 'contentpage' && element.data.contentPageSlug) {
         return (
           <div className="flex justify-center pt-2">
-            <a href={`/content/${element.data.contentPageSlug}`} className={btnClasses}>
+            <Link to={`/content/${element.data.contentPageSlug}`} className={btnClasses}>
               {element.data.label || 'Meer informatie'}
-            </a>
+            </Link>
           </div>
         )
       }
