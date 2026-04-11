@@ -424,7 +424,7 @@ export default function Projects() {
 
     // Create design phase instance if it doesn't exist yet
     if (!instance) {
-      const { data, error } = await supabase.from('project_phases').insert({
+      const { data } = await supabase.from('project_phases').insert({
         project_id: projectId,
         phase: 'design',
         template_id: null,
