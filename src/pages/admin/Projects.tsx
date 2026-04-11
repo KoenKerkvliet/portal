@@ -1244,7 +1244,8 @@ export default function Projects() {
                         { key: 'tweede', label: 'Contactpagina' },
                       ]
                       return (
-                        <div className="px-5 sm:px-6 py-4 space-y-5">
+                        <div className="px-5 sm:px-6 py-4">
+                          <div className="grid grid-cols-3 gap-3">
                           {fields.map(({ key, label }) => {
                             const approval = approvals[keyToApprovalType[key]]
                             const isDeclined = approval?.status === 'declined'
@@ -1337,8 +1338,9 @@ export default function Projects() {
                               </div>
                             )
                           })}
+                          </div>
                           {savingDesignImages === project.id && (
-                            <p className="text-xs text-primary">Opslaan...</p>
+                            <p className="text-xs text-primary mt-2">Opslaan...</p>
                           )}
                         </div>
                       )
