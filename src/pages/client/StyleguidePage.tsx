@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Loader2, Palette, Home, FileText } from 'lucide-react'
+import { ArrowLeft, Loader2, Palette, Home, FileText, ZoomIn, ZoomOut } from 'lucide-react'
 
 const pageConfig: Record<string, { title: string; field: string; icon: typeof Palette; bgGradient: string; iconBg: string; iconColor: string }> = {
   styleguide: { title: 'Styleguide', field: 'design_html_styleguide', icon: Palette, bgGradient: 'from-purple-50 to-purple-100/50', iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
@@ -17,6 +17,9 @@ export default function StyleguidePage() {
   const [html, setHtml] = useState<string | null>(null)
   const [projectName, setProjectName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [zoom, setZoom] = useState(0.75)
+  const [iframeHeight, setIframeHeight] = useState(600)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const fetch = async () => {
@@ -38,6 +41,22 @@ export default function StyleguidePage() {
     fetch()
   }, [projectId, config.field])
 
+  const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
+    const iframe = e.target as HTMLIFrameElement
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (doc?.body) {
+        // Disable scrolling inside iframe
+        doc.body.style.overflow = 'hidden'
+        doc.documentElement.style.overflow = 'hidden'
+        const height = doc.body.scrollHeight
+        setIframeHeight(height)
+      }
+    } catch {
+      // Cross-origin fallback
+    }
+  }, [])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -55,6 +74,11 @@ export default function StyleguidePage() {
     )
   }
 
+  // The iframe renders at a fixed wide width, then gets scaled down by the zoom factor.
+  // This eliminates horizontal scrollbars since the content has enough space.
+  const iframeWidth = 1440
+  const scaledHeight = iframeHeight * zoom
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -64,40 +88,62 @@ export default function StyleguidePage() {
         </Link>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Header */}
+          {/* Header with zoom controls */}
           <div className={`bg-gradient-to-r ${config.bgGradient} px-6 sm:px-8 py-5 border-b border-gray-100`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl ${config.iconBg} flex items-center justify-center`}>
-                <Icon className={`w-5 h-5 ${config.iconColor}`} />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl ${config.iconBg} flex items-center justify-center`}>
+                  <Icon className={`w-5 h-5 ${config.iconColor}`} />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">{config.title}</h1>
+                  {projectName && <p className="text-sm text-gray-500">{projectName}</p>}
+                </div>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">{config.title}</h1>
-                {projectName && <p className="text-sm text-gray-500">{projectName}</p>}
-              </div>
+
+              {html.trim() && (
+                <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-lg border border-gray-200 px-3 py-1.5">
+                  <button onClick={() => setZoom(z => Math.max(0.25, z - 0.05))} className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors">
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="range"
+                    min="25"
+                    max="100"
+                    value={Math.round(zoom * 100)}
+                    onChange={(e) => setZoom(Number(e.target.value) / 100)}
+                    className="w-24 h-1.5 accent-primary cursor-pointer"
+                  />
+                  <button onClick={() => setZoom(z => Math.min(1, z + 0.05))} className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors">
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-medium text-gray-500 min-w-[3ch] text-center">{Math.round(zoom * 100)}%</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Sandboxed HTML content in iframe */}
-          <div className="p-4 sm:p-6">
+          {/* Sandboxed HTML content in scaled iframe */}
+          <div className="p-4 sm:p-6" ref={containerRef}>
             {html.trim() ? (
-              <iframe
-                srcDoc={html}
-                sandbox="allow-same-origin"
-                className="w-full border border-gray-200 rounded-xl bg-white"
-                style={{ minHeight: '500px' }}
-                onLoad={(e) => {
-                  const iframe = e.target as HTMLIFrameElement
-                  try {
-                    const doc = iframe.contentDocument || iframe.contentWindow?.document
-                    if (doc?.body) {
-                      const height = doc.body.scrollHeight + 32
-                      iframe.style.height = `${Math.max(500, height)}px`
-                    }
-                  } catch {
-                    // Cross-origin fallback
-                  }
-                }}
-              />
+              <div
+                className="overflow-hidden rounded-xl border border-gray-200"
+                style={{ height: `${scaledHeight}px` }}
+              >
+                <iframe
+                  srcDoc={html}
+                  sandbox="allow-same-origin"
+                  className="bg-white"
+                  style={{
+                    width: `${iframeWidth}px`,
+                    height: `${iframeHeight}px`,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                    border: 'none',
+                  }}
+                  onLoad={handleIframeLoad}
+                />
+              </div>
             ) : (
               <p className="text-sm text-gray-400 text-center py-12">Er is nog geen {config.title.toLowerCase()} beschikbaar.</p>
             )}
