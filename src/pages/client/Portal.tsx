@@ -81,9 +81,8 @@ function ButtonInvoiceLink({ element, className }: { element: CardElement; class
 }
 
 // Wrapper for button with design preview actions (styleguide, homepage, contactpage)
-function ButtonDesignPreviewLink({ element, className, type, defaultLabel }: { element: CardElement; className: string; type: string; defaultLabel: string }) {
+function ButtonDesignPreviewLink({ element, className, type, defaultLabel, projectId }: { element: CardElement; className: string; type: string; defaultLabel: string; projectId: string }) {
   const navigate = useNavigate()
-  const projectId = element.data.styleguideProjectId || element.data.homepageProjectId || element.data.contactpageProjectId
   return (
     <div className="flex justify-center pt-2">
       <button
@@ -177,14 +176,14 @@ function CardElementView({ element, project }: { element: CardElement; project: 
       if (action === 'invoice' && element.data.invoiceId) {
         return <ButtonInvoiceLink element={element} className={btnClasses} />
       }
-      if (action === 'styleguide' && element.data.styleguideProjectId) {
-        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="styleguide" defaultLabel="Styleguide bekijken" />
+      if (action === 'styleguide') {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="styleguide" defaultLabel="Styleguide bekijken" projectId={project.id} />
       }
-      if (action === 'homepage' && element.data.homepageProjectId) {
-        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="homepage" defaultLabel="Homepage bekijken" />
+      if (action === 'homepage') {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="homepage" defaultLabel="Homepage bekijken" projectId={project.id} />
       }
-      if (action === 'contactpage' && element.data.contactpageProjectId) {
-        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="contactpage" defaultLabel="Contactpagina bekijken" />
+      if (action === 'contactpage') {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="contactpage" defaultLabel="Contactpagina bekijken" projectId={project.id} />
       }
 
       // Default: URL action
