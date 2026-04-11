@@ -462,7 +462,7 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
       {/* Action type selector */}
       <div>
         <label className="block text-[11px] text-gray-400 mb-1">Actie</label>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {buttonActionTypes.map((at) => (
             <button type="button" key={at.value}
               onClick={() => onChange({ ...data, action: at.value })}
