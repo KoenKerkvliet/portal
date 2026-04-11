@@ -2,14 +2,13 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Ticket, TicketReply, TicketStatus } from '../../types'
-import { Plus, X, Send, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, Loader2, ArrowLeft, MessageSquare, Image as ImageIcon } from 'lucide-react'
+import { Plus, X, Send, Paperclip, Clock, CheckCircle, AlertCircle, Loader2, ArrowLeft, MessageSquare, Image as ImageIcon } from 'lucide-react'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
 const statusConfig: Record<TicketStatus, { label: string; color: string; bg: string; icon: typeof Clock }> = {
   open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: AlertCircle },
   in_progress: { label: 'In behandeling', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
   resolved: { label: 'Opgelost', color: 'text-green-700', bg: 'bg-green-50 border-green-200', icon: CheckCircle },
-  closed: { label: 'Gesloten', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200', icon: XCircle },
 }
 
 interface Props {
@@ -270,8 +269,17 @@ export default function TicketSystem({ projectId, projectName }: Props) {
             <div ref={repliesEndRef} />
           </div>
 
+          {/* Resolved message */}
+          {selectedTicket.status === 'resolved' && (
+            <div className="px-6 py-5 border-t border-gray-100 bg-green-50/50 text-center">
+              <CheckCircle className="w-6 h-6 text-green-500 mx-auto mb-2" />
+              <p className="text-sm font-medium text-gray-800">Dit ticket is opgelost</p>
+              <p className="text-xs text-gray-500 mt-1">Heb je nog een vraag? Maak dan een nieuwe melding aan.</p>
+            </div>
+          )}
+
           {/* Reply input */}
-          {selectedTicket.status !== 'closed' && (
+          {selectedTicket.status !== 'resolved' && (
             <div className="px-6 py-4 border-t border-gray-100">
               <p className="text-[11px] text-gray-400 mb-2">Beschrijf alles in één bericht zodat we je zo goed mogelijk kunnen helpen.</p>
               <div className="flex gap-3">

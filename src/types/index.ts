@@ -265,7 +265,7 @@ export interface Assignment {
   client?: Client
 }
 
-export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type TicketStatus = 'open' | 'in_progress' | 'resolved'
 
 export interface Ticket {
   id: string

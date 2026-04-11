@@ -1,16 +1,15 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Ticket, TicketReply, TicketStatus } from '../../types'
-import { MessageSquare, ArrowLeft, Send, Paperclip, Clock, CheckCircle, AlertCircle, XCircle, Loader2, Image as ImageIcon } from 'lucide-react'
+import { MessageSquare, ArrowLeft, Send, Paperclip, Clock, CheckCircle, AlertCircle, Loader2, Image as ImageIcon } from 'lucide-react'
 
 const statusConfig: Record<TicketStatus, { label: string; color: string; bg: string; icon: typeof Clock }> = {
   open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: AlertCircle },
   in_progress: { label: 'In behandeling', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
   resolved: { label: 'Opgelost', color: 'text-green-700', bg: 'bg-green-50 border-green-200', icon: CheckCircle },
-  closed: { label: 'Gesloten', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200', icon: XCircle },
 }
 
-const statusOrder: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed']
+const statusOrder: TicketStatus[] = ['open', 'in_progress', 'resolved']
 
 export default function Tickets() {
   const [tickets, setTickets] = useState<Ticket[]>([])
@@ -286,7 +285,7 @@ export default function Tickets() {
           </div>
 
           {/* Reply input */}
-          {selectedTicket.status !== 'closed' && (
+          {selectedTicket.status !== 'resolved' && (
             <div className="px-6 py-4 border-t border-gray-100 bg-white">
               <div className="flex gap-3">
                 <div className="flex-1">
