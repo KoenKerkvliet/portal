@@ -131,6 +131,7 @@ export const buttonActionTypes = [
   { value: 'styleguide', label: 'Bekijk styleguide', icon: Palette },
   { value: 'homepage', label: 'Bekijk homepage', icon: Eye },
   { value: 'contactpage', label: 'Bekijk contactpagina', icon: FileText },
+  { value: 'contentpage', label: 'Open contentpagina', icon: BookOpen },
 ]
 
 function createDefaultElement(type: CardElementType): CardElement {
@@ -405,6 +406,8 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
   const [loadingQuotes, setLoadingQuotes] = useState(false)
   const [loadingAssignments, setLoadingAssignments] = useState(false)
   const [loadingInvoices, setLoadingInvoices] = useState(false)
+  const [contentPages, setContentPages] = useState<{ id: string; title: string; slug: string }[]>([])
+  const [loadingContentPages, setLoadingContentPages] = useState(false)
   const action = data.action || 'url'
 
   // Load forms when action is 'form'
@@ -457,6 +460,17 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
     }
   }, [action, projectId])
 
+  // Load content pages when action is 'contentpage'
+  useEffect(() => {
+    if (action === 'contentpage' && contentPages.length === 0) {
+      setLoadingContentPages(true)
+      supabase.from('content_pages').select('id, title, slug').eq('status', 'published').order('title').then(({ data: pagesData }) => {
+        setContentPages(pagesData || [])
+        setLoadingContentPages(false)
+      })
+    }
+  }, [action, contentPages.length])
+
   return (
     <div className="space-y-2">
       {/* Action type selector */}
@@ -484,7 +498,7 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
         <input type="text" value={data.label || ''}
           onChange={(e) => onChange({ ...data, label: e.target.value })}
           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
-          placeholder={action === 'form' ? 'Formulier invullen' : action === 'quote' ? 'Offerte bekijken' : action === 'assignment' ? 'Opdracht bekijken' : action === 'invoice' ? 'Factuur bekijken' : action === 'styleguide' ? 'Styleguide bekijken' : action === 'homepage' ? 'Homepage bekijken' : action === 'contactpage' ? 'Contactpagina bekijken' : 'Bekijk meer'} />
+          placeholder={action === 'form' ? 'Formulier invullen' : action === 'quote' ? 'Offerte bekijken' : action === 'assignment' ? 'Opdracht bekijken' : action === 'invoice' ? 'Factuur bekijken' : action === 'styleguide' ? 'Styleguide bekijken' : action === 'homepage' ? 'Homepage bekijken' : action === 'contactpage' ? 'Contactpagina bekijken' : action === 'contentpage' ? 'Meer informatie' : 'Bekijk meer'} />
       </div>
 
       {/* Action-specific fields */}
@@ -584,6 +598,29 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
               <option value="">Kies een factuur...</option>
               {invoices.map((inv) => (
                 <option key={inv.id} value={inv.id}>{inv.number} — €{inv.amount.toFixed(2)}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      {action === 'contentpage' && (
+        <div>
+          <label className="block text-[11px] text-gray-400 mb-1">Contentpagina</label>
+          {loadingContentPages ? (
+            <p className="text-xs text-gray-400">Laden...</p>
+          ) : contentPages.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">Geen gepubliceerde contentpagina&apos;s beschikbaar. Maak er eerst een aan via Content &gt; Contentpagina&apos;s.</p>
+          ) : (
+            <select value={data.contentPageId || ''}
+              onChange={(e) => {
+                const selected = contentPages.find(p => p.id === e.target.value)
+                onChange({ ...data, contentPageId: e.target.value, contentPageSlug: selected?.slug || '' })
+              }}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm">
+              <option value="">Kies een contentpagina...</option>
+              {contentPages.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
               ))}
             </select>
           )}

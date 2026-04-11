@@ -31,6 +31,7 @@ const navItems = [
 
 const contentItems = [
   { to: '/admin/formulieren', icon: ClipboardList, label: 'Formulieren' },
+  { to: '/admin/contentpaginas', icon: BookOpen, label: "Contentpagina's" },
 ]
 
 export default function AdminLayout() {

@@ -27,6 +27,8 @@ import ClientTerms from './pages/client/Terms'
 import ClientAssignmentPage from './pages/client/AssignmentPage'
 import ClientInvoicePage from './pages/client/InvoicePage'
 import ClientStyleguidePage from './pages/client/StyleguidePage'
+import ContentPages from './pages/admin/ContentPages'
+import ClientContentPage from './pages/client/ContentPage'
 import Verify from './pages/Verify'
 
 function ScrollToTop() {
@@ -69,6 +71,7 @@ function AppRoutes() {
 {/* Quote settings now in /admin/instellingen */}
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />
+        <Route path="contentpaginas" element={<ContentPages />} />
         <Route path="instellingen" element={<AdminSettings />} />
       </Route>
 
@@ -87,6 +90,7 @@ function AppRoutes() {
         {/* Legacy route */}
         <Route path="styleguide/:projectId" element={<ClientStyleguidePage />} />
         <Route path="voorwaarden" element={<ClientTerms />} />
+        <Route path="content/:slug" element={<ClientContentPage />} />
         <Route path="bestanden" element={<ClientFiles />} />
         <Route path="instellingen" element={<ClientSettings />} />
       </Route>

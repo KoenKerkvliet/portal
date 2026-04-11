@@ -202,6 +202,15 @@ function CardElementView({ element, project, disabled }: { element: CardElement;
       if (action === 'contactpage') {
         return <ButtonDesignPreviewLink element={element} className={btnClasses} type="contactpage" defaultLabel="Contactpagina bekijken" projectId={project.id} />
       }
+      if (action === 'contentpage' && element.data.contentPageSlug) {
+        return (
+          <div className="flex justify-center pt-2">
+            <a href={`/content/${element.data.contentPageSlug}`} className={btnClasses}>
+              {element.data.label || 'Meer informatie'}
+            </a>
+          </div>
+        )
+      }
 
       // Default: URL action
       if (!element.data.url) return null
