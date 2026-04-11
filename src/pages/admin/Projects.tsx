@@ -53,6 +53,9 @@ interface ProjectPhaseInstance {
     design_html_styleguide?: string
     design_html_homepage?: string
     design_html_tweede?: string
+    design_image_styleguide?: string
+    design_image_homepage?: string
+    design_image_tweede?: string
     design_approvals?: Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string; accepted_name?: string }>
     show_file_footer?: boolean
     show_feedback_footer?: boolean
@@ -150,8 +153,9 @@ export default function Projects() {
 
   // Domain card tabs & design state
   const [domainCardTab, setDomainCardTab] = useState<Record<string, 'intake' | 'design'>>({})
-  const [designHtml, setDesignHtml] = useState<Record<string, { styleguide: string; homepage: string; tweede: string }>>({})
-  const [savingDesignHtml, setSavingDesignHtml] = useState<string | null>(null)
+  const [designImages, setDesignImages] = useState<Record<string, { styleguide: string; homepage: string; tweede: string }>>({})
+  const [savingDesignImages, setSavingDesignImages] = useState<string | null>(null)
+  const [uploadingDesignImage, setUploadingDesignImage] = useState<string | null>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -312,7 +316,7 @@ export default function Projects() {
     const { data } = await supabase.from('project_phases').select('*')
     const map: Record<string, ProjectPhaseInstance> = {}
     const newIntakeLinks: Record<string, { quote_id: string; invoice_id: string; assignment_id: string }> = {}
-    const newDesignHtml: Record<string, { styleguide: string; homepage: string; tweede: string }> = {}
+    const newDesignImages: Record<string, { styleguide: string; homepage: string; tweede: string }> = {}
     ;(data || []).forEach((pi: ProjectPhaseInstance) => {
       map[`${pi.project_id}_${pi.phase}`] = pi
       // Load intake links from custom_data
@@ -324,16 +328,16 @@ export default function Projects() {
         }
       }
       if (pi.phase === 'design' && pi.custom_data) {
-        newDesignHtml[pi.project_id] = {
-          styleguide: pi.custom_data.design_html_styleguide || pi.custom_data.design_html || '',
-          homepage: pi.custom_data.design_html_homepage || '',
-          tweede: pi.custom_data.design_html_tweede || '',
+        newDesignImages[pi.project_id] = {
+          styleguide: pi.custom_data.design_image_styleguide || pi.custom_data.design_html_styleguide || pi.custom_data.design_html || '',
+          homepage: pi.custom_data.design_image_homepage || pi.custom_data.design_html_homepage || '',
+          tweede: pi.custom_data.design_image_tweede || pi.custom_data.design_html_tweede || '',
         }
       }
     })
     setPhaseInstances(map)
     setIntakeLinks(prev => ({ ...prev, ...newIntakeLinks }))
-    setDesignHtml(prev => ({ ...prev, ...newDesignHtml }))
+    setDesignImages(prev => ({ ...prev, ...newDesignImages }))
   }
 
   const fetchProjectQuotesAndInvoices = async (projectId: string) => {
@@ -420,10 +424,43 @@ export default function Projects() {
     setSavingIntakeLinks(null)
   }
 
-  const saveDesignHtml = async (projectId: string) => {
-    setSavingDesignHtml(projectId)
+  const uploadDesignImage = async (projectId: string, fieldKey: 'styleguide' | 'homepage' | 'tweede', file: File) => {
+    setUploadingDesignImage(`${projectId}_${fieldKey}`)
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${projectId}/${fieldKey}_${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('design-images').upload(path, file, { upsert: true })
+      if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage.from('design-images').getPublicUrl(path)
+      const publicUrl = urlData.publicUrl
+
+      setDesignImages(prev => ({
+        ...prev,
+        [projectId]: { ...(prev[projectId] || { styleguide: '', homepage: '', tweede: '' }), [fieldKey]: publicUrl }
+      }))
+
+      // Auto-save after upload
+      await saveDesignImages(projectId, { ...(designImages[projectId] || { styleguide: '', homepage: '', tweede: '' }), [fieldKey]: publicUrl })
+    } catch (err) {
+      console.error('Upload error:', err)
+      alert('Upload mislukt. Controleer of de storage bucket "design-images" bestaat.')
+    } finally {
+      setUploadingDesignImage(null)
+    }
+  }
+
+  const removeDesignImage = async (projectId: string, fieldKey: 'styleguide' | 'homepage' | 'tweede') => {
+    setDesignImages(prev => ({
+      ...prev,
+      [projectId]: { ...(prev[projectId] || { styleguide: '', homepage: '', tweede: '' }), [fieldKey]: '' }
+    }))
+    await saveDesignImages(projectId, { ...(designImages[projectId] || { styleguide: '', homepage: '', tweede: '' }), [fieldKey]: '' })
+  }
+
+  const saveDesignImages = async (projectId: string, images?: { styleguide: string; homepage: string; tweede: string }) => {
+    setSavingDesignImages(projectId)
     let instance = getInstance(projectId, 'design')
-    const html = designHtml[projectId] || { styleguide: '', homepage: '', tweede: '' }
+    const imgs = images || designImages[projectId] || { styleguide: '', homepage: '', tweede: '' }
 
     // Create design phase instance if it doesn't exist yet
     if (!instance) {
@@ -434,62 +471,60 @@ export default function Projects() {
         custom_data: {
           content: '',
           steps: [],
-          design_html_styleguide: html.styleguide,
-          design_html_homepage: html.homepage,
-          design_html_tweede: html.tweede,
+          design_image_styleguide: imgs.styleguide,
+          design_image_homepage: imgs.homepage,
+          design_image_tweede: imgs.tweede,
         },
         status: 'active',
       }).select().single()
       if (data) {
         await fetchPhaseInstances()
       }
-      setSavingDesignHtml(null)
+      setSavingDesignImages(null)
       return
     }
 
     {
       const customData = instance.custom_data || { content: '', steps: [] }
 
-      // Reset declined approvals when new HTML is saved for that field
+      // Reset declined approvals when new image is saved for that field
       const existingApprovals = (customData.design_approvals || {}) as Record<string, { status?: string }>
       const updatedApprovals = { ...existingApprovals }
       const fieldToType: Record<string, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
       const fieldToLabel: Record<string, string> = { styleguide: 'Styleguide', homepage: 'Homepage', tweede: 'Contactpagina' }
-      const oldHtml = {
-        styleguide: customData.design_html_styleguide || '',
-        homepage: customData.design_html_homepage || '',
-        tweede: customData.design_html_tweede || '',
+      const oldImages = {
+        styleguide: customData.design_image_styleguide || customData.design_html_styleguide || '',
+        homepage: customData.design_image_homepage || customData.design_html_homepage || '',
+        tweede: customData.design_image_tweede || customData.design_html_tweede || '',
       }
       for (const [field, approvalType] of Object.entries(fieldToType)) {
         const fieldKey = field as 'styleguide' | 'homepage' | 'tweede'
-        const hasNewHtml = !!html[fieldKey]?.trim()
-        const hadOldHtml = !!oldHtml[fieldKey]?.trim()
-        const htmlChanged = html[fieldKey] !== oldHtml[fieldKey]
+        const hasNewImage = !!imgs[fieldKey]?.trim()
+        const hadOldImage = !!oldImages[fieldKey]?.trim()
+        const imageChanged = imgs[fieldKey] !== oldImages[fieldKey]
 
-        if (hasNewHtml && updatedApprovals[approvalType]?.status === 'declined') {
+        if (hasNewImage && updatedApprovals[approvalType]?.status === 'declined') {
           updatedApprovals[approvalType] = { status: 'new_version' } as never
-          // Notify client about new version
           createNotification(projectId, 'card_update', `Nieuwe versie: ${fieldToLabel[field]}`, `Er is een nieuwe versie van het design "${fieldToLabel[field]}" beschikbaar op basis van je feedback.`, `/design/${approvalType}/${projectId}`)
-        } else if (hasNewHtml && !hadOldHtml && htmlChanged) {
-          // First time HTML is added — notify client
+        } else if (hasNewImage && !hadOldImage && imageChanged) {
           createNotification(projectId, 'card_update', `Design beschikbaar: ${fieldToLabel[field]}`, `Het design "${fieldToLabel[field]}" staat klaar voor je beoordeling.`, `/design/${approvalType}/${projectId}`)
         }
       }
 
       const updatedData = {
         ...customData,
-        design_html_styleguide: html.styleguide,
-        design_html_homepage: html.homepage,
-        design_html_tweede: html.tweede,
+        design_image_styleguide: imgs.styleguide,
+        design_image_homepage: imgs.homepage,
+        design_image_tweede: imgs.tweede,
         design_approvals: updatedApprovals,
       }
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
-      // Auto-fade/unfade steps with design preview buttons and propagate IDs
-      const actionToHtml: Record<string, string> = {
-        styleguide: html.styleguide,
-        homepage: html.homepage,
-        contactpage: html.tweede,
+      // Auto-fade/unfade steps with design preview buttons
+      const actionToImage: Record<string, string> = {
+        styleguide: imgs.styleguide,
+        homepage: imgs.homepage,
+        contactpage: imgs.tweede,
       }
       for (const phase of phases) {
         const isDesign = phase === 'design'
@@ -500,12 +535,12 @@ export default function Projects() {
         for (const step of phaseCustomData.steps) {
           if (!step.elements) continue
           for (const el of step.elements) {
-            if (el.type === 'button' && el.data.action in actionToHtml) {
-              const hasHtml = !!actionToHtml[el.data.action]?.trim()
-              if (hasHtml && step.faded) {
+            if (el.type === 'button' && el.data.action in actionToImage) {
+              const hasImage = !!actionToImage[el.data.action]?.trim()
+              if (hasImage && step.faded) {
                 step.faded = false
                 changed = true
-              } else if (!hasHtml && !step.faded) {
+              } else if (!hasImage && !step.faded) {
                 step.faded = true
                 changed = true
               }
@@ -519,7 +554,7 @@ export default function Projects() {
 
       await fetchPhaseInstances()
     }
-    setSavingDesignHtml(null)
+    setSavingDesignImages(null)
   }
 
   useEffect(() => {
@@ -1199,7 +1234,7 @@ export default function Projects() {
 
                     {/* Design tab content */}
                     {(domainCardTab[project.id] || 'intake') === 'design' && (() => {
-                      const html = designHtml[project.id] || { styleguide: '', homepage: '', tweede: '' }
+                      const imgs = designImages[project.id] || { styleguide: '', homepage: '', tweede: '' }
                       const designInstance = getInstance(project.id, 'design')
                       const approvals = (designInstance?.custom_data?.design_approvals || {}) as Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string }>
                       const keyToApprovalType: Record<string, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
@@ -1210,19 +1245,12 @@ export default function Projects() {
                       ]
                       return (
                         <div className="px-5 sm:px-6 py-4 space-y-5">
-                          <div className="flex items-center justify-end">
-                            <button
-                              onClick={() => saveDesignHtml(project.id)}
-                              className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                            >
-                              <Save className="w-3 h-3" />
-                              Alles opslaan
-                            </button>
-                          </div>
                           {fields.map(({ key, label }) => {
                             const approval = approvals[keyToApprovalType[key]]
                             const isDeclined = approval?.status === 'declined'
                             const isAccepted = approval?.status === 'accepted'
+                            const imageUrl = imgs[key]
+                            const isUploading = uploadingDesignImage === `${project.id}_${key}`
                             return (
                               <div key={key}>
                                 <div className="flex items-center gap-1.5 mb-2">
@@ -1231,7 +1259,7 @@ export default function Projects() {
                                   ) : isAccepted ? (
                                     <CheckCircle className="w-3.5 h-3.5 text-green-500" />
                                   ) : (
-                                    <Code className="w-3.5 h-3.5 text-gray-400" />
+                                    <Palette className="w-3.5 h-3.5 text-gray-400" />
                                   )}
                                   <label className={`text-[11px] font-medium uppercase tracking-wider ${isDeclined ? 'text-red-500' : isAccepted ? 'text-green-500' : 'text-gray-400'}`}>{label}</label>
                                   {isDeclined && (
@@ -1250,23 +1278,66 @@ export default function Projects() {
                                     </div>
                                   </div>
                                 )}
-                                <textarea
-                                  value={html[key]}
-                                  onChange={(e) => setDesignHtml(prev => ({
-                                    ...prev,
-                                    [project.id]: { ...html, [key]: e.target.value }
-                                  }))}
-                                  placeholder={`Plak hier de HTML voor ${label.toLowerCase()}...`}
-                                  className={`w-full h-28 text-xs font-mono bg-gray-900 text-gray-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 transition-all resize-y ${
-                                    isDeclined
-                                      ? 'border-2 border-red-500 focus:ring-red-500/30 focus:border-red-500'
-                                      : 'border border-gray-700 focus:ring-purple-500/30 focus:border-purple-500'
-                                  }`}
-                                />
+                                {imageUrl ? (
+                                  <div className={`relative rounded-lg overflow-hidden border-2 ${
+                                    isDeclined ? 'border-red-500' : isAccepted ? 'border-green-500' : 'border-gray-200'
+                                  }`}>
+                                    <img src={imageUrl} alt={label} className="w-full h-auto max-h-48 object-cover object-top" />
+                                    <div className="absolute top-2 right-2 flex gap-1">
+                                      <label className="p-1.5 bg-white/90 rounded-lg shadow-sm cursor-pointer hover:bg-white transition-colors" title="Vervangen">
+                                        <Upload className="w-3.5 h-3.5 text-gray-600" />
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0]
+                                            if (file) uploadDesignImage(project.id, key, file)
+                                            e.target.value = ''
+                                          }}
+                                        />
+                                      </label>
+                                      <button
+                                        onClick={() => removeDesignImage(project.id, key)}
+                                        className="p-1.5 bg-white/90 rounded-lg shadow-sm hover:bg-red-50 transition-colors"
+                                        title="Verwijderen"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <label className={`flex flex-col items-center justify-center gap-2 w-full h-28 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+                                    isUploading ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary hover:bg-gray-50'
+                                  }`}>
+                                    {isUploading ? (
+                                      <>
+                                        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                        <span className="text-xs text-primary">Uploaden...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Upload className="w-5 h-5 text-gray-400" />
+                                        <span className="text-xs text-gray-500">Klik om afbeelding te uploaden</span>
+                                      </>
+                                    )}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      disabled={isUploading}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) uploadDesignImage(project.id, key, file)
+                                        e.target.value = ''
+                                      }}
+                                    />
+                                  </label>
+                                )}
                               </div>
                             )
                           })}
-                          {savingDesignHtml === project.id && (
+                          {savingDesignImages === project.id && (
                             <p className="text-xs text-primary">Opslaan...</p>
                           )}
                         </div>

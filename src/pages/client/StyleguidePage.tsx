@@ -1,14 +1,14 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Loader2, Palette, Home, FileText, ZoomIn, ZoomOut, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Palette, Home, FileText, CheckCircle, XCircle } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
-const pageConfig: Record<string, { title: string; field: string; icon: typeof Palette; bgGradient: string; iconBg: string; iconColor: string }> = {
-  styleguide: { title: 'Styleguide', field: 'design_html_styleguide', icon: Palette, bgGradient: 'from-purple-50 to-purple-100/50', iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
-  homepage: { title: 'Homepage', field: 'design_html_homepage', icon: Home, bgGradient: 'from-blue-50 to-blue-100/50', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
-  contactpage: { title: 'Contactpagina', field: 'design_html_tweede', icon: FileText, bgGradient: 'from-green-50 to-green-100/50', iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+const pageConfig: Record<string, { title: string; field: string; legacyField: string; icon: typeof Palette; bgGradient: string; iconBg: string; iconColor: string }> = {
+  styleguide: { title: 'Styleguide', field: 'design_image_styleguide', legacyField: 'design_html_styleguide', icon: Palette, bgGradient: 'from-purple-50 to-purple-100/50', iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
+  homepage: { title: 'Homepage', field: 'design_image_homepage', legacyField: 'design_html_homepage', icon: Home, bgGradient: 'from-blue-50 to-blue-100/50', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+  contactpage: { title: 'Contactpagina', field: 'design_image_tweede', legacyField: 'design_html_tweede', icon: FileText, bgGradient: 'from-green-50 to-green-100/50', iconBg: 'bg-green-100', iconColor: 'text-green-600' },
 }
 
 interface DesignApproval {
@@ -27,12 +27,9 @@ export default function StyleguidePage() {
   const designType = type || 'styleguide'
   const Icon = config.icon
 
-  const [html, setHtml] = useState<string | null>(null)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [projectName, setProjectName] = useState('')
   const [loading, setLoading] = useState(true)
-  const [zoom, setZoom] = useState(0.75)
-  const [iframeHeight, setIframeHeight] = useState(600)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   // Approval state
   const [approval, setApproval] = useState<DesignApproval | null>(null)
@@ -56,7 +53,8 @@ export default function StyleguidePage() {
         setPhaseInstanceId(phaseRes.data.id)
         const cd = phaseRes.data.custom_data || {}
         setPhaseCustomData(cd)
-        setHtml(cd[config.field] || '')
+        // Try new image field first, fall back to legacy HTML field
+        setImageUrl(cd[config.field] || cd[config.legacyField] || '')
         // Load approval status
         const approvals = cd.design_approvals as Record<string, DesignApproval & { accepted_signature?: string }> | undefined
         if (approvals?.[designType]) {
@@ -72,7 +70,7 @@ export default function StyleguidePage() {
       setLoading(false)
     }
     fetch()
-  }, [projectId, config.field, designType])
+  }, [projectId, config.field, config.legacyField, designType])
 
   const markDesignStepCompleted = useCallback(async () => {
     if (!projectId) return
@@ -196,21 +194,6 @@ export default function StyleguidePage() {
     }
   }
 
-  const handleIframeLoad = useCallback((e: React.SyntheticEvent<HTMLIFrameElement>) => {
-    const iframe = e.target as HTMLIFrameElement
-    try {
-      const doc = iframe.contentDocument || iframe.contentWindow?.document
-      if (doc?.body) {
-        doc.body.style.overflow = 'hidden'
-        doc.documentElement.style.overflow = 'hidden'
-        const height = doc.body.scrollHeight
-        setIframeHeight(height)
-      }
-    } catch {
-      // Cross-origin fallback
-    }
-  }, [])
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -219,7 +202,7 @@ export default function StyleguidePage() {
     )
   }
 
-  if (!html && html !== '') {
+  if (!imageUrl) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <p className="text-gray-500">{config.title} niet gevonden</p>
@@ -227,9 +210,6 @@ export default function StyleguidePage() {
       </div>
     )
   }
-
-  const iframeWidth = 1440
-  const scaledHeight = iframeHeight * zoom
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
@@ -240,7 +220,7 @@ export default function StyleguidePage() {
         </Link>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Header with zoom controls */}
+          {/* Header */}
           <div className={`bg-gradient-to-r ${config.bgGradient} px-6 sm:px-8 py-5 border-b border-gray-100`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -272,48 +252,18 @@ export default function StyleguidePage() {
                     <span className="text-xs font-medium text-blue-700">Nieuwe versie</span>
                   </div>
                 )}
-                {html.trim() && (
-                  <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-lg border border-gray-200 px-3 py-1.5">
-                    <button onClick={() => setZoom(z => Math.max(0.25, z - 0.05))} className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors">
-                      <ZoomOut className="w-4 h-4" />
-                    </button>
-                    <input
-                      type="range"
-                      min="25"
-                      max="100"
-                      value={Math.round(zoom * 100)}
-                      onChange={(e) => setZoom(Number(e.target.value) / 100)}
-                      className="w-24 h-1.5 accent-primary cursor-pointer"
-                    />
-                    <button onClick={() => setZoom(z => Math.min(1, z + 0.05))} className="p-0.5 text-gray-500 hover:text-gray-700 transition-colors">
-                      <ZoomIn className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs font-medium text-gray-500 min-w-[3ch] text-center">{Math.round(zoom * 100)}%</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Sandboxed HTML content in scaled iframe */}
-          <div className="p-4 sm:p-6" ref={containerRef}>
-            {html.trim() ? (
-              <div
-                className="overflow-hidden rounded-xl border border-gray-200"
-                style={{ height: `${scaledHeight}px` }}
-              >
-                <iframe
-                  srcDoc={html}
-                  sandbox="allow-same-origin"
-                  className="bg-white"
-                  style={{
-                    width: `${iframeWidth}px`,
-                    height: `${iframeHeight}px`,
-                    transform: `scale(${zoom})`,
-                    transformOrigin: 'top left',
-                    border: 'none',
-                  }}
-                  onLoad={handleIframeLoad}
+          {/* Design image */}
+          <div className="p-4 sm:p-6">
+            {imageUrl.trim() ? (
+              <div className="overflow-hidden rounded-xl border border-gray-200">
+                <img
+                  src={imageUrl}
+                  alt={config.title}
+                  className="w-full h-auto"
                 />
               </div>
             ) : (
@@ -322,7 +272,7 @@ export default function StyleguidePage() {
           </div>
 
           {/* Approval section */}
-          {html.trim() && (
+          {imageUrl.trim() && (
             <div className="border-t border-gray-100 px-6 sm:px-8 py-8">
               {approval?.status === 'accepted' ? (
                 <div className="max-w-lg mx-auto text-center">
