@@ -454,7 +454,7 @@ export default function Projects() {
       }
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
-      // Auto-propagate styleguide to buttons with action 'styleguide' in all phases (skip design — we just updated it)
+      // Auto-propagate design preview buttons in all phases (skip design — we just updated it)
       for (const phase of phases) {
         if (phase === 'design') continue
         const pi = getInstance(projectId, phase)
@@ -465,6 +465,14 @@ export default function Projects() {
           for (const el of step.elements) {
             if (el.type === 'button' && el.data.action === 'styleguide') {
               el.data.styleguideProjectId = html.styleguide ? projectId : ''
+              changed = true
+            }
+            if (el.type === 'button' && el.data.action === 'homepage') {
+              el.data.homepageProjectId = html.homepage ? projectId : ''
+              changed = true
+            }
+            if (el.type === 'button' && el.data.action === 'contactpage') {
+              el.data.contactpageProjectId = html.tweede ? projectId : ''
               changed = true
             }
           }
@@ -1126,7 +1134,7 @@ export default function Projects() {
                       const fields: { key: 'styleguide' | 'homepage' | 'tweede'; label: string }[] = [
                         { key: 'styleguide', label: 'Styleguide' },
                         { key: 'homepage', label: 'Homepage' },
-                        { key: 'tweede', label: 'Tweede designfile' },
+                        { key: 'tweede', label: 'Contactpagina' },
                       ]
                       return (
                         <div className="px-5 sm:px-6 py-4 space-y-5">

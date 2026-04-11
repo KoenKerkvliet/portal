@@ -80,17 +80,18 @@ function ButtonInvoiceLink({ element, className }: { element: CardElement; class
   )
 }
 
-// Wrapper for button with styleguide action
-function ButtonStyleguideLink({ element, className }: { element: CardElement; className: string }) {
+// Wrapper for button with design preview actions (styleguide, homepage, contactpage)
+function ButtonDesignPreviewLink({ element, className, type, defaultLabel }: { element: CardElement; className: string; type: string; defaultLabel: string }) {
   const navigate = useNavigate()
+  const projectId = element.data.styleguideProjectId || element.data.homepageProjectId || element.data.contactpageProjectId
   return (
     <div className="flex justify-center pt-2">
       <button
         type="button"
-        onClick={() => navigate(`/styleguide/${element.data.styleguideProjectId}`)}
+        onClick={() => navigate(`/design/${type}/${projectId}`)}
         className={className}
       >
-        {element.data.label || 'Styleguide bekijken'}
+        {element.data.label || defaultLabel}
       </button>
     </div>
   )
@@ -177,7 +178,13 @@ function CardElementView({ element, project }: { element: CardElement; project: 
         return <ButtonInvoiceLink element={element} className={btnClasses} />
       }
       if (action === 'styleguide' && element.data.styleguideProjectId) {
-        return <ButtonStyleguideLink element={element} className={btnClasses} />
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="styleguide" defaultLabel="Styleguide bekijken" />
+      }
+      if (action === 'homepage' && element.data.homepageProjectId) {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="homepage" defaultLabel="Homepage bekijken" />
+      }
+      if (action === 'contactpage' && element.data.contactpageProjectId) {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="contactpage" defaultLabel="Contactpagina bekijken" />
       }
 
       // Default: URL action

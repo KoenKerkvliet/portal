@@ -76,6 +76,8 @@ function AppRoutes() {
         <Route path="offerte/:quoteId" element={<ClientQuotePage />} />
         <Route path="opdracht/:assignmentId" element={<ClientAssignmentPage />} />
         <Route path="factuur/:invoiceId" element={<ClientInvoicePage />} />
+        <Route path="design/:type/:projectId" element={<ClientStyleguidePage />} />
+        {/* Legacy route */}
         <Route path="styleguide/:projectId" element={<ClientStyleguidePage />} />
         <Route path="voorwaarden" element={<ClientTerms />} />
         <Route path="bestanden" element={<ClientFiles />} />
