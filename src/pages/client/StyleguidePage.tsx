@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Loader2, Palette, Home, FileText, CheckCircle, XCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Palette, Home, FileText, CheckCircle, XCircle, Download } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
@@ -250,6 +250,18 @@ export default function StyleguidePage() {
                     <Loader2 className="w-4 h-4 text-blue-600" />
                     <span className="text-xs font-medium text-blue-700">Nieuwe versie</span>
                   </div>
+                )}
+                {imageUrl?.trim() && (
+                  <a
+                    href={imageUrl}
+                    download={`${config.title.toLowerCase()}-${projectName || 'design'}.jpg`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+                  >
+                    <Download className="w-4 h-4 text-gray-500" />
+                    <span className="text-xs font-medium text-gray-600">Download</span>
+                  </a>
                 )}
               </div>
             </div>
