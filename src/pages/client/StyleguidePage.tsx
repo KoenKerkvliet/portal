@@ -17,7 +17,7 @@ interface DesignApproval {
   declined_at?: string
   declined_name?: string
   declined_reason?: string
-  status: 'accepted' | 'declined'
+  status: 'accepted' | 'declined' | 'new_version'
 }
 
 export default function StyleguidePage() {
@@ -254,10 +254,22 @@ export default function StyleguidePage() {
               </div>
 
               <div className="flex items-center gap-3">
-                {approval && (
+                {approval?.status === 'accepted' && (
                   <div className="flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
                     <CheckCircle className="w-4 h-4 text-green-600" />
                     <span className="text-xs font-medium text-green-700">Goedgekeurd</span>
+                  </div>
+                )}
+                {approval?.status === 'declined' && (
+                  <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                    <XCircle className="w-4 h-4 text-red-600" />
+                    <span className="text-xs font-medium text-red-700">Feedback gegeven</span>
+                  </div>
+                )}
+                {approval?.status === 'new_version' && (
+                  <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
+                    <Loader2 className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs font-medium text-blue-700">Nieuwe versie</span>
                   </div>
                 )}
                 {html.trim() && (
@@ -337,6 +349,65 @@ export default function StyleguidePage() {
                     <p className="text-xs font-medium text-red-400 uppercase tracking-wider mb-1">Feedback</p>
                     <p className="text-sm text-gray-700">{approval.declined_reason}</p>
                   </div>
+                </div>
+              ) : approval?.status === 'new_version' ? (
+                <div className="max-w-lg mx-auto">
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-center">
+                    <p className="text-sm font-medium text-blue-700">Er is een nieuwe versie van dit design beschikbaar op basis van je feedback.</p>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1 text-center">Wat vind je van de nieuwe versie?</h3>
+                  <p className="text-sm text-gray-500 text-center mb-6">
+                    Bekijk het aangepaste design en geef je goedkeuring of geef opnieuw feedback.
+                  </p>
+
+                  {!showDecline ? (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleAccept}
+                        disabled={accepting}
+                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-medium text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        {accepting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        {accepting ? 'Goedkeuren...' : 'Goedkeuren'}
+                      </button>
+                      <button
+                        onClick={() => setShowDecline(true)}
+                        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-red-200 text-red-600 rounded-xl font-medium text-sm hover:bg-red-50 transition-colors"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Feedback geven
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Wat kan er beter?</label>
+                        <textarea
+                          value={declineReason}
+                          onChange={(e) => setDeclineReason(e.target.value)}
+                          rows={4}
+                          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-300 focus:border-red-400 text-sm resize-y"
+                          placeholder="Beschrijf wat je anders wilt zien..."
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={handleDecline}
+                          disabled={!declineReason.trim() || declining}
+                          className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {declining ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                          {declining ? 'Verzenden...' : 'Feedback verzenden'}
+                        </button>
+                        <button
+                          onClick={() => { setShowDecline(false); setDeclineReason('') }}
+                          className="px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-200 transition-colors"
+                        >
+                          Annuleren
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="max-w-lg mx-auto">

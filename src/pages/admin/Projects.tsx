@@ -446,11 +446,25 @@ export default function Projects() {
 
     {
       const customData = instance.custom_data || { content: '', steps: [] }
+
+      // Reset declined approvals when new HTML is saved for that field
+      const existingApprovals = (customData.design_approvals || {}) as Record<string, { status?: string }>
+      const updatedApprovals = { ...existingApprovals }
+      const fieldToType: Record<string, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
+      for (const [field, approvalType] of Object.entries(fieldToType)) {
+        const fieldKey = field as 'styleguide' | 'homepage' | 'tweede'
+        if (html[fieldKey]?.trim() && updatedApprovals[approvalType]?.status === 'declined') {
+          // Mark as new version so client sees the update
+          updatedApprovals[approvalType] = { status: 'new_version' } as never
+        }
+      }
+
       const updatedData = {
         ...customData,
         design_html_styleguide: html.styleguide,
         design_html_homepage: html.homepage,
         design_html_tweede: html.tweede,
+        design_approvals: updatedApprovals,
       }
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
@@ -1135,6 +1149,9 @@ export default function Projects() {
                     {/* Design tab content */}
                     {(domainCardTab[project.id] || 'intake') === 'design' && (() => {
                       const html = designHtml[project.id] || { styleguide: '', homepage: '', tweede: '' }
+                      const designInstance = getInstance(project.id, 'design')
+                      const approvals = (designInstance?.custom_data?.design_approvals || {}) as Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string }>
+                      const keyToApprovalType: Record<string, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
                       const fields: { key: 'styleguide' | 'homepage' | 'tweede'; label: string }[] = [
                         { key: 'styleguide', label: 'Styleguide' },
                         { key: 'homepage', label: 'Homepage' },
@@ -1151,23 +1168,53 @@ export default function Projects() {
                               Alles opslaan
                             </button>
                           </div>
-                          {fields.map(({ key, label }) => (
-                            <div key={key}>
-                              <div className="flex items-center gap-1.5 mb-2">
-                                <Code className="w-3.5 h-3.5 text-gray-400" />
-                                <label className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{label}</label>
+                          {fields.map(({ key, label }) => {
+                            const approval = approvals[keyToApprovalType[key]]
+                            const isDeclined = approval?.status === 'declined'
+                            const isAccepted = approval?.status === 'accepted'
+                            return (
+                              <div key={key}>
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  {isDeclined ? (
+                                    <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                                  ) : isAccepted ? (
+                                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                                  ) : (
+                                    <Code className="w-3.5 h-3.5 text-gray-400" />
+                                  )}
+                                  <label className={`text-[11px] font-medium uppercase tracking-wider ${isDeclined ? 'text-red-500' : isAccepted ? 'text-green-500' : 'text-gray-400'}`}>{label}</label>
+                                  {isDeclined && (
+                                    <span className="text-[10px] font-medium text-red-500 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">Afgekeurd</span>
+                                  )}
+                                  {isAccepted && (
+                                    <span className="text-[10px] font-medium text-green-600 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">Goedgekeurd</span>
+                                  )}
+                                </div>
+                                {isDeclined && approval.declined_reason && (
+                                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+                                    <div className="text-xs text-red-700">
+                                      <p className="font-medium">Feedback van {approval.declined_name || 'klant'}:</p>
+                                      <p className="mt-0.5">{approval.declined_reason}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                <textarea
+                                  value={html[key]}
+                                  onChange={(e) => setDesignHtml(prev => ({
+                                    ...prev,
+                                    [project.id]: { ...html, [key]: e.target.value }
+                                  }))}
+                                  placeholder={`Plak hier de HTML voor ${label.toLowerCase()}...`}
+                                  className={`w-full h-28 text-xs font-mono bg-gray-900 text-gray-100 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 transition-all resize-y ${
+                                    isDeclined
+                                      ? 'border-2 border-red-500 focus:ring-red-500/30 focus:border-red-500'
+                                      : 'border border-gray-700 focus:ring-purple-500/30 focus:border-purple-500'
+                                  }`}
+                                />
                               </div>
-                              <textarea
-                                value={html[key]}
-                                onChange={(e) => setDesignHtml(prev => ({
-                                  ...prev,
-                                  [project.id]: { ...html, [key]: e.target.value }
-                                }))}
-                                placeholder={`Plak hier de HTML voor ${label.toLowerCase()}...`}
-                                className="w-full h-28 text-xs font-mono bg-gray-900 text-gray-100 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all resize-y"
-                              />
-                            </div>
-                          ))}
+                            )
+                          })}
                           {savingDesignHtml === project.id && (
                             <p className="text-xs text-primary">Opslaan...</p>
                           )}
