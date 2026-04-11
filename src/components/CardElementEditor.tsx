@@ -462,17 +462,17 @@ function ButtonEditor({ data, onChange, projectId }: { data: Record<string, stri
       {/* Action type selector */}
       <div>
         <label className="block text-[11px] text-gray-400 mb-1">Actie</label>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5">
           {buttonActionTypes.map((at) => (
             <button type="button" key={at.value}
               onClick={() => onChange({ ...data, action: at.value })}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+              className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-[10px] font-medium transition-all border text-center leading-tight ${
                 action === at.value
                   ? 'bg-primary/10 border-primary/30 text-primary'
                   : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
               }`}>
-              <at.icon className="w-3 h-3" />
-              {at.label}
+              <at.icon className="w-3.5 h-3.5 flex-shrink-0" />
+              {at.label.replace('Bekijk ', '')}
             </button>
           ))}
         </div>
