@@ -452,11 +452,25 @@ export default function Projects() {
       const existingApprovals = (customData.design_approvals || {}) as Record<string, { status?: string }>
       const updatedApprovals = { ...existingApprovals }
       const fieldToType: Record<string, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
+      const fieldToLabel: Record<string, string> = { styleguide: 'Styleguide', homepage: 'Homepage', tweede: 'Contactpagina' }
+      const oldHtml = {
+        styleguide: customData.design_html_styleguide || '',
+        homepage: customData.design_html_homepage || '',
+        tweede: customData.design_html_tweede || '',
+      }
       for (const [field, approvalType] of Object.entries(fieldToType)) {
         const fieldKey = field as 'styleguide' | 'homepage' | 'tweede'
-        if (html[fieldKey]?.trim() && updatedApprovals[approvalType]?.status === 'declined') {
-          // Mark as new version so client sees the update
+        const hasNewHtml = !!html[fieldKey]?.trim()
+        const hadOldHtml = !!oldHtml[fieldKey]?.trim()
+        const htmlChanged = html[fieldKey] !== oldHtml[fieldKey]
+
+        if (hasNewHtml && updatedApprovals[approvalType]?.status === 'declined') {
           updatedApprovals[approvalType] = { status: 'new_version' } as never
+          // Notify client about new version
+          createNotification(projectId, 'card_update', `Nieuwe versie: ${fieldToLabel[field]}`, `Er is een nieuwe versie van het design "${fieldToLabel[field]}" beschikbaar op basis van je feedback.`, `/design/${approvalType}/${projectId}`)
+        } else if (hasNewHtml && !hadOldHtml && htmlChanged) {
+          // First time HTML is added — notify client
+          createNotification(projectId, 'card_update', `Design beschikbaar: ${fieldToLabel[field]}`, `Het design "${fieldToLabel[field]}" staat klaar voor je beoordeling.`, `/design/${approvalType}/${projectId}`)
         }
       }
 
