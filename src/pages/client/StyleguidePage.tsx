@@ -162,7 +162,7 @@ export default function StyleguidePage() {
   // Pre-fill name from profile
   useEffect(() => {
     if (profile?.full_name && !acceptName) {
-      setAcceptName(profile.name)
+      setAcceptName(profile.full_name)
     }
   }, [profile?.full_name])
 
