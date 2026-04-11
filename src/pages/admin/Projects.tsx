@@ -1033,7 +1033,7 @@ export default function Projects() {
 
                 {/* ── Sectie 3: Projectdetails ── */}
                 <div className="bg-gray-50/50 border-t border-b border-gray-100 px-5 sm:px-6 py-4">
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="space-y-1">
                       <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Opleverdatum</p>
                       <div className="flex items-center gap-1.5">
@@ -1080,6 +1080,21 @@ export default function Projects() {
                         }}
                         placeholder="https://feedback.designpixels.nl"
                         icon={Star}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Stagingsite</p>
+                      <InlineEdit
+                        value={project.staging_url || ''}
+                        onSave={(url) => {
+                          let finalUrl = url?.trim() || null
+                          if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                            finalUrl = `https://${finalUrl}`
+                          }
+                          updateProject(project.id, { staging_url: finalUrl })
+                        }}
+                        placeholder="URL toevoegen"
+                        icon={Globe}
                       />
                     </div>
                   </div>

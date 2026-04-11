@@ -211,6 +211,15 @@ function CardElementView({ element, project, disabled }: { element: CardElement;
           </div>
         )
       }
+      if (action === 'staging' && project.staging_url) {
+        return (
+          <div className="flex justify-center pt-2">
+            <a href={project.staging_url} target="_blank" rel="noopener noreferrer" className={btnClasses}>
+              {element.data.label || 'Stagingsite bekijken'}
+            </a>
+          </div>
+        )
+      }
 
       // Default: URL action
       if (!element.data.url) return null

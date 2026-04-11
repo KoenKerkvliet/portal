@@ -41,6 +41,7 @@ export interface Project {
   file_sharing_url: string | null
   feedback_title: string | null
   feedback_url: string | null
+  staging_url: string | null
   created_at: string
   client?: Client
 }
