@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Ticket, TicketReply, TicketStatus } from '../../types'
+import type { Ticket, TicketReply } from '../../types'
 import { Plus, X, Send, Paperclip, Clock, CheckCircle, AlertCircle, Loader2, ArrowLeft, MessageSquare, Image as ImageIcon } from 'lucide-react'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
