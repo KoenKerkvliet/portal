@@ -91,8 +91,11 @@ export default function PunchCardView({ card, uses = [] }: Props) {
                   {isUsed ? <Check className="w-3 h-3 text-gray-400" /> : punchNumber}
                 </div>
                 {isUsed && dateFormatted ? (
-                  <div className="flex-1 flex justify-end">
-                    <span className="text-[10px] font-semibold text-gray-400 bg-white px-2 py-0.5 rounded shadow-sm border border-gray-100 -rotate-2">
+                  <div className="flex-1 flex justify-center">
+                    <span
+                      className="text-[10px] font-semibold text-gray-400 bg-white px-2 py-0.5 rounded shadow-sm border border-gray-100"
+                      style={{ transform: `rotate(${((punchNumber * 7 + 3) % 11) - 5}deg)` }}
+                    >
                       {dateFormatted}
                     </span>
                   </div>
