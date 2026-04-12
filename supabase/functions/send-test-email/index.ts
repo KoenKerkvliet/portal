@@ -22,9 +22,10 @@ Deno.serve(async (req) => {
 
     const now = new Date().toLocaleString('nl-NL', { dateStyle: 'full', timeStyle: 'short' })
 
-    // Support custom subject/html for notification emails, otherwise use default test template
+    // Support custom subject/html/text for notification emails, otherwise use default test template
     const customSubject = body.subject as string | undefined
     const customHtml = body.html as string | undefined
+    const customText = body.text as string | undefined
 
     const html = customHtml || `
       <!DOCTYPE html>
@@ -69,6 +70,7 @@ Deno.serve(async (req) => {
         to,
         subject,
         html,
+        ...(customText ? { text: customText } : {}),
       }),
     })
 

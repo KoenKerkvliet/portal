@@ -175,11 +175,25 @@ export default function OnderhoudTimer() {
   </div>
 </div>
 </body></html>`
+          const emailText = `Hoi${client.name ? ` ${client.name.split(' ')[0]}` : ''},
+
+We hebben onderhoudswerkzaamheden uitgevoerd voor ${projectName}. Hieronder een overzicht.
+
+Werkzaamheden: ${workDescription}
+Gebruikt: ${stripsToUse} strip${stripsToUse !== 1 ? 's' : ''}
+Resterend tegoed: ${newTotalRemaining} strip${newTotalRemaining !== 1 ? 's' : ''}
+
+Je kunt het volledige overzicht van je strippenkaart bekijken in het klantportaal: ${portalUrl}
+
+Met vriendelijke groet,
+DesignPixels`
+
           await supabase.functions.invoke('send-test-email', {
             body: {
               to: client.email,
               subject: `Onderhoud ${projectName} — overzicht werkzaamheden`,
               html: emailHtml,
+              text: emailText,
             },
           })
         }
