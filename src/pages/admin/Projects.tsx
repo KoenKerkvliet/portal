@@ -1046,71 +1046,77 @@ export default function Projects() {
                 </div>
 
                 {/* ── Sectie 3: Projectdetails ── */}
-                <div className="bg-gray-50/50 border-t border-b border-gray-100 px-5 sm:px-6 py-4">
-                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Opleverdatum</p>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <div className="bg-gray-50/50 border-t border-b border-gray-100 px-5 sm:px-6 py-4 space-y-3">
+                  {/* Rij 1: Datums */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-3 bg-white rounded-lg border border-gray-100 px-3 py-2">
+                      <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Opleverdatum</p>
                         <input type="date" value={project.due_date || ''}
                           onChange={(e) => updateProject(project.id, { due_date: e.target.value || null })}
-                          className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors" />
+                          className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Startgesprek</p>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <div className="flex items-center gap-3 bg-white rounded-lg border border-gray-100 px-3 py-2">
+                      <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Startgesprek</p>
                         <input type="datetime-local" value={toDatetimeLocal(project.start_meeting_at)}
                           onChange={(e) => updateProject(project.id, { start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                          className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors" />
+                          className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Bestanden delen</p>
-                      <InlineEdit
-                        value={project.file_sharing_url || ''}
-                        onSave={(url) => {
-                          let finalUrl = url?.trim() || null
-                          if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-                            finalUrl = `https://${finalUrl}`
-                          }
-                          updateProject(project.id, { file_sharing_url: finalUrl })
-                        }}
-                        placeholder="URL toevoegen"
-                        icon={Upload}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Feedback URL</p>
-                      <InlineEdit
-                        value={project.feedback_url || 'https://feedback.designpixels.nl'}
-                        onSave={(url) => {
-                          let finalUrl = url?.trim() || null
-                          if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-                            finalUrl = `https://${finalUrl}`
-                          }
-                          updateProject(project.id, { feedback_url: finalUrl })
-                        }}
-                        placeholder="https://feedback.designpixels.nl"
-                        icon={Star}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Stagingsite</p>
-                      <InlineEdit
-                        value={project.staging_url || ''}
-                        onSave={(url) => {
-                          let finalUrl = url?.trim() || null
-                          if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-                            finalUrl = `https://${finalUrl}`
-                          }
-                          updateProject(project.id, { staging_url: finalUrl })
-                        }}
-                        placeholder="URL toevoegen"
-                        icon={Globe}
-                      />
-                    </div>
+                  </div>
+                  {/* Rij 2: URLs */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { label: 'Bestanden delen', value: project.file_sharing_url, field: 'file_sharing_url', icon: Upload },
+                      { label: 'Feedback', value: project.feedback_url || 'https://feedback.designpixels.nl', field: 'feedback_url', icon: Star },
+                      { label: 'Stagingsite', value: project.staging_url, field: 'staging_url', icon: Globe },
+                    ] as const).map(({ label, value, field, icon: Icon }) => (
+                      <div key={field} className="bg-white rounded-lg border border-gray-100 px-3 py-2 min-w-0">
+                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+                        {value ? (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Icon className="w-3 h-3 text-primary/50 flex-shrink-0" />
+                            <a href={value} target="_blank" rel="noopener noreferrer"
+                              className="text-xs text-primary hover:text-primary/80 truncate transition-colors"
+                              title={value}>
+                              {value.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                            </a>
+                          </div>
+                        ) : (
+                          <InlineEdit
+                            value=""
+                            onSave={(url) => {
+                              let finalUrl = url?.trim() || null
+                              if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                                finalUrl = `https://${finalUrl}`
+                              }
+                              updateProject(project.id, { [field]: finalUrl })
+                            }}
+                            placeholder="URL toevoegen"
+                            icon={Icon}
+                          />
+                        )}
+                        {value && (
+                          <InlineEdit
+                            value={value}
+                            onSave={(url) => {
+                              let finalUrl = url?.trim() || null
+                              if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                                finalUrl = `https://${finalUrl}`
+                              }
+                              updateProject(project.id, { [field]: finalUrl })
+                            }}
+                            placeholder="Wijzig URL"
+                            icon={Pencil}
+                            displayValue=""
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
