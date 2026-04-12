@@ -114,7 +114,7 @@ export default function AdminLayout() {
       <div className="relative border-t border-white/10">
         <button
           onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-          className="w-full p-4 flex items-center gap-3 hover:bg-sidebar-hover transition-colors"
+          className="w-full p-4 flex items-center gap-3 hover:bg-sidebar-hover transition-colors cursor-pointer"
         >
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/40 to-primary/20 flex items-center justify-center text-sm font-semibold flex-shrink-0">
             {profile?.full_name?.charAt(0)?.toUpperCase() || 'A'}
