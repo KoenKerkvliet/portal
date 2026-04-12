@@ -20,22 +20,28 @@ import {
   Wrench,
 } from 'lucide-react'
 
-const navItems = [
+const mainItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/projecten', icon: FolderKanban, label: 'Domeinen' },
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
+]
+
+const financeItems = [
   { to: '/admin/facturen', icon: FileText, label: 'Facturen' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
   { to: '/admin/opdrachten', icon: ClipboardCheck, label: 'Opdrachten' },
   { to: '/admin/producten', icon: Package, label: 'Producten' },
-  { to: '/admin/templates', icon: Layers, label: 'Templates' },
-  { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
-  { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud' },
 ]
 
 const contentItems = [
+  { to: '/admin/templates', icon: Layers, label: 'Templates' },
   { to: '/admin/formulieren', icon: ClipboardList, label: 'Formulieren' },
   { to: '/admin/contentpaginas', icon: BookOpen, label: "Contentpagina's" },
+]
+
+const supportItems = [
+  { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
+  { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud' },
 ]
 
 export default function AdminLayout() {
@@ -63,52 +69,30 @@ export default function AdminLayout() {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
-        <div className="space-y-1">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={closeSidebar}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-sidebar-active text-white'
-                    : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
-                }`
-              }
-            >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              {item.label}
-            </NavLink>
-          ))}
-        </div>
-
-        {/* Content group */}
-        <div className="mt-6 pt-4 border-t border-white/10">
-          <div className="flex items-center gap-2 px-3 mb-2">
-            <BookOpen className="w-3.5 h-3.5 text-gray-500" />
-            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Content</span>
+        {[mainItems, financeItems, contentItems, supportItems].map((group, gi) => (
+          <div key={gi} className={gi > 0 ? 'mt-3 pt-3 border-t border-white/10' : ''}>
+            <div className="space-y-1">
+              {group.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={'end' in item ? (item as { end?: boolean }).end : undefined}
+                  onClick={closeSidebar}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-sidebar-active text-white'
+                        : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
+                    }`
+                  }
+                >
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
           </div>
-          <div className="space-y-1">
-            {contentItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                onClick={closeSidebar}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-sidebar-active text-white'
-                      : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
-                  }`
-                }
-              >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                {item.label}
-              </NavLink>
-            ))}
-          </div>
+        ))}
         </div>
       </nav>
 
