@@ -17,6 +17,7 @@ import {
   Package,
   ClipboardCheck,
   MessageSquare,
+  Wrench,
 } from 'lucide-react'
 
 const navItems = [
@@ -29,6 +30,7 @@ const navItems = [
   { to: '/admin/producten', icon: Package, label: 'Producten' },
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
   { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
+  { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud' },
 ]
 
 const contentItems = [
