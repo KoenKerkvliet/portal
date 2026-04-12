@@ -16,8 +16,8 @@ interface PricingPlan {
 // TEST PLAN — verwijder na Stripe test
 const TEST_PLAN: PricingPlan = {
   name: 'Test',
-  minutes: 5,
-  strips: 1,
+  minutes: 60,
+  strips: 12,
   price: 1,
   popular: false,
   description: 'Stripe test — verwijder na testen',

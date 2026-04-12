@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles, MessageSquare, Ticket } from 'lucide-react'
+import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles, MessageSquare, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { ClientNotification } from '../types'
 
@@ -156,8 +156,8 @@ export default function ClientLayout() {
                   onClick={() => navigate('/strippenkaart')}
                   className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-sm font-medium text-gray-500 hover:text-primary hover:bg-primary/5 border border-transparent hover:border-primary/10 transition-all"
                 >
-                  <Ticket className="w-4 h-4" />
-                  <span className="hidden sm:block">Strippenkaart</span>
+                  <ShoppingCart className="w-4 h-4" />
+                  <span className="hidden sm:block">Strippen kopen</span>
                 </button>
                 <button
                   onClick={() => navigate('/support')}
