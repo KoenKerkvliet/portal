@@ -122,7 +122,7 @@ export default function PunchCardShop() {
           priceId: plan.priceId,
           projectId,
           strips: plan.strips,
-          origin: window.location.origin,
+          origin: window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, ''),
         },
       })
       if (error) throw error
