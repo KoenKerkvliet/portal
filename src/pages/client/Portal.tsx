@@ -361,9 +361,25 @@ export default function ClientPortal() {
   return (
     <div>
       {/* ============================================ */}
+      {/* Onderhoud fase — hardcoded */}
+      {/* ============================================ */}
+      {isOnderhoud && (
+        <section className="bg-[#f8f7fc]">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 text-center">
+            <h2 className="text-xl sm:text-2xl font-light text-gray-700 mb-2">
+              Onderhoud
+            </h2>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Jouw website is live! Wij zorgen voor onderhoud, updates en eventuele aanpassingen.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* ============================================ */}
       {/* SECTION 1: White background — Hero / Overview */}
       {/* ============================================ */}
-      <section className="bg-white">
+      {!isOnderhoud && <section className="bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           {/* Project name */}
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
@@ -414,7 +430,7 @@ export default function ClientPortal() {
             </div>
           )}
         </div>
-      </section>
+      </section>}
 
       {/* ============================================ */}
       {/* SECTION 2: Light background — Phase Cards */}
@@ -568,19 +584,6 @@ export default function ClientPortal() {
         ) : null}
       </>)}
 
-      {/* Onderhoud fase — simplified view */}
-      {isOnderhoud && (
-        <section className="bg-[#f8f7fc]">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center">
-            <h2 className="text-2xl sm:text-3xl font-light text-gray-700 mb-4">
-              Onderhoud
-            </h2>
-            <p className="text-gray-500 leading-relaxed">
-              Jouw website is live! Wij zorgen voor onderhoud, updates en eventuele aanpassingen.
-            </p>
-          </div>
-        </section>
-      )}
     </div>
   )
 }
