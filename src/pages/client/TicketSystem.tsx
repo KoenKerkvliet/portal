@@ -5,11 +5,13 @@ import type { Ticket, TicketReply, TicketStatus } from '../../types'
 import { Plus, X, Send, Paperclip, Clock, CheckCircle, AlertCircle, Loader2, ArrowLeft, MessageSquare, Image as ImageIcon } from 'lucide-react'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
-const statusConfig: Record<TicketStatus, { label: string; color: string; bg: string; icon: typeof Clock }> = {
+const statusConfig: Record<string, { label: string; color: string; bg: string; icon: typeof Clock }> = {
   open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: AlertCircle },
   in_progress: { label: 'In behandeling', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
   resolved: { label: 'Opgelost', color: 'text-green-700', bg: 'bg-green-50 border-green-200', icon: CheckCircle },
 }
+
+const fallbackStatus = { label: 'Onbekend', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200', icon: Clock }
 
 interface Props {
   projectId: string
@@ -181,7 +183,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
 
   // Ticket detail view
   if (selectedTicket) {
-    const sc = statusConfig[selectedTicket.status]
+    const sc = (statusConfig[selectedTicket.status] || fallbackStatus)
     const StatusIcon = sc.icon
     return (
       <div className="max-w-3xl mx-auto">
@@ -412,7 +414,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
       ) : (
         <div className="space-y-2">
           {tickets.map((ticket) => {
-            const sc = statusConfig[ticket.status]
+            const sc = (statusConfig[ticket.status] || fallbackStatus)
             const StatusIcon = sc.icon
             return (
               <button key={ticket.id} onClick={() => openTicket(ticket)}

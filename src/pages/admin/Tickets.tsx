@@ -3,11 +3,13 @@ import { supabase } from '../../lib/supabase'
 import type { Ticket, TicketReply, TicketStatus } from '../../types'
 import { MessageSquare, ArrowLeft, Send, Paperclip, Clock, CheckCircle, AlertCircle, Loader2, Image as ImageIcon } from 'lucide-react'
 
-const statusConfig: Record<TicketStatus, { label: string; color: string; bg: string; icon: typeof Clock }> = {
+const statusConfig: Record<string, { label: string; color: string; bg: string; icon: typeof Clock }> = {
   open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: AlertCircle },
   in_progress: { label: 'In behandeling', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock },
   resolved: { label: 'Opgelost', color: 'text-green-700', bg: 'bg-green-50 border-green-200', icon: CheckCircle },
 }
+
+const fallbackStatus = { label: 'Onbekend', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200', icon: Clock }
 
 const statusOrder: TicketStatus[] = ['open', 'in_progress', 'resolved']
 
@@ -62,8 +64,8 @@ export default function Tickets() {
         project_id: selectedTicket.project_id,
         client_id: null,
         type: 'general',
-        title: `Ticket #${String(selectedTicket.number).padStart(3, '0')} — ${statusConfig[status].label}`,
-        message: `De status van je ticket "${selectedTicket.title}" is gewijzigd naar "${statusConfig[status].label}".`,
+        title: `Ticket #${String(selectedTicket.number).padStart(3, '0')} — ${(statusConfig[status] || fallbackStatus).label}`,
+        message: `De status van je ticket "${selectedTicket.title}" is gewijzigd naar "${(statusConfig[status] || fallbackStatus).label}".`,
         link_url: null,
         read: false,
       })
@@ -194,7 +196,7 @@ export default function Tickets() {
 
   // Detail view
   if (selectedTicket) {
-    const sc = statusConfig[selectedTicket.status]
+    const sc = (statusConfig[selectedTicket.status] || fallbackStatus)
     return (
       <div className="space-y-6">
         <button onClick={() => { setSelectedTicket(null); fetchTickets() }}
@@ -365,13 +367,13 @@ export default function Tickets() {
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-1">Geen tickets</h3>
           <p className="text-sm text-gray-500">
-            {filterStatus === 'all' ? 'Er zijn nog geen tickets binnengekomen.' : `Geen tickets met status "${statusConfig[filterStatus as TicketStatus].label}".`}
+            {filterStatus === 'all' ? 'Er zijn nog geen tickets binnengekomen.' : `Geen tickets met status "${(statusConfig[filterStatus] || fallbackStatus).label}".`}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((ticket) => {
-            const sc = statusConfig[ticket.status]
+            const sc = (statusConfig[ticket.status] || fallbackStatus)
             const StatusIcon = sc.icon
             const projectName = (ticket.project as unknown as { name: string })?.name || ''
             return (
