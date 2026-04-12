@@ -116,6 +116,73 @@ export default function OnderhoudTimer() {
       remaining -= toUse
     }
 
+    // Calculate new total remaining after deduction
+    const newTotalRemaining = totalRemaining - stripsToUse
+    const workDescription = description.trim() || 'Onderhoudswerkzaamheden'
+
+    // Email clients
+    try {
+      const { data: projectClients } = await supabase
+        .from('project_clients')
+        .select('client:clients(email, name)')
+        .eq('project_id', projectId)
+        .eq('notify_tickets', true)
+
+      if (projectClients) {
+        for (const pc of projectClients) {
+          const client = pc.client as unknown as { email: string; name: string }
+          if (!client?.email) continue
+          const emailHtml = `
+            <!DOCTYPE html><html><head><meta charset="utf-8"></head>
+            <body style="margin:0;padding:0;background:#f8f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+              <div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05);">
+                <div style="background:linear-gradient(135deg,#9e86ff,#7c3aed);padding:32px;text-align:center;">
+                  <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">DesignPixels</h1>
+                </div>
+                <div style="padding:32px;">
+                  <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">🎫 Strippen afgeschreven</h2>
+                  <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 24px;">
+                    Er ${stripsToUse === 1 ? 'is <strong>1 strip</strong>' : `zijn <strong>${stripsToUse} strippen</strong>`} afgeschreven voor <strong>${projectName}</strong>.
+                  </p>
+                  <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px;margin-bottom:16px;">
+                    <p style="color:#6b7280;font-size:12px;font-weight:600;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em;">Werkzaamheden</p>
+                    <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">${workDescription}</p>
+                  </div>
+                  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;">
+                    <table style="width:100%;border-collapse:collapse;">
+                      <tr>
+                        <td style="color:#6b7280;font-size:13px;padding:4px 0;">Afgeschreven</td>
+                        <td style="color:#7c3aed;font-size:13px;font-weight:700;text-align:right;padding:4px 0;">${stripsToUse} strip${stripsToUse !== 1 ? 's' : ''}</td>
+                      </tr>
+                      <tr>
+                        <td style="color:#6b7280;font-size:13px;padding:4px 0;">Resterend</td>
+                        <td style="color:#16a34a;font-size:13px;font-weight:700;text-align:right;padding:4px 0;">${newTotalRemaining} strip${newTotalRemaining !== 1 ? 's' : ''}</td>
+                      </tr>
+                    </table>
+                  </div>
+                  <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;">
+                    Bekijk je strippenkaart in het klantportaal voor meer details.
+                  </p>
+                </div>
+                <div style="padding:16px 32px;background:#f9fafb;text-align:center;">
+                  <p style="color:#9ca3af;font-size:11px;margin:0;">&copy; ${new Date().getFullYear()} DesignPixels</p>
+                </div>
+              </div>
+            </body></html>
+          `
+          await supabase.functions.invoke('send-test-email', {
+            body: {
+              to: client.email,
+              subject: `Strippen afgeschreven — ${projectName}`,
+              html: emailHtml,
+            },
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Error sending punch card email:', err)
+    }
+
     setConfirming(false)
     setConfirmed(true)
     fetchData()
