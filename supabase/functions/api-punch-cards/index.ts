@@ -52,15 +52,19 @@ Deno.serve(async (req) => {
       .eq('status', 'active')
 
     const activeCards = cards || []
-    const totalRemaining = activeCards.reduce((sum, c) => sum + (c.total_punches - c.used_punches), 0)
-    const totalMinutes = totalRemaining * 5
+    const totaal = activeCards.reduce((sum, c) => sum + c.total_punches, 0)
+    const gebruikt = activeCards.reduce((sum, c) => sum + c.used_punches, 0)
+    const resterend = totaal - gebruikt
+    const totalMinutes = resterend * 5
     const activeCardCount = activeCards.length
 
     return new Response(
       JSON.stringify({
         project: project.name,
         domain: project.url,
-        strips_remaining: totalRemaining,
+        totaal,
+        gebruikt,
+        resterend,
         minutes_remaining: totalMinutes,
         active_cards: activeCardCount,
       }),
