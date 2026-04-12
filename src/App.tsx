@@ -32,6 +32,7 @@ import Tickets from './pages/admin/Tickets'
 import Onderhoud from './pages/admin/Onderhoud'
 import OnderhoudTimer from './pages/admin/OnderhoudTimer'
 import ClientContentPage from './pages/client/ContentPage'
+import PunchCardShop from './pages/client/PunchCardShop'
 import ClientSupport from './pages/client/Support'
 import Verify from './pages/Verify'
 
@@ -98,6 +99,7 @@ function AppRoutes() {
         <Route path="styleguide/:projectId" element={<ClientStyleguidePage />} />
         <Route path="voorwaarden" element={<ClientTerms />} />
         <Route path="content/:slug" element={<ClientContentPage />} />
+        <Route path="strippenkaart" element={<PunchCardShop />} />
         <Route path="support" element={<ClientSupport />} />
         <Route path="bestanden" element={<ClientFiles />} />
         <Route path="instellingen" element={<ClientSettings />} />
