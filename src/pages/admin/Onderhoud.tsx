@@ -8,6 +8,8 @@ export default function Onderhoud() {
   const [punchCards, setPunchCards] = useState<Record<string, PunchCard[]>>({})
   const [loading, setLoading] = useState(true)
   const [gifting, setGifting] = useState<string | null>(null)
+  const [giftPunches, setGiftPunches] = useState<Record<string, number>>({})
+  const [showGiftPicker, setShowGiftPicker] = useState<string | null>(null)
 
   const fetchData = async () => {
     const { data: projectData } = await supabase
@@ -42,6 +44,7 @@ export default function Onderhoud() {
   useEffect(() => { fetchData() }, [])
 
   const giftCard = async (projectId: string) => {
+    const punches = giftPunches[projectId] || 6
     setGifting(projectId)
     const existingCards = punchCards[projectId] || []
     const maxNumber = existingCards.length > 0
@@ -51,7 +54,7 @@ export default function Onderhoud() {
     await supabase.from('punch_cards').insert({
       project_id: projectId,
       number: maxNumber + 1,
-      total_punches: 12,
+      total_punches: punches,
       used_punches: 0,
       is_gift: true,
       price: 0,
@@ -61,6 +64,7 @@ export default function Onderhoud() {
     })
 
     setGifting(null)
+    setShowGiftPicker(null)
     fetchData()
   }
 
@@ -173,18 +177,41 @@ export default function Onderhoud() {
 
                 {/* Footer actions */}
                 <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-100">
-                  <button
-                    onClick={() => giftCard(project.id)}
-                    disabled={isGifting}
-                    className="flex items-center gap-1.5 text-xs font-medium text-purple-600 hover:text-purple-700 transition-colors disabled:opacity-50"
-                  >
-                    {isGifting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
+                  {showGiftPicker === project.id ? (
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={giftPunches[project.id] || 6}
+                        onChange={(e) => setGiftPunches(prev => ({ ...prev, [project.id]: Number(e.target.value) }))}
+                        className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                          <option key={n} value={n}>{n} strippen</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => giftCard(project.id)}
+                        disabled={isGifting}
+                        className="flex items-center gap-1.5 text-xs font-medium bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                      >
+                        {isGifting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gift className="w-3.5 h-3.5" />}
+                        Schenken
+                      </button>
+                      <button
+                        onClick={() => setShowGiftPicker(null)}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        Annuleren
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowGiftPicker(project.id)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-purple-600 hover:text-purple-700 transition-colors"
+                    >
                       <Gift className="w-3.5 h-3.5" />
-                    )}
-                    {isGifting ? 'Bezig...' : 'Strippenkaart schenken'}
-                  </button>
+                      Strippenkaart schenken
+                    </button>
+                  )}
                 </div>
               </div>
             )

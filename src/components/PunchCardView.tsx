@@ -58,28 +58,28 @@ export default function PunchCardView({ card }: Props) {
       </div>
 
       {/* Punches */}
-      <div className="px-5 py-4 space-y-2">
+      <div className="px-4 py-3 space-y-1">
         {Array.from({ length: card.total_punches }, (_, i) => {
           const punchNumber = i + 1
           const isUsed = punchNumber <= card.used_punches
           return (
             <div
               key={i}
-              className={`flex items-center rounded-lg px-3 py-2.5 transition-colors ${
+              className={`flex items-center rounded-md px-2.5 py-1.5 transition-colors ${
                 isUsed
                   ? 'bg-gray-100'
                   : 'bg-white border border-gray-100'
               }`}
             >
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+              <div className={`w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
                 isUsed
                   ? 'bg-gray-200 text-gray-400'
                   : 'bg-purple-100 text-purple-600'
               }`}>
-                {isUsed ? <Check className="w-3.5 h-3.5 text-gray-400" /> : punchNumber}
+                {isUsed ? <Check className="w-3 h-3 text-gray-400" /> : punchNumber}
               </div>
               {isUsed && (
-                <div className="flex-1 h-px bg-gray-300 mx-3" />
+                <div className="flex-1 h-px bg-gray-300 mx-2.5" />
               )}
             </div>
           )
