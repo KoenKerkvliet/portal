@@ -93,7 +93,6 @@ export default function AdminLayout() {
             </div>
           </div>
         ))}
-        </div>
       </nav>
 
       {/* Profile with dropdown */}
