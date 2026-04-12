@@ -32,6 +32,7 @@ import Tickets from './pages/admin/Tickets'
 import Onderhoud from './pages/admin/Onderhoud'
 import OnderhoudTimer from './pages/admin/OnderhoudTimer'
 import ClientContentPage from './pages/client/ContentPage'
+import ClientSupport from './pages/client/Support'
 import Verify from './pages/Verify'
 
 function ScrollToTop() {
@@ -97,6 +98,7 @@ function AppRoutes() {
         <Route path="styleguide/:projectId" element={<ClientStyleguidePage />} />
         <Route path="voorwaarden" element={<ClientTerms />} />
         <Route path="content/:slug" element={<ClientContentPage />} />
+        <Route path="support" element={<ClientSupport />} />
         <Route path="bestanden" element={<ClientFiles />} />
         <Route path="instellingen" element={<ClientSettings />} />
       </Route>

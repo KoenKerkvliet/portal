@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles } from 'lucide-react'
+import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles, MessageSquare } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { ClientNotification } from '../types'
 
@@ -35,6 +35,7 @@ export default function ClientLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<ClientNotification[]>([])
+  const [isOnderhoud, setIsOnderhoud] = useState(false)
   const stackedIdsRef = useRef<Record<string, string[]>>({})
 
   const handleSignOut = async () => {
@@ -52,6 +53,16 @@ export default function ClientLayout() {
       .single()
 
     if (!client) return
+
+    // Check if project is in onderhoud phase
+    const { data: projectData } = await supabase
+      .from('projects')
+      .select('current_phase')
+      .eq('client_id', client.id)
+      .eq('status', 'active')
+      .limit(1)
+      .single()
+    setIsOnderhoud(projectData?.current_phase === 'onderhoud')
 
     const { data } = await supabase
       .from('client_notifications')
@@ -137,6 +148,18 @@ export default function ClientLayout() {
               </h1>
             </div>
 
+            <div className="flex items-center gap-2">
+            {/* Support link — only in onderhoud */}
+            {isOnderhoud && (
+              <button
+                onClick={() => navigate('/support')}
+                className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-sm font-medium text-gray-500 hover:text-primary hover:bg-primary/5 border border-transparent hover:border-primary/10 transition-all"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="hidden sm:block">Support</span>
+              </button>
+            )}
+
             {/* Profile dropdown */}
             <div className="relative" ref={menuRef}>
               <button
@@ -194,6 +217,7 @@ export default function ClientLayout() {
                   </div>
                 </div>
               )}
+            </div>
             </div>
           </div>
         </div>

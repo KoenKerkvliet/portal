@@ -94,7 +94,9 @@ export default function PunchCardView({ card, uses = [] }: Props) {
                   <div className="flex-1 flex justify-center">
                     <span
                       className="text-[10px] font-semibold text-gray-400 bg-white px-2 py-0.5 rounded shadow-sm border border-gray-100"
-                      style={{ transform: `rotate(${((punchNumber * 7 + 3) % 11) - 5}deg)` }}
+                      style={{
+                        transform: `rotate(${((punchNumber * 7 + 3) % 11) - 5}deg) translateX(${((punchNumber * 13 + 5) % 11) - 5}px)`,
+                      }}
                     >
                       {dateFormatted}
                     </span>
