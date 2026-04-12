@@ -126,7 +126,7 @@ export default function OnderhoudTimer() {
         .from('project_clients')
         .select('client:clients(email, name)')
         .eq('project_id', projectId)
-        .eq('notify_tickets', true)
+        .eq('notify_punch_cards', true)
 
       if (projectClients) {
         for (const pc of projectClients) {

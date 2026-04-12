@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -247,7 +247,7 @@ export default function Projects() {
     fetchProjectClients([projectId])
   }
 
-  const toggleProjectClientPref = async (pcId: string, field: 'notify_invoices' | 'notify_quotes' | 'notify_portal' | 'notify_tickets', value: boolean, projectId: string) => {
+  const toggleProjectClientPref = async (pcId: string, field: 'notify_invoices' | 'notify_quotes' | 'notify_portal' | 'notify_tickets' | 'notify_punch_cards', value: boolean, projectId: string) => {
     await supabase.from('project_clients').update({ [field]: value }).eq('id', pcId)
     fetchProjectClients([projectId])
   }
@@ -996,6 +996,13 @@ export default function Projects() {
                                         className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
                                       <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
                                       <span className="text-xs text-gray-600 group-hover:text-gray-800">Ticket reacties</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                      <input type="checkbox" checked={pc.notify_punch_cards}
+                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_punch_cards', e.target.checked, project.id)}
+                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                      <Ticket className="w-3.5 h-3.5 text-gray-400" />
+                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Strippenkaart afschrijvingen</span>
                                     </label>
                                   </div>
                                   <button
