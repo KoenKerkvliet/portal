@@ -69,7 +69,7 @@ export default function AdminLayout() {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
-        {[mainItems, financeItems, contentItems, supportItems].map((group, gi) => (
+        {[mainItems, supportItems, financeItems, contentItems].map((group, gi) => (
           <div key={gi} className={gi > 0 ? 'mt-3 pt-3 border-t border-white/10' : ''}>
             <div className="space-y-1">
               {group.map((item) => (
