@@ -40,6 +40,7 @@ export default function AdminLayout() {
   const { signOut, profile } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
 
   const handleSignOut = async () => {
     await signOut()
@@ -109,43 +110,44 @@ export default function AdminLayout() {
         </div>
       </nav>
 
-      {/* Bottom section */}
-      <div className="p-3 border-t border-white/10 space-y-1">
-        <NavLink
-          to="/admin/instellingen"
-          onClick={closeSidebar}
-          className={({ isActive }) =>
-            `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              isActive
-                ? 'bg-sidebar-active text-white'
-                : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
-            }`
-          }
-        >
-          <Settings className="w-5 h-5 flex-shrink-0" />
-          Instellingen
-        </NavLink>
-
+      {/* Profile with dropdown */}
+      <div className="relative border-t border-white/10">
         <button
-          onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-sidebar-hover hover:text-white transition-colors w-full"
+          onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+          className="w-full p-4 flex items-center gap-3 hover:bg-sidebar-hover transition-colors"
         >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          Uitloggen
-        </button>
-      </div>
-
-      {/* Profile indicator */}
-      <div className="p-4 border-t border-white/10">
-        <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/40 to-primary/20 flex items-center justify-center text-sm font-semibold flex-shrink-0">
             {profile?.full_name?.charAt(0)?.toUpperCase() || 'A'}
           </div>
-          <div className="overflow-hidden">
+          <div className="overflow-hidden flex-1 text-left">
             <p className="text-sm font-medium truncate">{profile?.full_name || 'Admin'}</p>
             <p className="text-xs text-gray-400 truncate">{profile?.email}</p>
           </div>
-        </div>
+        </button>
+
+        {profileMenuOpen && (
+          <div className="absolute bottom-full left-3 right-3 mb-1 bg-sidebar-hover rounded-lg border border-white/10 shadow-xl overflow-hidden">
+            <NavLink
+              to="/admin/instellingen"
+              onClick={() => { closeSidebar(); setProfileMenuOpen(false) }}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive ? 'text-white bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <Settings className="w-4 h-4 flex-shrink-0" />
+              Instellingen
+            </NavLink>
+            <button
+              onClick={() => { setProfileMenuOpen(false); handleSignOut() }}
+              className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors w-full border-t border-white/5"
+            >
+              <LogOut className="w-4 h-4 flex-shrink-0" />
+              Uitloggen
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
