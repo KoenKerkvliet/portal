@@ -156,18 +156,6 @@ export default function OnderhoudTimer() {
         </div>
       </div>
 
-      {/* Description */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Werkzaamheden</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm resize-y"
-          placeholder="Beschrijf de uitgevoerde werkzaamheden..."
-        />
-      </div>
-
       {/* Timer */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
         <div className="text-6xl font-mono font-bold text-gray-900 mb-8 tabular-nums">
@@ -203,6 +191,17 @@ export default function OnderhoudTimer() {
       {stopped && !confirmed && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-5">
           <h3 className="text-base font-bold text-gray-900">Tijd afronden</h3>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Werkzaamheden</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm resize-y"
+              placeholder="Beschrijf de uitgevoerde werkzaamheden..."
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-xl p-4 text-center">
