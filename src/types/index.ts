@@ -265,6 +265,20 @@ export interface Assignment {
   client?: Client
 }
 
+export interface PunchCard {
+  id: string
+  project_id: string
+  number: number
+  total_punches: number
+  used_punches: number
+  is_gift: boolean
+  price: number
+  status: 'active' | 'used_up'
+  purchased_at: string
+  expires_at: string | null
+  created_at: string
+}
+
 export type TicketStatus = 'open' | 'in_progress' | 'resolved'
 
 export interface Ticket {

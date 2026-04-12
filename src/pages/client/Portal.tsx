@@ -3,9 +3,10 @@ import { useNavigate, Link } from 'react-router-dom'
 import TicketSystem from './TicketSystem'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Project, ProjectPhase, PhaseStep, CardElement } from '../../types'
+import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard } from '../../types'
 import { Sparkles, ArrowRight, Calendar, ExternalLink, Star } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
+import PunchCardView from '../../components/PunchCardView'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
 
@@ -245,6 +246,7 @@ export default function ClientPortal() {
   const [showFileFooter, setShowFileFooter] = useState(false)
   const [showFeedbackFooter, setShowFeedbackFooter] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [punchCards, setPunchCards] = useState<PunchCard[]>([])
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -311,6 +313,17 @@ export default function ClientPortal() {
     fetchProject()
   }, [profile])
 
+  // Fetch punch cards for onderhoud phase
+  useEffect(() => {
+    if (!project || project.current_phase !== 'onderhoud') return
+    supabase
+      .from('punch_cards')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('number', { ascending: true })
+      .then(({ data }) => setPunchCards(data || []))
+  }, [project])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -363,7 +376,7 @@ export default function ClientPortal() {
       {/* ============================================ */}
       {/* Onderhoud fase — hardcoded */}
       {/* ============================================ */}
-      {isOnderhoud && (
+      {isOnderhoud && (<>
         <section className="bg-[#f8f7fc]">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 text-center">
             <h2 className="text-xl sm:text-2xl font-light text-gray-700 mb-2">
@@ -374,7 +387,39 @@ export default function ClientPortal() {
             </p>
           </div>
         </section>
-      )}
+
+        {/* Strippenkaarten */}
+        {punchCards.length > 0 && (() => {
+          const activeCards = punchCards.filter(c => c.status === 'active')
+          const usedUpCards = punchCards.filter(c => c.status === 'used_up')
+          return (
+            <section className="bg-white">
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                {activeCards.length > 0 && (
+                  <div className="mb-12">
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Actieve Strippenkaarten</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
+                      {activeCards.map(card => (
+                        <PunchCardView key={card.id} card={card} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {usedUpCards.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Opgebruikte Strippenkaarten</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
+                      {usedUpCards.map(card => (
+                        <PunchCardView key={card.id} card={card} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )
+        })()}
+      </>)}
 
       {/* ============================================ */}
       {/* SECTION 1: White background — Hero / Overview */}
