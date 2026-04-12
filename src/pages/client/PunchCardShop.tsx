@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { ArrowLeft, Check, Clock, Shield, Zap, Eye, CreditCard } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Shield, Zap, Eye, CreditCard, Loader2, CheckCircle } from 'lucide-react'
 
 interface PricingPlan {
   name: string
@@ -11,6 +11,7 @@ interface PricingPlan {
   price: number
   popular: boolean
   description: string
+  priceId: string
 }
 
 // TEST PLAN — verwijder na Stripe test
@@ -21,6 +22,7 @@ const TEST_PLAN: PricingPlan = {
   price: 1,
   popular: false,
   description: 'Stripe test — verwijder na testen',
+  priceId: 'price_1SM8InLuTqlntkE3rAp3JVqr',
 }
 
 const plans: PricingPlan[] = [
@@ -32,6 +34,7 @@ const plans: PricingPlan[] = [
     price: 40,
     popular: false,
     description: 'Perfect voor kleine aanpassingen',
+    priceId: 'price_1SK2keLuTqlntkE3h5E3LLRe',
   },
   {
     name: '180 minuten',
@@ -40,6 +43,7 @@ const plans: PricingPlan[] = [
     price: 100,
     popular: true,
     description: 'Ideaal voor regelmatige ondersteuning',
+    priceId: 'price_1SK2mCLuTqlntkE3rEXsSNDu',
   },
   {
     name: '300 minuten',
@@ -48,6 +52,7 @@ const plans: PricingPlan[] = [
     price: 160,
     popular: false,
     description: 'Geschikt voor uitgebreide projecten',
+    priceId: 'price_1SK2n2LuTqlntkE3XCKb6ux9',
   },
 ]
 
@@ -76,8 +81,12 @@ const features = [
 
 export default function PunchCardShop() {
   const { profile } = useAuth()
+  const [searchParams] = useSearchParams()
   const [projectName, setProjectName] = useState('')
   const [projectUrl, setProjectUrl] = useState('')
+  const [projectId, setProjectId] = useState('')
+  const [buying, setBuying] = useState<string | null>(null)
+  const isSuccess = searchParams.get('success') === 'true'
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -90,18 +99,42 @@ export default function PunchCardShop() {
       if (!client) return
       const { data: project } = await supabase
         .from('projects')
-        .select('name, url')
+        .select('id, name, url')
         .eq('client_id', client.id)
         .eq('status', 'active')
         .limit(1)
         .single()
       if (project) {
+        setProjectId(project.id)
         setProjectName(project.name)
         setProjectUrl(project.url || '')
       }
     }
     fetchProject()
   }, [profile])
+
+  const handleBuy = async (plan: PricingPlan) => {
+    if (!projectId) return
+    setBuying(plan.priceId)
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: {
+          priceId: plan.priceId,
+          projectId,
+          strips: plan.strips,
+          origin: window.location.origin,
+        },
+      })
+      if (error) throw error
+      if (data?.url) {
+        window.location.href = data.url
+      }
+    } catch (err) {
+      console.error('Checkout error:', err)
+      alert('Er ging iets mis bij het starten van de betaling. Probeer het opnieuw.')
+      setBuying(null)
+    }
+  }
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-gradient-to-b from-[#f8f7fc] to-white">
@@ -120,6 +153,17 @@ export default function PunchCardShop() {
           <ArrowLeft className="w-4 h-4" />
           Terug naar portaal
         </Link>
+
+        {/* Success banner */}
+        {isSuccess && (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 mb-8 flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-green-800">Betaling geslaagd!</p>
+              <p className="text-sm text-green-700 mt-0.5">Je strippenkaart is aangemaakt en direct beschikbaar in je portaal.</p>
+            </div>
+          </div>
+        )}
 
         {/* Disclaimer */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-10 flex items-start gap-3">
@@ -167,13 +211,22 @@ export default function PunchCardShop() {
                 </div>
 
                 <button
-                  className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
+                  onClick={() => handleBuy(plan)}
+                  disabled={buying !== null || !projectId}
+                  className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
                     plan.popular
                       ? 'bg-purple-500 hover:bg-purple-600 text-white'
                       : 'bg-white border-2 border-gray-200 text-gray-700 hover:border-purple-300 hover:text-purple-600'
                   }`}
                 >
-                  Kopen
+                  {buying === plan.priceId ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Even geduld...
+                    </>
+                  ) : (
+                    'Kopen'
+                  )}
                 </button>
               </div>
             </div>
