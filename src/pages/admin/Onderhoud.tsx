@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Project, PunchCard } from '../../types'
-import { Wrench, Gift, Globe, ExternalLink, Loader2, Ticket } from 'lucide-react'
+import { Wrench, Gift, Globe, ExternalLink, Loader2, Ticket, Clock } from 'lucide-react'
 
 export default function Onderhoud() {
   const [projects, setProjects] = useState<Project[]>([])
   const [punchCards, setPunchCards] = useState<Record<string, PunchCard[]>>({})
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
   const [gifting, setGifting] = useState<string | null>(null)
   const [giftPunches, setGiftPunches] = useState<Record<string, number>>({})
   const [showGiftPicker, setShowGiftPicker] = useState<string | null>(null)
@@ -176,7 +178,15 @@ export default function Onderhoud() {
                 </div>
 
                 {/* Footer actions */}
-                <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-100">
+                <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
+                  <button
+                    onClick={() => navigate(`/admin/onderhoud/${project.id}/timer`)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    Tijd loggen
+                  </button>
+                  <div>
                   {showGiftPicker === project.id ? (
                     <div className="flex items-center gap-3">
                       <select
@@ -212,6 +222,7 @@ export default function Onderhoud() {
                       Strippenkaart schenken
                     </button>
                   )}
+                  </div>
                 </div>
               </div>
             )

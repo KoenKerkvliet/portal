@@ -30,6 +30,7 @@ import ClientStyleguidePage from './pages/client/StyleguidePage'
 import ContentPages from './pages/admin/ContentPages'
 import Tickets from './pages/admin/Tickets'
 import Onderhoud from './pages/admin/Onderhoud'
+import OnderhoudTimer from './pages/admin/OnderhoudTimer'
 import ClientContentPage from './pages/client/ContentPage'
 import Verify from './pages/Verify'
 
@@ -76,6 +77,7 @@ function AppRoutes() {
         <Route path="contentpaginas" element={<ContentPages />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="onderhoud" element={<Onderhoud />} />
+        <Route path="onderhoud/:projectId/timer" element={<OnderhoudTimer />} />
         <Route path="instellingen" element={<AdminSettings />} />
       </Route>
 

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import TicketSystem from './TicketSystem'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard } from '../../types'
+import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
 import { Sparkles, ArrowRight, Calendar, ExternalLink, Star } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 import PunchCardView from '../../components/PunchCardView'
@@ -247,6 +247,7 @@ export default function ClientPortal() {
   const [showFeedbackFooter, setShowFeedbackFooter] = useState(false)
   const [loading, setLoading] = useState(true)
   const [punchCards, setPunchCards] = useState<PunchCard[]>([])
+  const [punchCardUses, setPunchCardUses] = useState<Record<string, PunchCardUse[]>>({})
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -313,7 +314,7 @@ export default function ClientPortal() {
     fetchProject()
   }, [profile])
 
-  // Fetch punch cards for onderhoud phase
+  // Fetch punch cards + uses for onderhoud phase
   useEffect(() => {
     if (!project || project.current_phase !== 'onderhoud') return
     supabase
@@ -321,7 +322,24 @@ export default function ClientPortal() {
       .select('*')
       .eq('project_id', project.id)
       .order('number', { ascending: true })
-      .then(({ data }) => setPunchCards(data || []))
+      .then(async ({ data: cardsData }) => {
+        const cards = cardsData || []
+        setPunchCards(cards)
+        if (cards.length > 0) {
+          const cardIds = cards.map(c => c.id)
+          const { data: usesData } = await supabase
+            .from('punch_card_uses')
+            .select('*')
+            .in('punch_card_id', cardIds)
+            .order('punch_index')
+          const grouped: Record<string, PunchCardUse[]> = {}
+          for (const use of usesData || []) {
+            if (!grouped[use.punch_card_id]) grouped[use.punch_card_id] = []
+            grouped[use.punch_card_id].push(use)
+          }
+          setPunchCardUses(grouped)
+        }
+      })
   }, [project])
 
   if (loading) {
@@ -400,7 +418,7 @@ export default function ClientPortal() {
                     <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Actieve Strippenkaarten</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
                       {activeCards.map(card => (
-                        <PunchCardView key={card.id} card={card} />
+                        <PunchCardView key={card.id} card={card} uses={punchCardUses[card.id]} />
                       ))}
                     </div>
                   </div>
@@ -410,7 +428,7 @@ export default function ClientPortal() {
                     <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Opgebruikte Strippenkaarten</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
                       {usedUpCards.map(card => (
-                        <PunchCardView key={card.id} card={card} />
+                        <PunchCardView key={card.id} card={card} uses={punchCardUses[card.id]} />
                       ))}
                     </div>
                   </div>

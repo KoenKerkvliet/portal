@@ -279,6 +279,16 @@ export interface PunchCard {
   created_at: string
 }
 
+export interface PunchCardUse {
+  id: string
+  punch_card_id: string
+  punch_index: number
+  description: string
+  duration_minutes: number
+  used_at: string
+  created_at: string
+}
+
 export type TicketStatus = 'open' | 'in_progress' | 'resolved'
 
 export interface Ticket {

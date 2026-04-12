@@ -1,11 +1,14 @@
-import type { PunchCard } from '../types'
+import { useState } from 'react'
+import type { PunchCard, PunchCardUse } from '../types'
 import { Gift, Check } from 'lucide-react'
 
 interface Props {
   card: PunchCard
+  uses?: PunchCardUse[]
 }
 
-export default function PunchCardView({ card }: Props) {
+export default function PunchCardView({ card, uses = [] }: Props) {
+  const [expandedPunch, setExpandedPunch] = useState<number | null>(null)
   const remaining = card.total_punches - card.used_punches
   const isUsedUp = card.status === 'used_up' || remaining <= 0
 
@@ -17,16 +20,17 @@ export default function PunchCardView({ card }: Props) {
     day: 'numeric', month: 'numeric', year: 'numeric',
   })
 
+  // Map uses by punch_index for quick lookup
+  const usesByIndex = new Map<number, PunchCardUse>()
+  for (const use of uses) {
+    usesByIndex.set(use.punch_index, use)
+  }
+
   return (
     <div className={`w-full max-w-sm rounded-2xl overflow-hidden shadow-sm border ${isUsedUp ? 'bg-gray-50 border-gray-200 opacity-70' : 'bg-[#fdf9ef] border-amber-100'}`}>
       {/* Header */}
       <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-        {/* Left: gift icon or card number */}
-        <div className={`w-11 h-11 rounded-xl border-2 flex items-center justify-center ${
-          card.is_gift
-            ? 'border-purple-200 bg-purple-50'
-            : 'border-purple-200 bg-purple-50'
-        }`}>
+        <div className="w-11 h-11 rounded-xl border-2 border-purple-200 bg-purple-50 flex items-center justify-center">
           {card.is_gift ? (
             <Gift className="w-5 h-5 text-purple-500" />
           ) : (
@@ -34,7 +38,6 @@ export default function PunchCardView({ card }: Props) {
           )}
         </div>
 
-        {/* Right: logo */}
         <div className="flex items-center gap-1.5">
           <div className="grid grid-cols-2 gap-0.5">
             <div className="w-1.5 h-1.5 rounded-sm bg-purple-400" />
@@ -62,24 +65,49 @@ export default function PunchCardView({ card }: Props) {
         {Array.from({ length: card.total_punches }, (_, i) => {
           const punchNumber = i + 1
           const isUsed = punchNumber <= card.used_punches
+          const use = usesByIndex.get(punchNumber)
+          const isExpanded = expandedPunch === punchNumber
+          const hasUse = isUsed && use
+
+          const dateFormatted = use
+            ? new Date(use.used_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()
+            : null
+
           return (
-            <div
-              key={i}
-              className={`flex items-center rounded-md px-2.5 py-1.5 transition-colors ${
-                isUsed
-                  ? 'bg-gray-100'
-                  : 'bg-white border border-gray-100'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
-                isUsed
-                  ? 'bg-gray-200 text-gray-400'
-                  : 'bg-purple-100 text-purple-600'
-              }`}>
-                {isUsed ? <Check className="w-3 h-3 text-gray-400" /> : punchNumber}
+            <div key={i}>
+              <div
+                onClick={hasUse ? () => setExpandedPunch(isExpanded ? null : punchNumber) : undefined}
+                className={`flex items-center rounded-md px-2.5 py-1.5 transition-colors ${
+                  isUsed
+                    ? `bg-gray-100 ${hasUse ? 'cursor-pointer hover:bg-gray-150' : ''}`
+                    : 'bg-white border border-gray-100'
+                }`}
+              >
+                <div className={`w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                  isUsed
+                    ? 'bg-gray-200 text-gray-400'
+                    : 'bg-purple-100 text-purple-600'
+                }`}>
+                  {isUsed ? <Check className="w-3 h-3 text-gray-400" /> : punchNumber}
+                </div>
+                {isUsed && dateFormatted ? (
+                  <div className="flex-1 flex justify-end">
+                    <span className="text-[10px] font-semibold text-gray-400 bg-white px-2 py-0.5 rounded shadow-sm border border-gray-100 -rotate-2">
+                      {dateFormatted}
+                    </span>
+                  </div>
+                ) : isUsed ? (
+                  <div className="flex-1 h-px bg-gray-300 mx-2.5" />
+                ) : null}
               </div>
-              {isUsed && (
-                <div className="flex-1 h-px bg-gray-300 mx-2.5" />
+              {/* Expanded description */}
+              {isExpanded && use && (
+                <div className="ml-8 mr-2 mt-0.5 mb-1 px-3 py-2 bg-white rounded-lg border border-gray-100 shadow-sm">
+                  <p className="text-[10px] text-gray-400 mb-0.5">
+                    {new Date(use.used_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-gray-700">{use.description}</p>
+                </div>
               )}
             </div>
           )
