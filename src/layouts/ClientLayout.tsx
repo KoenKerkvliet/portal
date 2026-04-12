@@ -36,7 +36,6 @@ export default function ClientLayout() {
   const menuRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<ClientNotification[]>([])
   const [isOnderhoud, setIsOnderhoud] = useState(false)
-  const [projectId, setProjectId] = useState<string | null>(null)
   const stackedIdsRef = useRef<Record<string, string[]>>({})
 
   const handleSignOut = async () => {
@@ -64,7 +63,6 @@ export default function ClientLayout() {
       .limit(1)
       .single()
     setIsOnderhoud(projectData?.current_phase === 'onderhoud')
-    if (projectData) setProjectId(projectData.id)
 
     const { data } = await supabase
       .from('client_notifications')
