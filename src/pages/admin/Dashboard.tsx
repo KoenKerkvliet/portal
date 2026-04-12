@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { FolderKanban, Users, FileText, FileCheck, Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -71,6 +71,7 @@ export default function Dashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
+  const stackedIdsRef = useRef<Record<string, string[]>>({})
   const [sendingTest, setSendingTest] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [testEmailDesignPixels, setTestEmailDesignPixels] = useState(true)
@@ -113,12 +114,46 @@ export default function Dashboard() {
       .select('*, project:projects(name), client:clients(name)')
       .eq('read', false)
       .order('created_at', { ascending: false })
-      .limit(20)
-    setNotifications(data || [])
+      .limit(50)
+
+    // Stack similar notifications (same title prefix, e.g. "Reactie op ticket #001")
+    const raw = data || []
+    const stacked: AdminNotification[] = []
+    const seen = new Map<string, { notif: AdminNotification; ids: string[]; count: number }>()
+
+    for (const n of raw) {
+      // Group key: strip trailing details, keep the core title
+      const key = n.title.replace(/\s*—\s*.+$/, '').trim()
+      const existing = seen.get(key)
+      if (existing) {
+        existing.count++
+        existing.ids.push(n.id)
+      } else {
+        const entry = { notif: { ...n }, ids: [n.id], count: 1 }
+        seen.set(key, entry)
+        stacked.push(entry.notif)
+      }
+    }
+
+    // Update titles for stacked notifications
+    for (const [key, { notif, count }] of seen) {
+      if (count > 1) {
+        notif.title = `${key} (${count}x)`
+        notif.message = `${count} meldingen`
+      }
+    }
+
+    // Store grouped IDs for bulk dismiss
+    stackedIdsRef.current = Object.fromEntries(
+      [...seen.entries()].map(([, { notif, ids }]) => [notif.id, ids])
+    )
+
+    setNotifications(stacked)
   }
 
   const dismissNotification = async (id: string) => {
-    await supabase.from('admin_notifications').update({ read: true }).eq('id', id)
+    const ids = stackedIdsRef.current[id] || [id]
+    await supabase.from('admin_notifications').update({ read: true }).in('id', ids)
     setNotifications(prev => prev.filter(n => n.id !== id))
   }
 

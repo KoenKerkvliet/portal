@@ -35,6 +35,7 @@ export default function ClientLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<ClientNotification[]>([])
+  const stackedIdsRef = useRef<Record<string, string[]>>({})
 
   const handleSignOut = async () => {
     await signOut()
@@ -58,13 +59,43 @@ export default function ClientLayout() {
       .eq('client_id', client.id)
       .eq('read', false)
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(30)
 
-    setNotifications(data || [])
+    // Stack similar notifications
+    const raw = data || []
+    const stacked: ClientNotification[] = []
+    const seen = new Map<string, { notif: ClientNotification; ids: string[]; count: number }>()
+
+    for (const n of raw) {
+      const key = n.title.replace(/\s*\(\d+x\)$/, '').trim()
+      const existing = seen.get(key)
+      if (existing) {
+        existing.count++
+        existing.ids.push(n.id)
+      } else {
+        const entry = { notif: { ...n }, ids: [n.id], count: 1 }
+        seen.set(key, entry)
+        stacked.push(entry.notif)
+      }
+    }
+
+    for (const [key, { notif, count }] of seen) {
+      if (count > 1) {
+        notif.title = `${key} (${count}x)`
+        notif.message = `${count} meldingen`
+      }
+    }
+
+    stackedIdsRef.current = Object.fromEntries(
+      [...seen.entries()].map(([, { notif, ids }]) => [notif.id, ids])
+    )
+
+    setNotifications(stacked)
   }, [profile])
 
   const dismissNotification = async (id: string) => {
-    await supabase.from('client_notifications').update({ read: true }).eq('id', id)
+    const ids = stackedIdsRef.current[id] || [id]
+    await supabase.from('client_notifications').update({ read: true }).in('id', ids)
     setNotifications(prev => prev.filter(n => n.id !== id))
   }
 
