@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -1117,6 +1117,41 @@ export default function Projects() {
                         )}
                       </div>
                     ))}
+                  </div>
+                  {/* Rij 3: API key */}
+                  <div className="bg-white rounded-lg border border-gray-100 px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Key className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">API Key</p>
+                      </div>
+                      {project.api_key ? (
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs text-gray-500 font-mono truncate max-w-[200px]">{project.api_key}</code>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(project.api_key!); }}
+                            className="p-1 text-gray-400 hover:text-primary rounded hover:bg-primary/5 transition-colors"
+                            title="Kopieer"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => { if (confirm('API key verwijderen?')) updateProject(project.id, { api_key: null }) }}
+                            className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors"
+                            title="Verwijderen"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => updateProject(project.id, { api_key: crypto.randomUUID() })}
+                          className="text-[11px] text-primary hover:text-primary/80 font-medium transition-colors"
+                        >
+                          Genereer API key
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

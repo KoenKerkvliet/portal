@@ -42,6 +42,7 @@ export interface Project {
   feedback_title: string | null
   feedback_url: string | null
   staging_url: string | null
+  api_key: string | null
   created_at: string
   client?: Client
 }
