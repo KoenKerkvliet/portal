@@ -129,51 +129,56 @@ export default function OnderhoudTimer() {
         .eq('notify_punch_cards', true)
 
       if (projectClients) {
+        const portalUrl = window.location.origin
+        const dateStr = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+
         for (const pc of projectClients) {
           const client = pc.client as unknown as { email: string; name: string }
           if (!client?.email) continue
-          const emailHtml = `
-            <!DOCTYPE html><html><head><meta charset="utf-8"></head>
-            <body style="margin:0;padding:0;background:#f8f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-              <div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05);">
-                <div style="background:linear-gradient(135deg,#9e86ff,#7c3aed);padding:32px;text-align:center;">
-                  <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">DesignPixels</h1>
-                </div>
-                <div style="padding:32px;">
-                  <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">🎫 Strippen afgeschreven</h2>
-                  <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 24px;">
-                    Er ${stripsToUse === 1 ? 'is <strong>1 strip</strong>' : `zijn <strong>${stripsToUse} strippen</strong>`} afgeschreven voor <strong>${projectName}</strong>.
-                  </p>
-                  <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:16px;margin-bottom:16px;">
-                    <p style="color:#6b7280;font-size:12px;font-weight:600;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em;">Werkzaamheden</p>
-                    <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">${workDescription}</p>
-                  </div>
-                  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;">
-                    <table style="width:100%;border-collapse:collapse;">
-                      <tr>
-                        <td style="color:#6b7280;font-size:13px;padding:4px 0;">Afgeschreven</td>
-                        <td style="color:#7c3aed;font-size:13px;font-weight:700;text-align:right;padding:4px 0;">${stripsToUse} strip${stripsToUse !== 1 ? 's' : ''}</td>
-                      </tr>
-                      <tr>
-                        <td style="color:#6b7280;font-size:13px;padding:4px 0;">Resterend</td>
-                        <td style="color:#16a34a;font-size:13px;font-weight:700;text-align:right;padding:4px 0;">${newTotalRemaining} strip${newTotalRemaining !== 1 ? 's' : ''}</td>
-                      </tr>
-                    </table>
-                  </div>
-                  <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;">
-                    Bekijk je strippenkaart in het klantportaal voor meer details.
-                  </p>
-                </div>
-                <div style="padding:16px 32px;background:#f9fafb;text-align:center;">
-                  <p style="color:#9ca3af;font-size:11px;margin:0;">&copy; ${new Date().getFullYear()} DesignPixels</p>
-                </div>
-              </div>
-            </body></html>
-          `
+          const emailHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:520px;margin:32px auto;background:white;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+  <div style="padding:24px 32px;border-bottom:1px solid #e5e7eb;">
+    <p style="margin:0;font-size:16px;font-weight:600;color:#111827;">DesignPixels</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 16px;">
+      Hoi${client.name ? ` ${client.name.split(' ')[0]}` : ''},
+    </p>
+    <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">
+      We hebben onderhoudswerkzaamheden uitgevoerd voor ${projectName}. Hieronder een overzicht.
+    </p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+      <tr>
+        <td style="color:#6b7280;font-size:14px;padding:8px 0;border-bottom:1px solid #f3f4f6;">Werkzaamheden</td>
+        <td style="color:#111827;font-size:14px;font-weight:500;text-align:right;padding:8px 0;border-bottom:1px solid #f3f4f6;">${workDescription}</td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:14px;padding:8px 0;border-bottom:1px solid #f3f4f6;">Gebruikt</td>
+        <td style="color:#111827;font-size:14px;font-weight:500;text-align:right;padding:8px 0;border-bottom:1px solid #f3f4f6;">${stripsToUse} strip${stripsToUse !== 1 ? 's' : ''}</td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:14px;padding:8px 0;">Resterend tegoed</td>
+        <td style="color:#111827;font-size:14px;font-weight:600;text-align:right;padding:8px 0;">${newTotalRemaining} strip${newTotalRemaining !== 1 ? 's' : ''}</td>
+      </tr>
+    </table>
+    <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
+      Je kunt het volledige overzicht van je strippenkaart bekijken in het <a href="${portalUrl}" style="color:#7c3aed;text-decoration:underline;">klantportaal</a>.
+    </p>
+    <p style="color:#9ca3af;font-size:13px;margin:0;">
+      Met vriendelijke groet,<br>DesignPixels
+    </p>
+  </div>
+  <div style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+    <p style="color:#9ca3af;font-size:11px;margin:0;text-align:center;">DesignPixels — ${dateStr}</p>
+  </div>
+</div>
+</body></html>`
           await supabase.functions.invoke('send-test-email', {
             body: {
               to: client.email,
-              subject: `Strippen afgeschreven — ${projectName}`,
+              subject: `Onderhoud ${projectName} — overzicht werkzaamheden`,
               html: emailHtml,
             },
           })
