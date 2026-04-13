@@ -107,6 +107,16 @@ export interface Invoice {
   amount: number
   status: InvoiceStatus
   due_date: string
+  is_test: boolean
+  invoice_date: string | null
+  client_name: string | null
+  client_email: string | null
+  client_address: string | null
+  items: QuoteItem[]
+  discount_percent: number
+  btw_percent: number
+  notes: string
+  subtotal: number
   created_at: string
   project?: Project
   client?: Client

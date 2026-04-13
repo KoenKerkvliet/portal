@@ -1,39 +1,17 @@
 import { useEffect, useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { Invoice, InvoiceStatus, InvoiceSettings, YearFormat } from '../../types'
-import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical } from 'lucide-react'
+import type { Invoice, InvoiceStatus } from '../../types'
+import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil } from 'lucide-react'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
 
-function generateInvoiceNumber(
-  prefix: string,
-  yearFormat: YearFormat,
-  startNumber: number,
-  existingNumbers: string[]
-): string {
-  const currentYear = new Date().getFullYear()
-  const yearStr = yearFormat === 'YY' ? String(currentYear).slice(-2) : String(currentYear)
-  const basePrefix = `${prefix}${yearStr}`
-
-  let maxNum = startNumber - 1
-  for (const num of existingNumbers) {
-    if (num.startsWith(basePrefix)) {
-      const suffix = num.slice(basePrefix.length)
-      const parsed = parseInt(suffix, 10)
-      if (!isNaN(parsed) && parsed > maxNum) {
-        maxNum = parsed
-      }
-    }
-  }
-
-  return `${basePrefix}${maxNum + 1}`
-}
-
-function InvoiceRow({ invoice, onStatusChange, onDelete }: {
+function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
   invoice: Invoice
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onDelete: (id: string) => void
+  onEdit: (id: string) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -51,7 +29,12 @@ function InvoiceRow({ invoice, onStatusChange, onDelete }: {
   return (
     <tr className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
       <td className="px-5 py-3.5">
-        <span className="font-mono text-sm text-gray-900">{invoice.number}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm text-gray-900">{invoice.number}</span>
+          {invoice.is_test && (
+            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full">Test</span>
+          )}
+        </div>
       </td>
       <td className="px-5 py-3.5 text-sm text-gray-700">{clientName}</td>
       <td className="px-5 py-3.5">
@@ -82,6 +65,13 @@ function InvoiceRow({ invoice, onStatusChange, onDelete }: {
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[140px]">
               <button
+                onClick={() => { setMenuOpen(false); onEdit(invoice.id) }}
+                className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+                Bewerken
+              </button>
+              <button
                 onClick={() => { setMenuOpen(false); onDelete(invoice.id) }}
                 className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
               >
@@ -96,10 +86,11 @@ function InvoiceRow({ invoice, onStatusChange, onDelete }: {
   )
 }
 
-function InvoiceTable({ invoices, onStatusChange, onDelete, dateLabel }: {
+function InvoiceTable({ invoices, onStatusChange, onDelete, onEdit, dateLabel }: {
   invoices: Invoice[]
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onDelete: (id: string) => void
+  onEdit: (id: string) => void
   dateLabel: 'due' | 'paid'
 }) {
   return (
@@ -118,7 +109,7 @@ function InvoiceTable({ invoices, onStatusChange, onDelete, dateLabel }: {
         </thead>
         <tbody>
           {invoices.map((invoice) => (
-            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onDelete={onDelete} />
+            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onDelete={onDelete} onEdit={onEdit} />
           ))}
         </tbody>
       </table>
@@ -127,13 +118,12 @@ function InvoiceTable({ invoices, onStatusChange, onDelete, dateLabel }: {
 }
 
 export default function Invoices() {
+  const navigate = useNavigate()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [isTest, setIsTest] = useState(false)
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
-  const [formData, setFormData] = useState({ number: '', amount: '', client_id: '', project_id: '', due_date: '' })
-  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings | null>(null)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -151,19 +141,14 @@ export default function Invoices() {
 
   useEffect(() => {
     fetchInvoices()
-    supabase.from('clients').select('id, name').then(({ data }) => setClients(data || []))
     supabase.from('projects').select('id, name').then(({ data }) => setProjects(data || []))
-    supabase.from('invoice_settings').select('*').limit(1).single().then(({ data }) => {
-      if (data) setInvoiceSettings(data)
-    })
   }, [])
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    await supabase.from('invoices').insert({ ...formData, amount: parseFloat(formData.amount), status: 'draft' })
-    setShowForm(false)
-    setFormData({ number: '', amount: '', client_id: '', project_id: '', due_date: '' })
-    fetchInvoices()
+  const handleCreate = () => {
+    const params = isTest ? '?test=1' : ''
+    setShowNewModal(false)
+    setIsTest(false)
+    navigate(`/admin/facturen/nieuw${params}`)
   }
 
   const handleDelete = async (id: string) => {
@@ -175,6 +160,10 @@ export default function Invoices() {
   const handleStatusChange = async (invoice: Invoice, status: InvoiceStatus) => {
     await supabase.from('invoices').update({ status }).eq('id', invoice.id)
     fetchInvoices()
+  }
+
+  const handleEdit = (id: string) => {
+    navigate(`/admin/facturen/${id}`)
   }
 
   // Apply filters
@@ -231,22 +220,65 @@ export default function Invoices() {
           <h1 className="text-2xl font-bold text-gray-900">Facturen</h1>
           <p className="text-gray-500 mt-1">Beheer je facturen</p>
         </div>
-        <button onClick={() => {
-          if (!showForm && invoiceSettings) {
-            const nextNumber = generateInvoiceNumber(
-              invoiceSettings.invoice_prefix,
-              invoiceSettings.year_format as YearFormat,
-              invoiceSettings.start_number,
-              invoices.map(i => i.number)
-            )
-            setFormData({ number: nextNumber, amount: '', client_id: '', project_id: '', due_date: '' })
-          }
-          setShowForm(!showForm)
-        }} className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
+        <button
+          onClick={() => setShowNewModal(true)}
+          className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+        >
           <Plus className="w-4 h-4" />
           Nieuwe factuur
         </button>
       </div>
+
+      {/* New invoice modal */}
+      {showNewModal && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setShowNewModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Nieuwe factuur</h2>
+                <button
+                  onClick={() => { setShowNewModal(false); setIsTest(false) }}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <label className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-xl p-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isTest}
+                  onChange={(e) => setIsTest(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-500 border-gray-300 focus:ring-amber-400 mt-0.5"
+                />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <FlaskConical className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-800">Testfactuur</span>
+                  </div>
+                  <p className="text-xs text-amber-600 mt-0.5">De factuurnummerreeks wordt niet verstoord.</p>
+                </div>
+              </label>
+
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={handleCreate}
+                  className="flex-1 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors"
+                >
+                  Factuur aanmaken
+                </button>
+                <button
+                  onClick={() => { setShowNewModal(false); setIsTest(false) }}
+                  className="px-4 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  Annuleren
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Filter bar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 mb-6 flex flex-wrap items-center gap-3">
@@ -303,44 +335,6 @@ export default function Invoices() {
         <span className="text-xs text-gray-400">{totalFiltered} van {invoices.length} facturen</span>
       </div>
 
-      {/* Create form */}
-      {showForm && (
-        <form onSubmit={handleCreate} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Factuurnummer</label>
-              <input type="text" value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bedrag</label>
-              <input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Klant</label>
-              <select value={formData.client_id} onChange={(e) => setFormData({ ...formData, client_id: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
-                <option value="">Selecteer</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-              <select value={formData.project_id} onChange={(e) => setFormData({ ...formData, project_id: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required>
-                <option value="">Selecteer</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vervaldatum</label>
-              <input type="date" value={formData.due_date} onChange={(e) => setFormData({ ...formData, due_date: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50" required />
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button type="submit" className="bg-primary hover:bg-primary-600 text-white px-4 py-2 rounded-lg font-medium transition-colors">Aanmaken</button>
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors">Annuleren</button>
-          </div>
-        </form>
-      )}
-
       {invoices.length === 0 ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -361,7 +355,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen openstaande facturen</p>
               </div>
             ) : (
-              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onDelete={handleDelete} dateLabel="due" />
+              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} dateLabel="due" />
             )}
           </section>
 
@@ -388,7 +382,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen betaalde facturen in {paidYear}</p>
               </div>
             ) : (
-              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onDelete={handleDelete} dateLabel="paid" />
+              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} dateLabel="paid" />
             )}
           </section>
 

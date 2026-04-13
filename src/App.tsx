@@ -14,6 +14,7 @@ import Products from './pages/admin/Products'
 import Quotes from './pages/admin/Quotes'
 // QuoteSettings is now integrated into Settings page
 import QuoteBuilder from './pages/admin/QuoteBuilder'
+import InvoiceBuilder from './pages/admin/InvoiceBuilder'
 import Assignments from './pages/admin/Assignments'
 import Templates from './pages/admin/Templates'
 import Forms from './pages/admin/Forms'
@@ -68,6 +69,8 @@ function AppRoutes() {
         <Route path="projecten" element={<Projects />} />
         <Route path="klanten" element={<Clients />} />
         <Route path="facturen" element={<Invoices />} />
+        <Route path="facturen/nieuw" element={<InvoiceBuilder />} />
+        <Route path="facturen/:id" element={<InvoiceBuilder />} />
         <Route path="producten" element={<Products />} />
         <Route path="offertes" element={<Quotes />} />
         <Route path="offertes/nieuw" element={<QuoteBuilder />} />
