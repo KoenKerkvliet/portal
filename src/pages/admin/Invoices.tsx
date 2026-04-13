@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceStatus, InvoiceSettings, YearFormat } from '../../types'
-import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ChevronDown, ArrowUpDown, MoreVertical } from 'lucide-react'
+import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical } from 'lucide-react'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
@@ -30,11 +30,10 @@ function generateInvoiceNumber(
   return `${basePrefix}${maxNum + 1}`
 }
 
-function InvoiceRow({ invoice, onStatusChange, onDelete, dateLabel }: {
+function InvoiceRow({ invoice, onStatusChange, onDelete }: {
   invoice: Invoice
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onDelete: (id: string) => void
-  dateLabel: 'due' | 'paid'
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -48,7 +47,6 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, dateLabel }: {
   }, [menuOpen])
 
   const clientName = (invoice.client as unknown as { name: string })?.name || '—'
-  const projectName = (invoice.project as unknown as { name: string })?.name || '—'
 
   return (
     <tr className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
@@ -120,7 +118,7 @@ function InvoiceTable({ invoices, onStatusChange, onDelete, dateLabel }: {
         </thead>
         <tbody>
           {invoices.map((invoice) => (
-            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onDelete={onDelete} dateLabel={dateLabel} />
+            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onDelete={onDelete} />
           ))}
         </tbody>
       </table>
