@@ -183,10 +183,6 @@ export default function InvoiceBuilder() {
           setDiscountPercent(invoice.discount_percent || 0)
           setBtwPercent(invoice.btw_percent ?? 21)
           setNotes(invoice.notes || '')
-
-          // Find client display name
-          const pc = (pcData || []).find((pc) => pc.client_id === invoice.client_id)
-
         }
       }
 
