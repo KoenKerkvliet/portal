@@ -82,7 +82,7 @@ export default function InvoiceBuilder() {
   const [number, setNumber] = useState('')
   const [projectId, setProjectId] = useState('')
   const [clientId, setClientId] = useState('')
-  const [clientDisplayName, setClientDisplayName] = useState('')
+
   const [clientName, setClientName] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [clientAddress, setClientAddress] = useState('')
@@ -186,7 +186,7 @@ export default function InvoiceBuilder() {
 
           // Find client display name
           const pc = (pcData || []).find((pc) => pc.client_id === invoice.client_id)
-          if (pc) setClientDisplayName((pc.client as unknown as { name: string })?.name || '')
+
         }
       }
 
@@ -228,13 +228,11 @@ export default function InvoiceBuilder() {
       const invoiceClient = project.clients.find((c) => c.notify_invoices) || project.clients[0]
       if (invoiceClient) {
         setClientId(invoiceClient.client_id)
-        setClientDisplayName(invoiceClient.client_name)
         setClientName(invoiceClient.client_name)
         setClientEmail(invoiceClient.client_email)
         setClientAddress(invoiceClient.client_address)
       } else {
         setClientId('')
-        setClientDisplayName('')
         setClientName('')
         setClientEmail('')
         setClientAddress('')
@@ -248,7 +246,6 @@ export default function InvoiceBuilder() {
     const project = projects.find((p) => p.id === projectId)
     const client = project?.clients.find((c) => c.client_id === cid)
     if (client) {
-      setClientDisplayName(client.client_name)
       setClientName(client.client_name)
       setClientEmail(client.client_email)
       setClientAddress(client.client_address)
