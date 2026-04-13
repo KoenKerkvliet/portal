@@ -72,6 +72,7 @@ export default function InvoiceBuilder() {
   const { id: editId } = useParams()
   const [searchParams] = useSearchParams()
   const isTest = searchParams.get('test') === '1'
+  const fromQuoteId = searchParams.get('from_quote')
 
   // Data
   const [projects, setProjects] = useState<ProjectWithClients[]>([])
@@ -165,6 +166,25 @@ export default function InvoiceBuilder() {
         }
       }
 
+      // If creating from a quote, pre-fill with quote data
+      if (!editId && fromQuoteId) {
+        const { data: quote } = await supabase.from('quotes').select('*, client:clients(name, email, company)').eq('id', fromQuoteId).single()
+        if (quote) {
+          setProjectId(quote.project_id)
+          setClientId(quote.client_id)
+          const client = quote.client as unknown as { name: string; email: string; company: string | null }
+          if (client) {
+            setClientName(client.name || '')
+            setClientEmail(client.email || '')
+            setClientAddress(client.company || '')
+          }
+          setItems(quote.items || [])
+          setDiscountPercent(quote.discount_percent || 0)
+          setBtwPercent(quote.btw_percent ?? 21)
+          setNotes(quote.notes || '')
+        }
+      }
+
       // If editing, load invoice
       if (editId) {
         const { data: invoice } = await supabase.from('invoices').select('*').eq('id', editId).single()
@@ -189,7 +209,7 @@ export default function InvoiceBuilder() {
       setLoading(false)
     }
     load()
-  }, [editId, isTest])
+  }, [editId, isTest, fromQuoteId])
 
   // Close product picker on outside click
   useEffect(() => {
