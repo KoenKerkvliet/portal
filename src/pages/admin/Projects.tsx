@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy, Settings } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -143,6 +143,8 @@ export default function Projects() {
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null)
   const [reloadDropdownId, setReloadDropdownId] = useState<string | null>(null)
   const reloadDropdownRef = useRef<HTMLDivElement>(null)
+  const [settingsDropdownId, setSettingsDropdownId] = useState<string | null>(null)
+  const settingsDropdownRef = useRef<HTMLDivElement>(null)
 
   // Intake link state
   const [projectQuotes, setProjectQuotes] = useState<Record<string, Quote[]>>({})
@@ -162,6 +164,7 @@ export default function Projects() {
       if (phaseDropdownRef.current && !phaseDropdownRef.current.contains(e.target as Node)) setPhaseDropdownId(null)
       if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) setClientDropdownId(null)
       if (reloadDropdownRef.current && !reloadDropdownRef.current.contains(e.target as Node)) setReloadDropdownId(null)
+      if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(e.target as Node)) setSettingsDropdownId(null)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -909,9 +912,58 @@ export default function Projects() {
                           </div>
                         )}
                       </div>
-                      <button onClick={() => handleDelete(project.id)} className="p-1.5 text-gray-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors" title="Verwijderen">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="relative" ref={settingsDropdownId === project.id ? settingsDropdownRef : undefined}>
+                        <button onClick={() => setSettingsDropdownId(settingsDropdownId === project.id ? null : project.id)}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors" title="Instellingen">
+                          <Settings className="w-4 h-4" />
+                        </button>
+                        {settingsDropdownId === project.id && (
+                          <div className="absolute top-full right-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[220px]">
+                            {/* API Key */}
+                            <div className="px-3.5 py-2.5">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <Key className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">API Key</span>
+                              </div>
+                              {project.api_key ? (
+                                <div className="flex items-center gap-1.5">
+                                  <code className="text-xs text-gray-500 font-mono truncate flex-1">{project.api_key}</code>
+                                  <button
+                                    onClick={() => { navigator.clipboard.writeText(project.api_key!) }}
+                                    className="p-1 text-gray-400 hover:text-primary rounded hover:bg-primary/5 transition-colors"
+                                    title="Kopieer"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => { if (confirm('API key verwijderen?')) updateProject(project.id, { api_key: null }) }}
+                                    className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors"
+                                    title="Verwijderen"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => updateProject(project.id, { api_key: crypto.randomUUID() })}
+                                  className="text-[11px] text-primary hover:text-primary/80 font-medium transition-colors"
+                                >
+                                  Genereer API key
+                                </button>
+                              )}
+                            </div>
+                            <div className="border-t border-gray-100 my-1" />
+                            {/* Delete */}
+                            <button
+                              onClick={() => { setSettingsDropdownId(null); handleDelete(project.id) }}
+                              className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Verwijderen
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1117,41 +1169,6 @@ export default function Projects() {
                         )}
                       </div>
                     ))}
-                  </div>
-                  {/* Rij 3: API key */}
-                  <div className="bg-white rounded-lg border border-gray-100 px-3 py-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Key className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">API Key</p>
-                      </div>
-                      {project.api_key ? (
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs text-gray-500 font-mono truncate max-w-[200px]">{project.api_key}</code>
-                          <button
-                            onClick={() => { navigator.clipboard.writeText(project.api_key!); }}
-                            className="p-1 text-gray-400 hover:text-primary rounded hover:bg-primary/5 transition-colors"
-                            title="Kopieer"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => { if (confirm('API key verwijderen?')) updateProject(project.id, { api_key: null }) }}
-                            className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors"
-                            title="Verwijderen"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => updateProject(project.id, { api_key: crypto.randomUUID() })}
-                          className="text-[11px] text-primary hover:text-primary/80 font-medium transition-colors"
-                        >
-                          Genereer API key
-                        </button>
-                      )}
-                    </div>
                   </div>
                 </div>
 
