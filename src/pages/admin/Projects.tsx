@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy, Settings } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy, Settings, Search, Filter } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -126,6 +126,9 @@ export default function Projects() {
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState<FormData>(emptyForm)
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterPhase, setFilterPhase] = useState<ProjectPhase | 'all'>('all')
+  const [filterClient, setFilterClient] = useState('all')
   const [phaseDropdownId, setPhaseDropdownId] = useState<string | null>(null)
   const [clientDropdownId, setClientDropdownId] = useState<string | null>(null)
   const [projectClients, setProjectClients] = useState<Record<string, ProjectClient[]>>({})
@@ -798,6 +801,13 @@ export default function Projects() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
+  const filteredProjects = projects.filter((p) => {
+    if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    if (filterPhase !== 'all' && p.current_phase !== filterPhase) return false
+    if (filterClient !== 'all' && p.client_id !== filterClient) return false
+    return true
+  })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 sm:mb-8">
@@ -811,6 +821,48 @@ export default function Projects() {
           <span className="hidden sm:inline">Nieuw domein</span>
           <span className="sm:hidden">Nieuw</span>
         </button>
+      </div>
+
+      {/* Filter bar */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 mb-6 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Zoeken op domeinnaam..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-gray-400" />
+          <select
+            value={filterPhase}
+            onChange={(e) => setFilterPhase(e.target.value as ProjectPhase | 'all')}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white cursor-pointer"
+          >
+            <option value="all">Alle fasen</option>
+            {(Object.entries(phaseLabels) as [ProjectPhase, string][]).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+          <select
+            value={filterClient}
+            onChange={(e) => setFilterClient(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white cursor-pointer"
+          >
+            <option value="all">Alle klanten</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        {(searchQuery || filterPhase !== 'all' || filterClient !== 'all') && (
+          <span className="text-xs text-gray-400">
+            {filteredProjects.length} van {projects.length} domeinen
+          </span>
+        )}
       </div>
 
       {/* Create modal */}
@@ -877,9 +929,15 @@ export default function Projects() {
           <h3 className="text-lg font-medium text-gray-900">Nog geen domeinen</h3>
           <p className="text-gray-500 mt-1">Maak je eerste domein aan om te beginnen.</p>
         </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
+          <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900">Geen resultaten</h3>
+          <p className="text-gray-500 mt-1">Pas je filters aan om domeinen te vinden.</p>
+        </div>
       ) : (
         <div className="space-y-4">
-          {projects.map((project) => {
+          {filteredProjects.map((project) => {
             const isExpanded = expandedProject === project.id
             const currentTab = activePhaseTab[project.id] || project.current_phase
             const tabInstance = getInstance(project.id, currentTab)
