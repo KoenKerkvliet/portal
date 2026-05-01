@@ -147,10 +147,11 @@ export default function Quotes() {
                 {quote.status === 'accepted' && (
                   <button
                     onClick={() => navigate(`/admin/facturen/nieuw?from_quote=${quote.id}`)}
-                    className="p-2 text-gray-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
-                    title="Factuur aanmaken"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
+                    title="Maak factuur van deze offerte"
                   >
-                    <FileText className="w-4 h-4" />
+                    <FileText className="w-3.5 h-3.5" />
+                    Naar factuur
                   </button>
                 )}
                 <button
