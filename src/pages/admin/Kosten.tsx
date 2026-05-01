@@ -265,6 +265,11 @@ export default function Kosten() {
   const [showForm, setShowForm] = useState(false)
   const [showImport, setShowImport] = useState(false)
 
+  // Exchange rates: { USD: 0.92, ... } — value is rate to convert FROM that currency TO EUR
+  const [rates, setRates] = useState<Record<string, number>>({ EUR: 1 })
+  const [rateDate, setRateDate] = useState<string | null>(null)
+  const [rateError, setRateError] = useState<string | null>(null)
+
   const fetchExpenses = async () => {
     const { data, error } = await supabase
       .from('expenses')
@@ -278,6 +283,35 @@ export default function Kosten() {
   useEffect(() => {
     fetchExpenses()
   }, [])
+
+  // Fetch ECB rates for non-EUR currencies present in the data
+  useEffect(() => {
+    const nonEur = [...new Set(expenses.map((e) => e.currency || 'EUR'))].filter((c) => c !== 'EUR')
+    if (nonEur.length === 0) return
+    const missing = nonEur.filter((c) => rates[c] == null)
+    if (missing.length === 0) return
+
+    const fetchRates = async () => {
+      try {
+        const res = await fetch(`https://api.frankfurter.dev/v1/latest?from=EUR&to=${missing.join(',')}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        // Frankfurter returns rates FROM EUR. We want rate FROM <currency> TO EUR, so invert.
+        const newRates: Record<string, number> = {}
+        for (const cur of missing) {
+          const rateFromEur = data.rates?.[cur]
+          if (rateFromEur) newRates[cur] = 1 / rateFromEur
+        }
+        setRates((prev) => ({ ...prev, ...newRates }))
+        setRateDate(data.date || null)
+        setRateError(null)
+      } catch (err) {
+        setRateError('Kon wisselkoersen niet ophalen — bedragen in andere valuta worden niet meegeteld in het EUR-totaal.')
+        console.error('Wisselkoers ophalen mislukt:', err)
+      }
+    }
+    fetchRates()
+  }, [expenses, rates])
 
   const handleDelete = async (id: string) => {
     if (!confirm('Weet je zeker dat je deze kostenpost wilt verwijderen?')) return
@@ -312,20 +346,29 @@ export default function Kosten() {
     return true
   })
 
-  const totalsByCurrency: Record<string, { excl: number; btw: number; incl: number }> = {}
+  const totalsByCurrency: Record<string, number> = {}
   for (const e of filtered) {
     const cur = e.currency || 'EUR'
-    if (!totalsByCurrency[cur]) totalsByCurrency[cur] = { excl: 0, btw: 0, incl: 0 }
-    totalsByCurrency[cur].excl += Number(e.amount_excl_btw)
-    totalsByCurrency[cur].btw += Number(e.btw_amount)
-    totalsByCurrency[cur].incl += Number(e.amount_incl_btw)
+    totalsByCurrency[cur] = (totalsByCurrency[cur] || 0) + Number(e.amount_incl_btw)
   }
-  // Sort with EUR first, then alphabetical
   const totalCurrencies = Object.keys(totalsByCurrency).sort((a, b) => {
     if (a === 'EUR') return -1
     if (b === 'EUR') return 1
     return a.localeCompare(b)
   })
+
+  // Combined EUR total via current ECB rate
+  let combinedEur = 0
+  let hasUnconvertedAmount = false
+  for (const cur of totalCurrencies) {
+    if (cur === 'EUR') {
+      combinedEur += totalsByCurrency[cur]
+    } else if (rates[cur] != null) {
+      combinedEur += totalsByCurrency[cur] * rates[cur]
+    } else {
+      hasUnconvertedAmount = true
+    }
+  }
 
   if (loading) {
     return (
@@ -399,25 +442,54 @@ export default function Kosten() {
         <span className="text-xs text-gray-400">{filtered.length} van {expenses.length} kosten</span>
       </div>
 
-      {/* Totals — per currency */}
+      {/* Totaal — alles omgerekend naar EUR via actuele ECB-koers */}
       {totalCurrencies.length > 0 && (
-        <div className="space-y-3 mb-6">
-          {totalCurrencies.map((cur) => (
-            <div key={cur} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal excl. BTW <span className="text-gray-300">· {cur}</span></p>
-                <p className="text-xl font-bold text-gray-900 mt-1">{formatMoney(totalsByCurrency[cur].excl, cur)}</p>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal BTW <span className="text-gray-300">· {cur}</span></p>
-                <p className="text-xl font-bold text-gray-900 mt-1">{formatMoney(totalsByCurrency[cur].btw, cur)}</p>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-100 p-4">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal incl. BTW <span className="text-gray-300">· {cur}</span></p>
-                <p className="text-xl font-bold text-primary mt-1">{formatMoney(totalsByCurrency[cur].incl, cur)}</p>
-              </div>
+        <div className="bg-white rounded-xl border border-gray-100 p-5 mb-6">
+          <div className="flex items-baseline justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal</p>
+              <p className="text-3xl font-bold text-primary mt-1">
+                &euro; {combinedEur.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
             </div>
-          ))}
+            {rateDate && (
+              <p className="text-xs text-gray-400">
+                Wisselkoers ECB d.d. {new Date(rateDate).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+            )}
+          </div>
+
+          {totalCurrencies.length > 1 && (
+            <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              {totalCurrencies.map((cur) => {
+                const orig = totalsByCurrency[cur]
+                const rate = rates[cur]
+                return (
+                  <div key={cur} className="flex items-baseline gap-2">
+                    <span className="text-gray-500">{cur}</span>
+                    <span className="font-medium text-gray-900">{formatMoney(orig, cur)}</span>
+                    {cur !== 'EUR' && rate != null && (
+                      <span className="text-xs text-gray-400">
+                        &rarr; &euro; {(orig * rate).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span className="ml-1 text-gray-300">(koers {rate.toFixed(4)})</span>
+                      </span>
+                    )}
+                    {cur !== 'EUR' && rate == null && !rateError && (
+                      <span className="text-xs text-gray-400">
+                        <Loader2 className="w-3 h-3 inline animate-spin" /> koers ophalen...
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {rateError && hasUnconvertedAmount && (
+            <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              {rateError}
+            </div>
+          )}
         </div>
       )}
 
