@@ -179,7 +179,7 @@ function parseInvoiceFromGroup(rows: string[][], colMap: Record<CsvField, number
 }
 
 interface ProjectRow { id: string; name: string }
-interface ClientRow { id: string; name: string; email: string | null; email_extra: string[] | null }
+interface ClientRow { id: string; name: string; email: string | null; email_extra?: string[] | null }
 
 export default function InvoiceImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
   const [stage, setStage] = useState<'upload' | 'preview' | 'importing' | 'done'>('upload')
@@ -192,17 +192,31 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
   const [projects, setProjects] = useState<ProjectRow[]>([])
   const [clients, setClients] = useState<ClientRow[]>([])
   const [existingNumbers, setExistingNumbers] = useState<Set<string>>(new Set())
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [emailExtraSupported, setEmailExtraSupported] = useState(true)
 
-  // Pre-fetch lookup data once
+  // Pre-fetch lookup data once. Use a tolerant select that falls back if email_extra
+  // column doesn't exist yet (migration not run).
   useEffect(() => {
     const load = async () => {
-      const [projRes, clientRes, invRes] = await Promise.all([
+      const [projRes, invRes] = await Promise.all([
         supabase.from('projects').select('id, name'),
-        supabase.from('clients').select('id, name, email, email_extra'),
         supabase.from('invoices').select('number'),
       ])
+
+      // Try with email_extra first, fall back without if the column is missing
+      let clientRes = await supabase.from('clients').select('id, name, email, email_extra')
+      if (clientRes.error) {
+        console.warn('email_extra kolom niet beschikbaar, fallback naar alleen primaire email:', clientRes.error.message)
+        setEmailExtraSupported(false)
+        clientRes = await supabase.from('clients').select('id, name, email')
+      }
+      if (clientRes.error) {
+        setLoadError('Kon klantenlijst niet laden: ' + clientRes.error.message)
+      }
+
       setProjects(projRes.data || [])
-      setClients(clientRes.data || [])
+      setClients((clientRes.data || []) as ClientRow[])
       setExistingNumbers(new Set((invRes.data || []).map((i) => i.number)))
     }
     load()
@@ -456,6 +470,20 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
 
             {stage === 'preview' && (
               <div>
+                {loadError && (
+                  <div className="mb-3 bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                    <p className="text-sm text-red-700">{loadError}</p>
+                  </div>
+                )}
+                {!emailExtraSupported && (
+                  <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-sm text-amber-700">
+                      Extra e-mailadressen worden niet meegenomen — de SQL-migratie <code className="bg-amber-100 px-1 rounded">add-client-email-extra.sql</code> is nog niet gedraaid in Supabase. Match werkt nu alleen op primair adres en naam.
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   <div className="bg-green-50 border border-green-100 rounded-xl p-3">
                     <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wider">Klaar</p>
