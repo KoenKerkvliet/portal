@@ -32,6 +32,7 @@ import ContentPages from './pages/admin/ContentPages'
 import Tickets from './pages/admin/Tickets'
 import Onderhoud from './pages/admin/Onderhoud'
 import OnderhoudTimer from './pages/admin/OnderhoudTimer'
+import Kosten from './pages/admin/Kosten'
 import ClientContentPage from './pages/client/ContentPage'
 import PunchCardShop from './pages/client/PunchCardShop'
 import ClientSupport from './pages/client/Support'
@@ -76,6 +77,7 @@ function AppRoutes() {
         <Route path="offertes/nieuw" element={<QuoteBuilder />} />
         <Route path="offertes/:id" element={<QuoteBuilder />} />
         <Route path="opdrachten" element={<Assignments />} />
+        <Route path="kosten" element={<Kosten />} />
 {/* Quote settings now in /admin/instellingen */}
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />

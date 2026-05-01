@@ -248,6 +248,21 @@ export interface Quote {
   client?: Client
 }
 
+export interface Expense {
+  id: string
+  expense_date: string
+  vendor: string | null
+  description: string
+  category: string | null
+  amount_excl_btw: number
+  btw_percent: number
+  btw_amount: number
+  amount_incl_btw: number
+  invoice_number: string | null
+  notes: string
+  created_at: string
+}
+
 export type NotificationType = 'quote' | 'invoice' | 'assignment' | 'card_update' | 'general'
 
 export interface ClientNotification {

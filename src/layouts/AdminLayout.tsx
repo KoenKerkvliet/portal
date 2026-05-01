@@ -18,6 +18,7 @@ import {
   ClipboardCheck,
   MessageSquare,
   Wrench,
+  Receipt,
 } from 'lucide-react'
 
 const mainItems = [
@@ -31,6 +32,7 @@ const financeItems = [
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
   { to: '/admin/opdrachten', icon: ClipboardCheck, label: 'Opdrachten' },
   { to: '/admin/producten', icon: Package, label: 'Producten' },
+  { to: '/admin/kosten', icon: Receipt, label: 'Kosten' },
 ]
 
 const contentItems = [
