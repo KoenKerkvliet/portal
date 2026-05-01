@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceStatus } from '../../types'
-import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil } from 'lucide-react'
+import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye } from 'lucide-react'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
@@ -33,7 +33,7 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
   const toggleMenu = () => {
     if (!menuOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
-      const menuHeight = 88
+      const menuHeight = 132
       const spaceBelow = window.innerHeight - rect.bottom
       const openUp = spaceBelow < menuHeight + 16
       setMenuPos({
@@ -88,6 +88,13 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
             className="fixed bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-[9999] min-w-[140px]"
             style={{ top: menuPos.top, left: menuPos.left }}
           >
+            <button
+              onClick={() => { setMenuOpen(false); window.open(`/portal/factuur/${invoice.id}`, '_blank') }}
+              className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Eye className="w-4 h-4" />
+              Bekijken
+            </button>
             <button
               onClick={() => { setMenuOpen(false); onEdit(invoice.id) }}
               className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"

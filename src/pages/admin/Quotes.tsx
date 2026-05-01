@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Quote, QuoteStatus } from '../../types'
-import { Plus, FileCheck, Trash2, Pencil, FlaskConical, X, FileText } from 'lucide-react'
+import { Plus, FileCheck, Trash2, Pencil, FlaskConical, X, FileText, Eye } from 'lucide-react'
 
 const statusColors: Record<QuoteStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', accepted: 'bg-green-100 text-green-700', declined: 'bg-red-100 text-red-700' }
 
@@ -154,6 +154,13 @@ export default function Quotes() {
                     Naar factuur
                   </button>
                 )}
+                <button
+                  onClick={() => window.open(`/portal/offerte/${quote.id}`, '_blank')}
+                  className="p-2 text-gray-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                  title="Preview"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
                 <button
                   onClick={() => navigate(`/admin/offertes/${quote.id}`)}
                   className="p-2 text-gray-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"

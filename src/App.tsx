@@ -86,6 +86,22 @@ function AppRoutes() {
         <Route path="instellingen" element={<AdminSettings />} />
       </Route>
 
+      {/* Document preview routes — accessible to both clients and admins (admin uses for previewing) */}
+      <Route path="/offerte/:quoteId" element={
+        <ProtectedRoute>
+          <div className="min-h-screen bg-gray-50 py-8 px-4">
+            <ClientQuotePage />
+          </div>
+        </ProtectedRoute>
+      } />
+      <Route path="/factuur/:invoiceId" element={
+        <ProtectedRoute>
+          <div className="min-h-screen bg-gray-50 py-8 px-4">
+            <ClientInvoicePage />
+          </div>
+        </ProtectedRoute>
+      } />
+
       {/* Client routes */}
       <Route path="/" element={
         <ProtectedRoute requiredRole="client">
@@ -94,9 +110,7 @@ function AppRoutes() {
       }>
         <Route index element={<ClientPortal />} />
         <Route path="formulier/:formId" element={<FormPage />} />
-        <Route path="offerte/:quoteId" element={<ClientQuotePage />} />
         <Route path="opdracht/:assignmentId" element={<ClientAssignmentPage />} />
-        <Route path="factuur/:invoiceId" element={<ClientInvoicePage />} />
         <Route path="design/:type/:projectId" element={<ClientStyleguidePage />} />
         {/* Legacy route */}
         <Route path="styleguide/:projectId" element={<ClientStyleguidePage />} />
