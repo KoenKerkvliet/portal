@@ -141,7 +141,7 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit, onSplit, onFina
             style={{ top: menuPos.top, left: menuPos.left }}
           >
             <button
-              onClick={() => { setMenuOpen(false); window.open(`/portal/factuur/${invoice.id}`, '_blank') }}
+              onClick={() => { setMenuOpen(false); window.open(`/factuur/${invoice.id}`, '_blank') }}
               className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Eye className="w-4 h-4" />

@@ -155,7 +155,7 @@ export default function Quotes() {
                   </button>
                 )}
                 <button
-                  onClick={() => window.open(`/portal/offerte/${quote.id}`, '_blank')}
+                  onClick={() => window.open(`/offerte/${quote.id}`, '_blank')}
                   className="p-2 text-gray-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
                   title="Preview"
                 >

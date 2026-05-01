@@ -134,7 +134,7 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/portal">
+    <BrowserRouter>
       <ScrollToTop />
       <AuthProvider>
         <AppRoutes />
