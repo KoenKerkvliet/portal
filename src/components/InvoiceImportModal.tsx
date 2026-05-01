@@ -179,7 +179,7 @@ function parseInvoiceFromGroup(rows: string[][], colMap: Record<CsvField, number
 }
 
 interface ProjectRow { id: string; name: string }
-interface ClientRow { id: string; name: string; email: string | null }
+interface ClientRow { id: string; name: string; email: string | null; email_extra: string[] | null }
 
 export default function InvoiceImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
   const [stage, setStage] = useState<'upload' | 'preview' | 'importing' | 'done'>('upload')
@@ -198,7 +198,7 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
     const load = async () => {
       const [projRes, clientRes, invRes] = await Promise.all([
         supabase.from('projects').select('id, name'),
-        supabase.from('clients').select('id, name, email'),
+        supabase.from('clients').select('id, name, email, email_extra'),
         supabase.from('invoices').select('number'),
       ])
       setProjects(projRes.data || [])
@@ -221,7 +221,13 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
       }
       let clientId: string | null = null
       if (inv.client_email) {
-        clientId = clients.find((c) => (c.email || '').toLowerCase() === inv.client_email.toLowerCase())?.id ?? null
+        const target = inv.client_email.toLowerCase()
+        clientId = clients.find((c) => {
+          const allEmails = [c.email, ...(c.email_extra || [])]
+            .filter((e): e is string => Boolean(e))
+            .map((e) => e.toLowerCase())
+          return allEmails.includes(target)
+        })?.id ?? null
       }
       if (!clientId && inv.client_name) {
         clientId = clients.find((c) => c.name.toLowerCase() === inv.client_name.toLowerCase())?.id ?? null
