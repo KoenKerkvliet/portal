@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceStatus } from '../../types'
@@ -14,15 +15,35 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
   onEdit: (id: string) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false })
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) setMenuOpen(false)
     }
     if (menuOpen) document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [menuOpen])
+
+  const toggleMenu = () => {
+    if (!menuOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      const menuHeight = 88
+      const spaceBelow = window.innerHeight - rect.bottom
+      const openUp = spaceBelow < menuHeight + 16
+      setMenuPos({
+        top: openUp ? rect.top - menuHeight - 4 : rect.bottom + 4,
+        left: rect.right - 140,
+        openUp,
+      })
+    }
+    setMenuOpen((v) => !v)
+  }
 
   const clientName = (invoice.client as unknown as { name: string })?.name || '—'
 
@@ -58,29 +79,32 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
         &euro;&nbsp;{invoice.amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
       <td className="px-5 py-3.5 text-right">
-        <div className="relative inline-block" ref={menuRef}>
-          <button onClick={() => setMenuOpen(!menuOpen)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-            <MoreVertical className="w-4 h-4" />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[140px]">
-              <button
-                onClick={() => { setMenuOpen(false); onEdit(invoice.id) }}
-                className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <Pencil className="w-4 h-4" />
-                Bewerken
-              </button>
-              <button
-                onClick={() => { setMenuOpen(false); onDelete(invoice.id) }}
-                className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Verwijderen
-              </button>
-            </div>
-          )}
-        </div>
+        <button ref={buttonRef} onClick={toggleMenu} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+          <MoreVertical className="w-4 h-4" />
+        </button>
+        {menuOpen && createPortal(
+          <div
+            ref={menuRef}
+            className="fixed bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-[9999] min-w-[140px]"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            <button
+              onClick={() => { setMenuOpen(false); onEdit(invoice.id) }}
+              className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+              Bewerken
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); onDelete(invoice.id) }}
+              className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Verwijderen
+            </button>
+          </div>,
+          document.body
+        )}
       </td>
     </tr>
   )
