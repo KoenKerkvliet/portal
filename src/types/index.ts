@@ -260,6 +260,7 @@ export interface Expense {
   amount_incl_btw: number
   invoice_number: string | null
   notes: string
+  currency: string
   created_at: string
 }
 

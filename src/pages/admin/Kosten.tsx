@@ -62,6 +62,19 @@ function formatDate(d: string): string {
   return new Date(d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function currencySymbol(cur: string): string {
+  switch (cur) {
+    case 'EUR': return '€'
+    case 'USD': return '$'
+    case 'GBP': return '£'
+    default: return cur
+  }
+}
+
+function formatMoney(amount: number, currency: string): string {
+  return `${currencySymbol(currency)} ${Number(amount).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 // Robust CSV parser: handles quoted fields, escaped quotes, and , or ; delimiter
 function parseCsv(text: string): string[][] {
   const firstLine = text.split(/\r?\n/, 1)[0] || ''
@@ -102,9 +115,14 @@ function parseCsv(text: string): string[][] {
   return rows
 }
 
-const HEADER_ALIASES: Record<keyof ExpenseInput, string[]> = {
+// Title is a separate column from description because some CSV exports use "Titel"
+// for the main name and "Omschrijving" for additional notes.
+type CsvField = keyof ExpenseInput | 'title'
+
+const HEADER_ALIASES: Record<CsvField, string[]> = {
   expense_date: ['datum', 'date', 'boekdatum', 'factuurdatum'],
   vendor: ['leverancier', 'vendor', 'supplier', 'crediteur', 'naam'],
+  title: ['titel', 'title', 'naam transactie'],
   description: ['omschrijving', 'beschrijving', 'description', 'omschr'],
   category: ['categorie', 'category', 'rubriek'],
   amount_excl_btw: ['bedrag excl btw', 'bedrag ex btw', 'netto', 'excl btw', 'amount excl btw', 'subtotaal', 'bedrag exclusief'],
@@ -113,6 +131,7 @@ const HEADER_ALIASES: Record<keyof ExpenseInput, string[]> = {
   amount_incl_btw: ['totaal', 'bruto', 'total', 'amount incl btw', 'bedrag incl btw', 'bedrag', 'amount'],
   invoice_number: ['factuurnummer', 'invoice number', 'factuurnr', 'nummer'],
   notes: ['notities', 'notes', 'opmerkingen', 'opmerking'],
+  currency: ['valuta', 'currency', 'munteenheid'],
 }
 
 interface ExpenseInput {
@@ -126,6 +145,7 @@ interface ExpenseInput {
   amount_incl_btw: number
   invoice_number: string
   notes: string
+  currency: string
 }
 
 const emptyInput = (): ExpenseInput => ({
@@ -139,24 +159,36 @@ const emptyInput = (): ExpenseInput => ({
   amount_incl_btw: 0,
   invoice_number: '',
   notes: '',
+  currency: 'EUR',
 })
 
 function normalizeHeader(s: string): string {
   return s.toLowerCase().trim().replace(/[._-]/g, ' ').replace(/\s+/g, ' ')
 }
 
-function mapHeaders(headers: string[]): Record<keyof ExpenseInput, number | undefined> {
+function mapHeaders(headers: string[]): Record<CsvField, number | undefined> {
   const map: Record<string, number | undefined> = {}
   const normalized = headers.map(normalizeHeader)
   for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
     const found = normalized.findIndex((h) => aliases.some((a) => normalizeHeader(a) === h))
     map[field] = found >= 0 ? found : undefined
   }
-  return map as Record<keyof ExpenseInput, number | undefined>
+  return map as Record<CsvField, number | undefined>
 }
 
-function rowToInput(row: string[], colMap: Record<keyof ExpenseInput, number | undefined>): ExpenseInput {
-  const get = (k: keyof ExpenseInput) => {
+function normalizeCurrency(raw: string): string {
+  const s = raw.trim().toUpperCase()
+  if (!s) return 'EUR'
+  if (s === '€' || s.startsWith('EUR')) return 'EUR'
+  if (s === '$' || s.startsWith('USD')) return 'USD'
+  if (s === '£' || s.startsWith('GBP')) return 'GBP'
+  // Use first 3 letters as ISO code if reasonable
+  if (/^[A-Z]{3}$/.test(s)) return s
+  return 'EUR'
+}
+
+function rowToInput(row: string[], colMap: Record<CsvField, number | undefined>): ExpenseInput {
+  const get = (k: CsvField) => {
     const idx = colMap[k]
     return idx != null ? (row[idx] ?? '') : ''
   }
@@ -164,11 +196,28 @@ function rowToInput(row: string[], colMap: Record<keyof ExpenseInput, number | u
   const inp = emptyInput()
   inp.expense_date = parseDate(get('expense_date'))
   inp.vendor = String(get('vendor')).trim()
-  inp.description = String(get('description')).trim() || inp.vendor || 'Onbekend'
   inp.category = String(get('category')).trim()
   inp.invoice_number = String(get('invoice_number')).trim()
-  inp.notes = String(get('notes')).trim()
-  inp.btw_percent = parseAmount(get('btw_percent')) || 21
+  inp.currency = normalizeCurrency(String(get('currency')))
+
+  // Combine title + description: title is the primary description, description column
+  // (when both exist) goes into notes as additional info.
+  const title = String(get('title')).trim()
+  const desc = String(get('description')).trim()
+  const explicitNotes = String(get('notes')).trim()
+
+  if (title && desc) {
+    inp.description = title
+    inp.notes = [desc, explicitNotes].filter(Boolean).join('\n')
+  } else {
+    inp.description = title || desc || inp.vendor || 'Onbekend'
+    inp.notes = explicitNotes
+  }
+
+  // Detect whether the CSV has any BTW info at all. If not, treat amount as final
+  // (no auto-split) — common for foreign software invoices, payment receipts, etc.
+  const hasBtwInfo = colMap.btw_percent != null || colMap.btw_amount != null
+  inp.btw_percent = hasBtwInfo ? (parseAmount(get('btw_percent')) || 21) : 0
 
   const ex = parseAmount(get('amount_excl_btw'))
   const btw = parseAmount(get('btw_amount'))
@@ -184,8 +233,13 @@ function rowToInput(row: string[], colMap: Record<keyof ExpenseInput, number | u
     inp.amount_incl_btw = Math.round((ex + inp.btw_amount) * 100) / 100
   } else if (incl) {
     inp.amount_incl_btw = incl
-    inp.amount_excl_btw = Math.round(incl / (1 + inp.btw_percent / 100) * 100) / 100
-    inp.btw_amount = Math.round((incl - inp.amount_excl_btw) * 100) / 100
+    if (inp.btw_percent > 0) {
+      inp.amount_excl_btw = Math.round(incl / (1 + inp.btw_percent / 100) * 100) / 100
+      inp.btw_amount = Math.round((incl - inp.amount_excl_btw) * 100) / 100
+    } else {
+      inp.amount_excl_btw = incl
+      inp.btw_amount = 0
+    }
   } else if (btw) {
     inp.btw_amount = btw
     inp.amount_excl_btw = Math.round(btw / (inp.btw_percent / 100) * 100) / 100
@@ -257,9 +311,20 @@ export default function Kosten() {
     return true
   })
 
-  const totalExcl = filtered.reduce((s, e) => s + Number(e.amount_excl_btw), 0)
-  const totalBtw = filtered.reduce((s, e) => s + Number(e.btw_amount), 0)
-  const totalIncl = filtered.reduce((s, e) => s + Number(e.amount_incl_btw), 0)
+  const totalsByCurrency: Record<string, { excl: number; btw: number; incl: number }> = {}
+  for (const e of filtered) {
+    const cur = e.currency || 'EUR'
+    if (!totalsByCurrency[cur]) totalsByCurrency[cur] = { excl: 0, btw: 0, incl: 0 }
+    totalsByCurrency[cur].excl += Number(e.amount_excl_btw)
+    totalsByCurrency[cur].btw += Number(e.btw_amount)
+    totalsByCurrency[cur].incl += Number(e.amount_incl_btw)
+  }
+  // Sort with EUR first, then alphabetical
+  const totalCurrencies = Object.keys(totalsByCurrency).sort((a, b) => {
+    if (a === 'EUR') return -1
+    if (b === 'EUR') return 1
+    return a.localeCompare(b)
+  })
 
   if (loading) {
     return (
@@ -333,21 +398,27 @@ export default function Kosten() {
         <span className="text-xs text-gray-400">{filtered.length} van {expenses.length} kosten</span>
       </div>
 
-      {/* Totals */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal excl. BTW</p>
-          <p className="text-xl font-bold text-gray-900 mt-1">&euro; {totalExcl.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+      {/* Totals — per currency */}
+      {totalCurrencies.length > 0 && (
+        <div className="space-y-3 mb-6">
+          {totalCurrencies.map((cur) => (
+            <div key={cur} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white rounded-xl border border-gray-100 p-4">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal excl. BTW <span className="text-gray-300">· {cur}</span></p>
+                <p className="text-xl font-bold text-gray-900 mt-1">{formatMoney(totalsByCurrency[cur].excl, cur)}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-4">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal BTW <span className="text-gray-300">· {cur}</span></p>
+                <p className="text-xl font-bold text-gray-900 mt-1">{formatMoney(totalsByCurrency[cur].btw, cur)}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 p-4">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal incl. BTW <span className="text-gray-300">· {cur}</span></p>
+                <p className="text-xl font-bold text-primary mt-1">{formatMoney(totalsByCurrency[cur].incl, cur)}</p>
+              </div>
+            </div>
+          ))}
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal BTW</p>
-          <p className="text-xl font-bold text-gray-900 mt-1">&euro; {totalBtw.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Totaal incl. BTW</p>
-          <p className="text-xl font-bold text-primary mt-1">&euro; {totalIncl.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-        </div>
-      </div>
+      )}
 
       {/* Table */}
       {expenses.length === 0 ? (
@@ -455,9 +526,9 @@ function ExpenseRow({ expense, onEdit, onDelete }: {
           <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">{expense.category}</span>
         ) : '—'}
       </td>
-      <td className="px-5 py-3.5 text-sm text-gray-700 text-right whitespace-nowrap">&euro;&nbsp;{Number(expense.amount_excl_btw).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-      <td className="px-5 py-3.5 text-sm text-gray-500 text-right whitespace-nowrap">&euro;&nbsp;{Number(expense.btw_amount).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-      <td className="px-5 py-3.5 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">&euro;&nbsp;{Number(expense.amount_incl_btw).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td className="px-5 py-3.5 text-sm text-gray-700 text-right whitespace-nowrap">{formatMoney(Number(expense.amount_excl_btw), expense.currency || 'EUR')}</td>
+      <td className="px-5 py-3.5 text-sm text-gray-500 text-right whitespace-nowrap">{formatMoney(Number(expense.btw_amount), expense.currency || 'EUR')}</td>
+      <td className="px-5 py-3.5 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">{formatMoney(Number(expense.amount_incl_btw), expense.currency || 'EUR')}</td>
       <td className="px-5 py-3.5 text-right">
         <button ref={buttonRef} onClick={toggleMenu} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
           <MoreVertical className="w-4 h-4" />
@@ -510,6 +581,7 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
         amount_incl_btw: Number(expense.amount_incl_btw),
         invoice_number: expense.invoice_number || '',
         notes: expense.notes || '',
+        currency: expense.currency || 'EUR',
       }
     }
     return emptyInput()
@@ -545,6 +617,7 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
       amount_incl_btw: form.amount_incl_btw,
       invoice_number: form.invoice_number || null,
       notes: form.notes,
+      currency: form.currency,
     }
     if (expense) {
       await supabase.from('expenses').update(payload).eq('id', expense.id)
@@ -626,11 +699,23 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Valuta</label>
+                <select
+                  value={form.currency}
+                  onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm cursor-pointer"
+                >
+                  <option value="EUR">EUR</option>
+                  <option value="USD">USD</option>
+                  <option value="GBP">GBP</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Excl. BTW</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">&euro;</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{currencySymbol(form.currency)}</span>
                   <input
                     type="number"
                     step="0.01"
@@ -653,7 +738,7 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Incl. BTW</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">&euro;</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{currencySymbol(form.currency)}</span>
                   <input
                     type="number"
                     step="0.01"
@@ -705,7 +790,7 @@ function ImportCsvModal({ onClose, onImported }: {
   const [stage, setStage] = useState<'upload' | 'preview' | 'importing' | 'done'>('upload')
   const [rows, setRows] = useState<ExpenseInput[]>([])
   const [headers, setHeaders] = useState<string[]>([])
-  const [colMap, setColMap] = useState<Record<keyof ExpenseInput, number | undefined> | null>(null)
+  const [colMap, setColMap] = useState<Record<CsvField, number | undefined> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [importedCount, setImportedCount] = useState(0)
 
@@ -722,13 +807,11 @@ function ImportCsvModal({ onClose, onImported }: {
       const dataRows = allRows.slice(1)
       const map = mapHeaders(hdrs)
 
-      const required: (keyof ExpenseInput)[] = ['expense_date']
-      const hasOneAmount = map.amount_excl_btw != null || map.amount_incl_btw != null
-      const missingRequired = required.filter((k) => map[k] == null)
-      if (missingRequired.length > 0) {
-        setError(`Verplichte kolom ontbreekt: ${missingRequired.join(', ')}. Gebruik een van deze headers: ${missingRequired.map((k) => HEADER_ALIASES[k].join(' / ')).join(' | ')}`)
+      if (map.expense_date == null) {
+        setError(`Verplichte kolom Datum ontbreekt. Gebruik een van deze headers: ${HEADER_ALIASES.expense_date.join(' / ')}`)
         return
       }
+      const hasOneAmount = map.amount_excl_btw != null || map.amount_incl_btw != null
       if (!hasOneAmount) {
         setError(`Kolom voor bedrag ontbreekt. Gebruik een van: ${HEADER_ALIASES.amount_excl_btw.join(' / ')} of ${HEADER_ALIASES.amount_incl_btw.join(' / ')}`)
         return
@@ -757,6 +840,7 @@ function ImportCsvModal({ onClose, onImported }: {
       amount_incl_btw: r.amount_incl_btw,
       invoice_number: r.invoice_number || null,
       notes: r.notes,
+      currency: r.currency,
     }))
 
     const { error: dbErr, count } = await supabase.from('expenses').insert(payload, { count: 'exact' })
@@ -788,9 +872,11 @@ function ImportCsvModal({ onClose, onImported }: {
                   <p className="font-medium mb-1">Welke kolommen worden herkend?</p>
                   <ul className="text-xs text-blue-800 space-y-0.5 ml-1">
                     <li>• <strong>Datum</strong>: datum, date, boekdatum, factuurdatum</li>
-                    <li>• <strong>Leverancier</strong>: leverancier, vendor, supplier, crediteur</li>
+                    <li>• <strong>Titel</strong>: titel, title (gebruikt als hoofdomschrijving)</li>
                     <li>• <strong>Omschrijving</strong>: omschrijving, beschrijving, description</li>
+                    <li>• <strong>Leverancier</strong>: leverancier, vendor, supplier, crediteur</li>
                     <li>• <strong>Categorie</strong>: categorie, category, rubriek</li>
+                    <li>• <strong>Valuta</strong>: valuta, currency, munteenheid (EUR / USD / GBP)</li>
                     <li>• <strong>Bedrag excl. BTW</strong>: bedrag excl btw, netto, subtotaal</li>
                     <li>• <strong>BTW%</strong>: btw%, btw percentage, btw tarief, tarief</li>
                     <li>• <strong>BTW bedrag</strong>: btw bedrag, btw, vat</li>
@@ -799,7 +885,7 @@ function ImportCsvModal({ onClose, onImported }: {
                     <li>• <strong>Notities</strong>: notities, opmerkingen, notes</li>
                   </ul>
                   <p className="text-xs text-blue-800 mt-2">
-                    Kolomkoppen zijn niet hoofdlettergevoelig. Komma- of puntkomma-gescheiden CSV werkt beide. Bedragen mogen het Nederlandse formaat zoals <code>1.234,56</code> hebben.
+                    Kolomkoppen zijn niet hoofdlettergevoelig. Komma- of puntkomma-gescheiden CSV werkt beide. Bedragen mogen het Nederlandse formaat zoals <code>1.234,56</code> hebben. Als er geen BTW-kolom is, wordt het bedrag opgeslagen zoals het is (BTW = 0).
                   </p>
                 </div>
 
@@ -857,6 +943,7 @@ function ImportCsvModal({ onClose, onImported }: {
                         <th className="px-3 py-2 text-left font-semibold text-gray-500">Leverancier</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-500">Omschrijving</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-500">Categorie</th>
+                        <th className="px-3 py-2 text-left font-semibold text-gray-500">Valuta</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-500">Excl.</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-500">BTW%</th>
                         <th className="px-3 py-2 text-right font-semibold text-gray-500">Totaal</th>
@@ -869,9 +956,10 @@ function ImportCsvModal({ onClose, onImported }: {
                           <td className="px-3 py-1.5">{r.vendor || '—'}</td>
                           <td className="px-3 py-1.5">{r.description}</td>
                           <td className="px-3 py-1.5">{r.category || '—'}</td>
-                          <td className="px-3 py-1.5 text-right font-mono">&euro; {r.amount_excl_btw.toFixed(2)}</td>
+                          <td className="px-3 py-1.5">{r.currency}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{r.amount_excl_btw.toFixed(2)}</td>
                           <td className="px-3 py-1.5 text-right font-mono">{r.btw_percent}%</td>
-                          <td className="px-3 py-1.5 text-right font-mono">&euro; {r.amount_incl_btw.toFixed(2)}</td>
+                          <td className="px-3 py-1.5 text-right font-mono">{r.amount_incl_btw.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
