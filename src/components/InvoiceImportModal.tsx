@@ -188,6 +188,7 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
   const [importedCount, setImportedCount] = useState(0)
   const [skippedCount, setSkippedCount] = useState(0)
   const [failedCount, setFailedCount] = useState(0)
+  const [errorMessages, setErrorMessages] = useState<string[]>([])
 
   const [projects, setProjects] = useState<ProjectRow[]>([])
   const [clients, setClients] = useState<ClientRow[]>([])
@@ -316,11 +317,53 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
   const handleConfirmImport = async () => {
     setStage('importing')
     let imported = 0
-    let skipped = 0
     let failed = 0
+    const errors: string[] = []
+    let depositColumnsMissing = false
 
     const okInvoices = invoices.filter((i) => i.validation === 'ok')
-    skipped = invoices.length - okInvoices.length
+    const skipped = invoices.length - okInvoices.length
+
+    type Payload = Record<string, unknown>
+
+    // Build a base payload (without deposit/remainder columns) and a full payload (with)
+    const buildBasePayload = (inv: ParsedInvoice): Payload => ({
+      number: inv.number,
+      project_id: inv.projectId,
+      client_id: inv.clientId,
+      amount: inv.total,
+      subtotal: inv.subtotal,
+      status: inv.status,
+      due_date: inv.due_date,
+      invoice_date: inv.invoice_date,
+      is_test: inv.is_test,
+      client_name: inv.client_name || null,
+      client_email: inv.client_email || null,
+      client_address: inv.client_address || null,
+      items: inv.items,
+      discount_percent: 0,
+      btw_percent: inv.btw_percent,
+      notes: inv.notes,
+    })
+
+    // Try inserting once with full payload; if it errors on a missing deposit column,
+    // remember that and retry with the base payload (and use base for the rest).
+    const tryInsert = async (basePayload: Payload, depositPayload: Payload, label: string): Promise<{ id: string | null; ok: boolean }> => {
+      const usingBase = depositColumnsMissing
+      const fullPayload = usingBase ? basePayload : { ...basePayload, ...depositPayload }
+      let res = await supabase.from('invoices').insert(fullPayload).select('id').single()
+      if (res.error && !usingBase && /column .* does not exist|schema cache/i.test(res.error.message)) {
+        // Migration for deposit columns probably not run — fall back
+        depositColumnsMissing = true
+        res = await supabase.from('invoices').insert(basePayload).select('id').single()
+      }
+      if (res.error || !res.data) {
+        console.error('Insert mislukt voor', label, res.error)
+        errors.push(`${label}: ${res.error?.message || 'onbekende fout'}`)
+        return { id: null, ok: false }
+      }
+      return { id: res.data.id, ok: true }
+    }
 
     // Insert non-remainders first, build a map number -> inserted UUID
     const numberToId = new Map<string, string>()
@@ -331,86 +374,55 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
         remainders.push(inv)
         continue
       }
-      const payload = {
-        number: inv.number,
-        project_id: inv.projectId,
-        client_id: inv.clientId,
-        amount: inv.total,
-        subtotal: inv.subtotal,
-        status: inv.status,
-        due_date: inv.due_date,
-        invoice_date: inv.invoice_date,
-        is_test: inv.is_test,
-        client_name: inv.client_name || null,
-        client_email: inv.client_email || null,
-        client_address: inv.client_address || null,
-        items: inv.items,
-        discount_percent: 0,
-        btw_percent: inv.btw_percent,
-        notes: inv.notes,
+      const base = buildBasePayload(inv)
+      const deposit = {
         is_deposit_invoice: inv.isDeposit,
         is_remainder_invoice: false,
         has_temp_number: false,
         deposit_percentage: inv.depositPercentage,
         parent_invoice_id: null,
       }
-      const { data, error: insErr } = await supabase.from('invoices').insert(payload).select('id').single()
-      if (insErr || !data) {
-        console.error('Insert mislukt voor', inv.number, insErr)
-        failed++
-      } else {
+      const { id, ok } = await tryInsert(base, deposit, inv.number)
+      if (ok) {
         imported++
-        numberToId.set(inv.number, data.id)
+        if (id) numberToId.set(inv.number, id)
+      } else {
+        failed++
       }
     }
 
-    // Now insert remainders, linking parent_invoice_id
+    // Now insert remainders, linking parent_invoice_id (if column exists)
     for (const inv of remainders) {
       let parentId: string | null = null
       if (inv.parentNumber) {
         parentId = numberToId.get(inv.parentNumber) ?? null
         if (!parentId) {
-          // Maybe parent already existed in DB before this import
           const { data } = await supabase.from('invoices').select('id').eq('number', inv.parentNumber).limit(1).single()
           if (data) parentId = data.id
         }
       }
       const hasTemp = inv.number.toUpperCase().startsWith('DRAFT-')
-      const payload = {
-        number: inv.number,
-        project_id: inv.projectId,
-        client_id: inv.clientId,
-        amount: inv.total,
-        subtotal: inv.subtotal,
-        status: inv.status,
-        due_date: inv.due_date,
-        invoice_date: inv.invoice_date,
-        is_test: inv.is_test,
-        client_name: inv.client_name || null,
-        client_email: inv.client_email || null,
-        client_address: inv.client_address || null,
-        items: inv.items,
-        discount_percent: 0,
-        btw_percent: inv.btw_percent,
-        notes: inv.notes,
+      const base = buildBasePayload(inv)
+      const deposit = {
         is_deposit_invoice: false,
         is_remainder_invoice: true,
         has_temp_number: hasTemp,
         deposit_percentage: inv.depositPercentage,
         parent_invoice_id: parentId,
       }
-      const { error: insErr } = await supabase.from('invoices').insert(payload)
-      if (insErr) {
-        console.error('Insert restfactuur mislukt voor', inv.number, insErr)
-        failed++
-      } else {
-        imported++
-      }
+      const { ok } = await tryInsert(base, deposit, inv.number)
+      if (ok) imported++
+      else failed++
+    }
+
+    if (depositColumnsMissing) {
+      errors.unshift('Aanbetalings-/restfactuur kolommen ontbreken (SQL add-deposit-invoice-columns.sql niet gedraaid). Facturen zijn zonder die metadata geimporteerd.')
     }
 
     setImportedCount(imported)
     setSkippedCount(skipped)
     setFailedCount(failed)
+    setErrorMessages(errors)
     setStage('done')
   }
 
@@ -569,16 +581,35 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
             )}
 
             {stage === 'done' && (
-              <div className="py-8 text-center">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+              <div className="py-8">
+                <div className="text-center">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${importedCount > 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+                    {importedCount > 0 ? (
+                      <CheckCircle2 className="w-6 h-6 text-green-600" />
+                    ) : (
+                      <AlertCircle className="w-6 h-6 text-red-600" />
+                    )}
+                  </div>
+                  <p className="text-lg font-medium text-gray-900">{importedCount} facturen geimporteerd</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {skippedCount > 0 && <>{skippedCount} overgeslagen · </>}
+                    {failedCount > 0 && <span className="text-red-600">{failedCount} mislukt · </span>}
+                    Klaar
+                  </p>
                 </div>
-                <p className="text-lg font-medium text-gray-900">{importedCount} facturen geimporteerd</p>
-                <p className="text-sm text-gray-500 mt-1">
-                  {skippedCount > 0 && <>{skippedCount} overgeslagen · </>}
-                  {failedCount > 0 && <span className="text-red-600">{failedCount} mislukt · </span>}
-                  Klaar
-                </p>
+                {errorMessages.length > 0 && (
+                  <div className="mt-5 bg-red-50 border border-red-200 rounded-xl p-4 max-h-60 overflow-y-auto">
+                    <p className="text-sm font-semibold text-red-800 mb-2">Foutmeldingen</p>
+                    <ul className="text-xs text-red-700 space-y-1">
+                      {errorMessages.slice(0, 30).map((msg, i) => (
+                        <li key={i} className="font-mono">• {msg}</li>
+                      ))}
+                      {errorMessages.length > 30 && (
+                        <li className="text-red-500 italic">+ {errorMessages.length - 30} meer in de console</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>
