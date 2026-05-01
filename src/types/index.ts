@@ -23,6 +23,7 @@ export interface Client {
   id: string
   name: string
   email: string
+  email_extra: string[]
   phone: string | null
   company: string | null
   profile_id: string | null

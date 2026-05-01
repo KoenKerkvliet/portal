@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import type { Client } from '../../types'
 import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil } from 'lucide-react'
 
+const MAX_EXTRA_EMAILS = 2
+
 interface NewUser {
   id: string
   email: string
@@ -26,6 +28,7 @@ export default function Clients() {
   const [domainMode, setDomainMode] = useState<'existing' | 'new'>('existing')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' })
+  const [extraEmails, setExtraEmails] = useState<string[]>([])
   const [selectedDomainId, setSelectedDomainId] = useState('')
   const [newDomain, setNewDomain] = useState({ name: '', url: '' })
 
@@ -53,6 +56,7 @@ export default function Clients() {
     setLinkingUser(null)
     setDomainMode('existing')
     setFormData({ name: '', email: '', phone: '', company: '' })
+    setExtraEmails([])
     setSelectedDomainId('')
     setNewDomain({ name: '', url: '' })
   }
@@ -65,17 +69,21 @@ export default function Clients() {
       phone: client.phone || '',
       company: client.company || '',
     })
+    setExtraEmails(client.email_extra || [])
     setShowForm(true)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    const cleanedExtraEmails = extraEmails.map((e) => e.trim()).filter(Boolean)
+
     if (editingId) {
       // Update existing client
       await supabase.from('clients').update({
         name: formData.name,
         email: formData.email,
+        email_extra: cleanedExtraEmails,
         phone: formData.phone || null,
         company: formData.company || null,
       }).eq('id', editingId)
@@ -88,6 +96,7 @@ export default function Clients() {
     const { data: clientRecord, error: clientError } = await supabase.from('clients').insert({
       name: formData.name,
       email: formData.email,
+      email_extra: cleanedExtraEmails,
       phone: formData.phone || null,
       company: formData.company || null,
       profile_id: linkingUser?.id || null,
@@ -120,6 +129,7 @@ export default function Clients() {
       phone: '',
       company: '',
     })
+    setExtraEmails([])
     setDomainMode('existing')
     setSelectedDomainId('')
     setNewDomain({ name: '', url: '' })
@@ -251,6 +261,39 @@ export default function Clients() {
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
                   required
                 />
+                {extraEmails.map((extra, idx) => (
+                  <div key={idx} className="flex items-center gap-2 mt-2">
+                    <input
+                      type="email"
+                      value={extra}
+                      onChange={(e) => {
+                        const next = [...extraEmails]
+                        next[idx] = e.target.value
+                        setExtraEmails(next)
+                      }}
+                      className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder={`Extra e-mailadres ${idx + 2}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setExtraEmails(extraEmails.filter((_, i) => i !== idx))}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Verwijder dit e-mailadres"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                {extraEmails.length < MAX_EXTRA_EMAILS && (
+                  <button
+                    type="button"
+                    onClick={() => setExtraEmails([...extraEmails, ''])}
+                    className="flex items-center gap-1.5 mt-2 text-xs text-primary hover:text-primary-600 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Extra e-mailadres toevoegen
+                  </button>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Telefoon</label>
@@ -435,6 +478,11 @@ export default function Clients() {
                       <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       <span className="truncate">{client.email}</span>
                     </div>
+                    {(client.email_extra || []).filter(Boolean).map((extra, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-sm text-gray-500 pl-5">
+                        <span className="truncate">{extra}</span>
+                      </div>
+                    ))}
                     {client.phone && (
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
