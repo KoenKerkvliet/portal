@@ -19,6 +19,8 @@ export interface Profile {
   created_at: string
 }
 
+export type ClientStatus = 'active' | 'archived'
+
 export interface Client {
   id: string
   name: string
@@ -27,6 +29,7 @@ export interface Client {
   phone: string | null
   company: string | null
   profile_id: string | null
+  status: ClientStatus
   created_at: string
 }
 

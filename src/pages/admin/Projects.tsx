@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy, Settings, Search, Filter } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy, Settings, Search, Filter, Archive, ArchiveRestore } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -129,6 +129,7 @@ export default function Projects() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterPhase, setFilterPhase] = useState<ProjectPhase | 'all'>('all')
   const [filterClient, setFilterClient] = useState('all')
+  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const [phaseDropdownId, setPhaseDropdownId] = useState<string | null>(null)
   const [clientDropdownId, setClientDropdownId] = useState<string | null>(null)
   const [projectClients, setProjectClients] = useState<Record<string, ProjectClient[]>>({})
@@ -587,8 +588,19 @@ export default function Projects() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Weet je zeker dat je dit domein wilt verwijderen?')) return
+    if (!confirm('Weet je zeker dat je dit domein definitief wilt verwijderen? Deze actie kan niet ongedaan gemaakt worden.')) return
     await supabase.from('projects').delete().eq('id', id)
+    fetchProjects()
+  }
+
+  const handleArchive = async (id: string) => {
+    if (!confirm('Domein archiveren? Het verdwijnt uit het overzicht maar je kunt het later weer terughalen.')) return
+    await supabase.from('projects').update({ status: 'archived' }).eq('id', id)
+    fetchProjects()
+  }
+
+  const handleRestore = async (id: string) => {
+    await supabase.from('projects').update({ status: 'active' }).eq('id', id)
     fetchProjects()
   }
 
@@ -802,6 +814,9 @@ export default function Projects() {
   }
 
   const filteredProjects = projects.filter((p) => {
+    const projectStatus = p.status || 'active'
+    if (viewMode === 'active' && projectStatus !== 'active') return false
+    if (viewMode === 'archived' && projectStatus !== 'archived') return false
     if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
     if (filterPhase !== 'all' && p.current_phase !== filterPhase) return false
     if (filterClient !== 'all' && p.client_id !== filterClient) return false
@@ -810,17 +825,38 @@ export default function Projects() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 sm:mb-8">
+      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Domeinen</h1>
           <p className="text-gray-500 mt-1 text-sm sm:text-base">Beheer je domeinen</p>
         </div>
-        <button onClick={() => { setFormData(emptyForm); setShowForm(true) }}
-          className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors text-sm">
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nieuw domein</span>
-          <span className="sm:hidden">Nieuw</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex bg-gray-100 rounded-lg p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('active')}
+              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${viewMode === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Actief
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('archived')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${viewMode === 'archived' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              Gearchiveerd
+            </button>
+          </div>
+          {viewMode === 'active' && (
+            <button onClick={() => { setFormData(emptyForm); setShowForm(true) }}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors text-sm">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Nieuw domein</span>
+              <span className="sm:hidden">Nieuw</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -1011,13 +1047,31 @@ export default function Projects() {
                               )}
                             </div>
                             <div className="border-t border-gray-100 my-1" />
+                            {/* Archive / Restore */}
+                            {(project.status || 'active') === 'active' ? (
+                              <button
+                                onClick={() => { setSettingsDropdownId(null); handleArchive(project.id) }}
+                                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                              >
+                                <Archive className="w-4 h-4" />
+                                Archiveren
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => { setSettingsDropdownId(null); handleRestore(project.id) }}
+                                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-green-700 hover:bg-green-50 transition-colors"
+                              >
+                                <ArchiveRestore className="w-4 h-4" />
+                                Herstellen
+                              </button>
+                            )}
                             {/* Delete */}
                             <button
                               onClick={() => { setSettingsDropdownId(null); handleDelete(project.id) }}
                               className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                             >
                               <Trash2 className="w-4 h-4" />
-                              Verwijderen
+                              {(project.status || 'active') === 'archived' ? 'Definitief verwijderen' : 'Verwijderen'}
                             </button>
                           </div>
                         )}

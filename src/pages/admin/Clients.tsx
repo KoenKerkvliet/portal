@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Client } from '../../types'
-import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil } from 'lucide-react'
+import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore } from 'lucide-react'
 
 const MAX_EXTRA_EMAILS = 2
 
@@ -24,6 +24,7 @@ export default function Clients() {
   const [domains, setDomains] = useState<DomainOption[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const [linkingUser, setLinkingUser] = useState<NewUser | null>(null)
   const [domainMode, setDomainMode] = useState<'existing' | 'new'>('existing')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -144,10 +145,35 @@ export default function Clients() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Weet je zeker dat je deze klant wilt verwijderen?')) return
+    if (!confirm('Weet je zeker dat je deze klant definitief wilt verwijderen? Deze actie kan niet ongedaan gemaakt worden.')) return
     await supabase.from('clients').delete().eq('id', id)
     fetchData()
   }
+
+  const handleArchive = async (id: string) => {
+    if (!confirm('Klant archiveren? De klant verdwijnt uit het overzicht maar je kunt hem later weer terughalen.')) return
+    const { error } = await supabase.from('clients').update({ status: 'archived' }).eq('id', id)
+    if (error) {
+      alert('Archiveren mislukt: ' + error.message + '\n\nMogelijk is de SQL add-client-status-column.sql nog niet gedraaid in Supabase.')
+      return
+    }
+    fetchData()
+  }
+
+  const handleRestore = async (id: string) => {
+    const { error } = await supabase.from('clients').update({ status: 'active' }).eq('id', id)
+    if (error) {
+      alert('Herstellen mislukt: ' + error.message)
+      return
+    }
+    fetchData()
+  }
+
+  const visibleClients = clients.filter((c) => {
+    const status = c.status || 'active'
+    if (viewMode === 'active') return status === 'active'
+    return status === 'archived'
+  })
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('nl-NL', {
@@ -170,18 +196,39 @@ export default function Clients() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 sm:mb-8">
+      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Klanten</h1>
           <p className="text-gray-500 mt-1">Beheer je klanten</p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true) }}
-          className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nieuwe klant</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex bg-gray-100 rounded-lg p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('active')}
+              className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${viewMode === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Actief
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('archived')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${viewMode === 'archived' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              Gearchiveerd
+            </button>
+          </div>
+          {viewMode === 'active' && (
+            <button
+              onClick={() => { resetForm(); setShowForm(true) }}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Nieuwe klant</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* New Users Section */}
@@ -442,19 +489,23 @@ export default function Clients() {
             </div>
           ))}
         </div>
-      ) : clients.length === 0 && newUsers.length === 0 ? (
+      ) : visibleClients.length === 0 && newUsers.length === 0 ? (
         <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-100 text-center">
           <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900">Nog geen klanten</h3>
-          <p className="text-gray-500 mt-1">Voeg je eerste klant toe of wacht op nieuwe aanmeldingen.</p>
+          <h3 className="text-lg font-medium text-gray-900">
+            {viewMode === 'archived' ? 'Geen gearchiveerde klanten' : 'Nog geen klanten'}
+          </h3>
+          <p className="text-gray-500 mt-1">
+            {viewMode === 'archived' ? 'Klanten die je archiveert verschijnen hier.' : 'Voeg je eerste klant toe of wacht op nieuwe aanmeldingen.'}
+          </p>
         </div>
-      ) : clients.length > 0 && (
+      ) : visibleClients.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-            Klanten ({clients.length})
+            {viewMode === 'archived' ? 'Gearchiveerde klanten' : 'Klanten'} ({visibleClients.length})
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {clients.map((client) => (
+            {visibleClients.map((client) => (
               <div key={client.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 {/* Card Header */}
                 <div className="p-5">
@@ -509,17 +560,37 @@ export default function Clients() {
                 <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                   <span className="text-xs text-gray-400">Klant sinds {formatDate(client.created_at)}</span>
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleEdit(client)}
-                      className="p-1.5 text-gray-400 hover:text-primary transition-colors rounded-md hover:bg-primary/5"
-                      title="Bewerken"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
+                    {viewMode === 'active' ? (
+                      <>
+                        <button
+                          onClick={() => handleEdit(client)}
+                          className="p-1.5 text-gray-400 hover:text-primary transition-colors rounded-md hover:bg-primary/5"
+                          title="Bewerken"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleArchive(client.id)}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 transition-colors rounded-md hover:bg-amber-50"
+                          title="Archiveren"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => handleRestore(client.id)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-green-700 hover:bg-green-50 transition-colors rounded-md"
+                        title="Herstellen"
+                      >
+                        <ArchiveRestore className="w-3.5 h-3.5" />
+                        Herstellen
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(client.id)}
                       className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
-                      title="Verwijderen"
+                      title={viewMode === 'archived' ? 'Definitief verwijderen' : 'Verwijderen'}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
