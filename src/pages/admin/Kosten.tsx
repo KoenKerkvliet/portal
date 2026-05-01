@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
+import { parseCsv, parseAmount, parseDate, mapHeaders } from '../../lib/csv'
 import type { Expense } from '../../types'
 import {
   Plus,
@@ -23,41 +24,6 @@ function todayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-function parseAmount(raw: string | undefined | null): number {
-  if (raw == null) return 0
-  let s = String(raw).trim().replace(/[€\s]/g, '')
-  if (!s) return 0
-  // If there's both . and ,: assume . is thousand sep and , is decimal (NL)
-  const hasDot = s.includes('.')
-  const hasComma = s.includes(',')
-  if (hasDot && hasComma) {
-    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
-      s = s.replace(/\./g, '').replace(',', '.')
-    } else {
-      s = s.replace(/,/g, '')
-    }
-  } else if (hasComma) {
-    s = s.replace(',', '.')
-  }
-  const n = parseFloat(s)
-  return isNaN(n) ? 0 : n
-}
-
-function parseDate(raw: string | undefined | null): string {
-  if (!raw) return todayStr()
-  const s = String(raw).trim()
-  // yyyy-mm-dd
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
-  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
-  // dd-mm-yyyy or dd/mm/yyyy
-  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/)
-  if (m) {
-    const year = m[3].length === 2 ? `20${m[3]}` : m[3]
-    return `${year}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
-  }
-  return todayStr()
-}
-
 function formatDate(d: string): string {
   return new Date(d).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -73,46 +39,6 @@ function currencySymbol(cur: string): string {
 
 function formatMoney(amount: number, currency: string): string {
   return `${currencySymbol(currency)} ${Number(amount).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-// Robust CSV parser: handles quoted fields, escaped quotes, and , or ; delimiter
-function parseCsv(text: string): string[][] {
-  const firstLine = text.split(/\r?\n/, 1)[0] || ''
-  const delimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ','
-
-  const rows: string[][] = []
-  let row: string[] = []
-  let field = ''
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++ } else { inQuotes = false }
-      } else {
-        field += c
-      }
-    } else {
-      if (c === '"') {
-        inQuotes = true
-      } else if (c === delimiter) {
-        row.push(field); field = ''
-      } else if (c === '\n' || c === '\r') {
-        if (c === '\r' && text[i + 1] === '\n') i++
-        row.push(field); field = ''
-        if (row.some((f) => f.length > 0)) rows.push(row)
-        row = []
-      } else {
-        field += c
-      }
-    }
-  }
-  if (field.length > 0 || row.length > 0) {
-    row.push(field)
-    if (row.some((f) => f.length > 0)) rows.push(row)
-  }
-  return rows
 }
 
 // Title is a separate column from description because some CSV exports use "Titel"
@@ -161,20 +87,6 @@ const emptyInput = (): ExpenseInput => ({
   notes: '',
   currency: 'EUR',
 })
-
-function normalizeHeader(s: string): string {
-  return s.toLowerCase().trim().replace(/[._-]/g, ' ').replace(/\s+/g, ' ')
-}
-
-function mapHeaders(headers: string[]): Record<CsvField, number | undefined> {
-  const map: Record<string, number | undefined> = {}
-  const normalized = headers.map(normalizeHeader)
-  for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
-    const found = normalized.findIndex((h) => aliases.some((a) => normalizeHeader(a) === h))
-    map[field] = found >= 0 ? found : undefined
-  }
-  return map as Record<CsvField, number | undefined>
-}
 
 function normalizeCurrency(raw: string): string {
   const s = raw.trim().toUpperCase()
@@ -878,7 +790,7 @@ function ImportCsvModal({ onClose, onImported }: {
       }
       const hdrs = allRows[0]
       const dataRows = allRows.slice(1)
-      const map = mapHeaders(hdrs)
+      const map = mapHeaders<CsvField>(hdrs, HEADER_ALIASES)
 
       if (map.expense_date == null) {
         setError(`Verplichte kolom Datum ontbreekt. Gebruik een van deze headers: ${HEADER_ALIASES.expense_date.join(' / ')}`)

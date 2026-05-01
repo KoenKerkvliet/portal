@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceStatus, QuoteItem, YearFormat } from '../../types'
-import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck } from 'lucide-react'
+import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload } from 'lucide-react'
+import InvoiceImportModal from '../../components/InvoiceImportModal'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
@@ -224,6 +225,7 @@ export default function Invoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [showNewModal, setShowNewModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [isTest, setIsTest] = useState(false)
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
 
@@ -442,19 +444,35 @@ export default function Invoices() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Facturen</h1>
           <p className="text-gray-500 mt-1">Beheer je facturen</p>
         </div>
-        <button
-          onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nieuwe factuur
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Importeer CSV
+          </button>
+          <button
+            onClick={() => setShowNewModal(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nieuwe factuur
+          </button>
+        </div>
       </div>
+
+      {showImportModal && (
+        <InvoiceImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={() => { setShowImportModal(false); fetchInvoices() }}
+        />
+      )}
 
       {/* New invoice modal */}
       {showNewModal && (
