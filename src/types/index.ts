@@ -117,6 +117,11 @@ export interface Invoice {
   btw_percent: number
   notes: string
   subtotal: number
+  is_deposit_invoice: boolean
+  is_remainder_invoice: boolean
+  has_temp_number: boolean
+  deposit_percentage: number | null
+  parent_invoice_id: string | null
   created_at: string
   project?: Project
   client?: Client

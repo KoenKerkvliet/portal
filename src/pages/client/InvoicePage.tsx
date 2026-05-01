@@ -352,16 +352,40 @@ export default function InvoicePage() {
       </div>
 
       {/* Invoice document */}
+      {invoice.has_temp_number && (
+        <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-3">
+          <FileText className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-orange-800">Voorlopige restfactuur</p>
+            <p className="text-orange-700 mt-0.5">
+              Deze factuur heeft nog een tijdelijk nummer ({invoice.number}). Bij het afsluiten van het project wordt het definitieve factuurnummer toegekend.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {/* Header with accent bar */}
         <div className="bg-gradient-to-r from-primary to-primary-600 px-8 py-6 text-white">
           <div className="flex items-start justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold">Factuur</h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold">
+                  {invoice.is_deposit_invoice ? 'Aanbetalingsfactuur' : invoice.is_remainder_invoice ? 'Restfactuur' : 'Factuur'}
+                </h1>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.color}`}>
                   {status.label}
                 </span>
+                {invoice.is_deposit_invoice && invoice.deposit_percentage && (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                    {invoice.deposit_percentage}%
+                  </span>
+                )}
+                {invoice.is_remainder_invoice && invoice.deposit_percentage && (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                    {100 - invoice.deposit_percentage}%
+                  </span>
+                )}
               </div>
               <p className="text-white/70 text-sm mt-1">{invoice.number}</p>
             </div>

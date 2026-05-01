@@ -2,22 +2,61 @@ import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { Invoice, InvoiceStatus } from '../../types'
-import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye } from 'lucide-react'
+import type { Invoice, InvoiceStatus, QuoteItem, YearFormat } from '../../types'
+import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck } from 'lucide-react'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
 
-function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
+const DEPOSIT_PERCENTAGE = 30
+
+function generateInvoiceNumber(prefix: string, yearFormat: YearFormat, startNumber: number, existingNumbers: string[]): string {
+  const currentYear = new Date().getFullYear()
+  const yearStr = yearFormat === 'YY' ? String(currentYear).slice(-2) : String(currentYear)
+  const basePrefix = `${prefix}${yearStr}`
+  let maxNum = startNumber - 1
+  for (const num of existingNumbers) {
+    if (num.startsWith(basePrefix)) {
+      const suffix = num.slice(basePrefix.length)
+      const parsed = parseInt(suffix, 10)
+      if (!isNaN(parsed) && parsed > maxNum) maxNum = parsed
+    }
+  }
+  return `${basePrefix}${maxNum + 1}`
+}
+
+function nextTempNumber(invoices: Invoice[]): string {
+  let max = 0
+  for (const inv of invoices) {
+    if (!inv.has_temp_number) continue
+    const m = inv.number.match(/^TMP-(\d+)$/)
+    if (m) {
+      const n = parseInt(m[1], 10)
+      if (n > max) max = n
+    }
+  }
+  return `TMP-${max + 1}`
+}
+
+function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit, onSplit, onFinalize }: {
   invoice: Invoice
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onDelete: (id: string) => void
   onEdit: (id: string) => void
+  onSplit: (invoice: Invoice) => void
+  onFinalize: (invoice: Invoice) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false })
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const canSplit = !invoice.is_deposit_invoice && !invoice.is_remainder_invoice && !invoice.has_temp_number && invoice.status !== 'paid'
+  const canFinalize = invoice.is_remainder_invoice && invoice.has_temp_number
+
+  // Estimate menu height based on visible items (each ~36px + 8px padding)
+  const menuItemCount = 3 + (canSplit ? 1 : 0) + (canFinalize ? 1 : 0)
+  const estimatedMenuHeight = menuItemCount * 36 + 8
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -33,12 +72,11 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
   const toggleMenu = () => {
     if (!menuOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect()
-      const menuHeight = 132
       const spaceBelow = window.innerHeight - rect.bottom
-      const openUp = spaceBelow < menuHeight + 16
+      const openUp = spaceBelow < estimatedMenuHeight + 16
       setMenuPos({
-        top: openUp ? rect.top - menuHeight - 4 : rect.bottom + 4,
-        left: rect.right - 140,
+        top: openUp ? rect.top - estimatedMenuHeight - 4 : rect.bottom + 4,
+        left: rect.right - 180,
         openUp,
       })
     }
@@ -50,10 +88,23 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
   return (
     <tr className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
       <td className="px-5 py-3.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-mono text-sm text-gray-900">{invoice.number}</span>
           {invoice.is_test && (
             <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full">Test</span>
+          )}
+          {invoice.has_temp_number && (
+            <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded-full">Tijdelijk</span>
+          )}
+          {invoice.is_deposit_invoice && (
+            <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded-full">
+              Aanbetaling {invoice.deposit_percentage}%
+            </span>
+          )}
+          {invoice.is_remainder_invoice && (
+            <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-medium rounded-full">
+              Restant {invoice.deposit_percentage ? 100 - invoice.deposit_percentage : 70}%
+            </span>
           )}
         </div>
       </td>
@@ -85,7 +136,7 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
         {menuOpen && createPortal(
           <div
             ref={menuRef}
-            className="fixed bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-[9999] min-w-[140px]"
+            className="fixed bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-[9999] min-w-[180px]"
             style={{ top: menuPos.top, left: menuPos.left }}
           >
             <button
@@ -102,6 +153,24 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
               <Pencil className="w-4 h-4" />
               Bewerken
             </button>
+            {canSplit && (
+              <button
+                onClick={() => { setMenuOpen(false); onSplit(invoice) }}
+                className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-purple-700 hover:bg-purple-50 transition-colors"
+              >
+                <Split className="w-4 h-4" />
+                Splits in aanbetaling
+              </button>
+            )}
+            {canFinalize && (
+              <button
+                onClick={() => { setMenuOpen(false); onFinalize(invoice) }}
+                className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-green-700 hover:bg-green-50 transition-colors"
+              >
+                <CheckCheck className="w-4 h-4" />
+                Definitief maken
+              </button>
+            )}
             <button
               onClick={() => { setMenuOpen(false); onDelete(invoice.id) }}
               className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
@@ -117,11 +186,13 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit }: {
   )
 }
 
-function InvoiceTable({ invoices, onStatusChange, onDelete, onEdit, dateLabel }: {
+function InvoiceTable({ invoices, onStatusChange, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
   invoices: Invoice[]
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onDelete: (id: string) => void
   onEdit: (id: string) => void
+  onSplit: (invoice: Invoice) => void
+  onFinalize: (invoice: Invoice) => void
   dateLabel: 'due' | 'paid'
 }) {
   return (
@@ -140,7 +211,7 @@ function InvoiceTable({ invoices, onStatusChange, onDelete, onEdit, dateLabel }:
         </thead>
         <tbody>
           {invoices.map((invoice) => (
-            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onDelete={onDelete} onEdit={onEdit} />
+            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} />
           ))}
         </tbody>
       </table>
@@ -195,6 +266,131 @@ export default function Invoices() {
 
   const handleEdit = (id: string) => {
     navigate(`/admin/facturen/${id}`)
+  }
+
+  const handleSplit = async (invoice: Invoice) => {
+    const depositPct = DEPOSIT_PERCENTAGE
+    const remainderPct = 100 - depositPct
+
+    const items = (invoice.items || []) as QuoteItem[]
+    const originalSubtotal = items
+      .filter((i) => i.type === 'product')
+      .reduce((sum, i) => sum + (i.quantity || 0) * (i.price || 0), 0)
+    const baseAfterDiscount = originalSubtotal * (1 - (invoice.discount_percent || 0) / 100)
+    const depositSubtotal = Math.round(baseAfterDiscount * (depositPct / 100) * 100) / 100
+    const remainderSubtotal = Math.round((baseAfterDiscount - depositSubtotal) * 100) / 100
+    const btw = invoice.btw_percent || 0
+    const depositTotal = Math.round(depositSubtotal * (1 + btw / 100) * 100) / 100
+    const remainderTotal = Math.round(remainderSubtotal * (1 + btw / 100) * 100) / 100
+
+    if (!confirm(
+      `Splitsen van factuur ${invoice.number}?\n\n` +
+      `Aanbetaling (${depositPct}%): € ${depositTotal.toFixed(2)}\n` +
+      `Restfactuur (${remainderPct}%): € ${remainderTotal.toFixed(2)}\n\n` +
+      `De huidige factuur wordt vervangen door de aanbetalingsfactuur. Een nieuwe restfactuur met tijdelijk nummer wordt aangemaakt.`
+    )) return
+
+    const depositItem: QuoteItem = {
+      id: crypto.randomUUID(),
+      type: 'product',
+      name: `Aanbetaling ${depositPct}%`,
+      description: `Aanbetaling van ${depositPct}% op opdracht (factuur ${invoice.number}).`,
+      quantity: 1,
+      unit: 'stuk',
+      price: depositSubtotal,
+    }
+    const remainderItem: QuoteItem = {
+      id: crypto.randomUUID(),
+      type: 'product',
+      name: `Restant ${remainderPct}%`,
+      description: `Restant van ${remainderPct}% na aanbetaling op opdracht (origineel: ${invoice.number}).`,
+      quantity: 1,
+      unit: 'stuk',
+      price: remainderSubtotal,
+    }
+
+    // Update original invoice -> deposit invoice (keeps its number)
+    const { error: depErr } = await supabase.from('invoices').update({
+      items: [depositItem],
+      subtotal: depositSubtotal,
+      amount: depositTotal,
+      discount_percent: 0,
+      is_deposit_invoice: true,
+      deposit_percentage: depositPct,
+    }).eq('id', invoice.id)
+    if (depErr) {
+      alert('Aanbetalingsfactuur bijwerken mislukt: ' + depErr.message)
+      return
+    }
+
+    // Create remainder invoice with temp number
+    const tempNum = nextTempNumber(invoices)
+    const { error: remErr } = await supabase.from('invoices').insert({
+      number: tempNum,
+      project_id: invoice.project_id,
+      client_id: invoice.client_id,
+      amount: remainderTotal,
+      subtotal: remainderSubtotal,
+      status: 'draft',
+      due_date: invoice.due_date,
+      invoice_date: invoice.invoice_date,
+      is_test: invoice.is_test,
+      client_name: invoice.client_name,
+      client_email: invoice.client_email,
+      client_address: invoice.client_address,
+      items: [remainderItem],
+      discount_percent: 0,
+      btw_percent: btw,
+      notes: invoice.notes,
+      is_remainder_invoice: true,
+      has_temp_number: true,
+      deposit_percentage: depositPct,
+      parent_invoice_id: invoice.id,
+    })
+    if (remErr) {
+      alert('Restfactuur aanmaken mislukt: ' + remErr.message)
+      return
+    }
+
+    fetchInvoices()
+  }
+
+  const handleFinalize = async (invoice: Invoice) => {
+    if (!confirm(
+      `Restfactuur ${invoice.number} definitief maken?\n\n` +
+      `Het tijdelijke nummer wordt vervangen door het eerstvolgende factuurnummer uit de reeks.`
+    )) return
+
+    // Get invoice settings
+    const { data: settings } = await supabase.from('invoice_settings').select('*').limit(1).single()
+    if (!settings) {
+      alert('Factuurinstellingen niet gevonden. Stel eerst je factuurnummering in.')
+      return
+    }
+
+    // Get all real invoice numbers (excluding test and temp)
+    const realNumbers = invoices
+      .filter((i) => !i.is_test && !i.has_temp_number)
+      .map((i) => i.number)
+
+    const newNumber = generateInvoiceNumber(
+      settings.invoice_prefix,
+      settings.year_format as YearFormat,
+      settings.start_number,
+      realNumbers
+    )
+
+    const { error } = await supabase.from('invoices').update({
+      number: newNumber,
+      has_temp_number: false,
+    }).eq('id', invoice.id)
+
+    if (error) {
+      alert('Definitief maken mislukt: ' + error.message)
+      return
+    }
+
+    fetchInvoices()
   }
 
   // Apply filters
@@ -386,7 +582,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen openstaande facturen</p>
               </div>
             ) : (
-              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} dateLabel="due" />
+              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="due" />
             )}
           </section>
 
@@ -413,7 +609,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen betaalde facturen in {paidYear}</p>
               </div>
             ) : (
-              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} dateLabel="paid" />
+              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="paid" />
             )}
           </section>
 
