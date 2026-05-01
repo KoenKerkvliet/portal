@@ -80,13 +80,17 @@ export default function Clients() {
 
     if (editingId) {
       // Update existing client
-      await supabase.from('clients').update({
-        name: formData.name,
-        email: formData.email,
+      const { error: updateError } = await supabase.from('clients').update({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
         email_extra: cleanedExtraEmails,
         phone: formData.phone || null,
         company: formData.company || null,
       }).eq('id', editingId)
+      if (updateError) {
+        alert('Klant bijwerken mislukt: ' + updateError.message)
+        return
+      }
       resetForm()
       fetchData()
       return
@@ -94,15 +98,18 @@ export default function Clients() {
 
     // 1. Create client record
     const { data: clientRecord, error: clientError } = await supabase.from('clients').insert({
-      name: formData.name,
-      email: formData.email,
+      name: formData.name.trim(),
+      email: formData.email.trim(),
       email_extra: cleanedExtraEmails,
       phone: formData.phone || null,
       company: formData.company || null,
       profile_id: linkingUser?.id || null,
     }).select().single()
 
-    if (clientError || !clientRecord) return
+    if (clientError || !clientRecord) {
+      if (clientError) alert('Klant aanmaken mislukt: ' + clientError.message)
+      return
+    }
 
     // 2. Link or create domain
     if (domainMode === 'existing' && selectedDomainId) {

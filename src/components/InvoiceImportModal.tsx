@@ -221,19 +221,35 @@ export default function InvoiceImportModal({ onClose, onImported }: { onClose: (
       }
       let clientId: string | null = null
       if (inv.client_email) {
-        const target = inv.client_email.toLowerCase()
+        const target = inv.client_email.trim().toLowerCase()
         clientId = clients.find((c) => {
           const allEmails = [c.email, ...(c.email_extra || [])]
             .filter((e): e is string => Boolean(e))
-            .map((e) => e.toLowerCase())
+            .map((e) => e.trim().toLowerCase())
           return allEmails.includes(target)
         })?.id ?? null
       }
       if (!clientId && inv.client_name) {
-        clientId = clients.find((c) => c.name.toLowerCase() === inv.client_name.toLowerCase())?.id ?? null
+        const targetName = inv.client_name.trim().toLowerCase()
+        clientId = clients.find((c) => c.name.trim().toLowerCase() === targetName)?.id ?? null
       }
       if (!clientId) {
-        return { ...inv, projectId, validation: 'no-client', reason: inv.client_email || inv.client_name ? `Klant "${inv.client_email || inv.client_name}" niet gevonden` : 'Geen klant' }
+        // Diagnose: is there a client with the same name but a different email set?
+        let reason = 'Geen klant'
+        if (inv.client_email && inv.client_name) {
+          const sameNameClient = clients.find((c) => c.name.trim().toLowerCase() === inv.client_name.trim().toLowerCase())
+          if (sameNameClient) {
+            const knownEmails = [sameNameClient.email, ...(sameNameClient.email_extra || [])].filter(Boolean).join(', ') || '(geen)'
+            reason = `Klant "${sameNameClient.name}" gevonden, maar e-mail "${inv.client_email}" staat niet bij die klant. Bekende: ${knownEmails}`
+          } else {
+            reason = `Klant "${inv.client_email}" niet gevonden`
+          }
+        } else if (inv.client_email) {
+          reason = `Klant "${inv.client_email}" niet gevonden`
+        } else if (inv.client_name) {
+          reason = `Klant "${inv.client_name}" niet gevonden`
+        }
+        return { ...inv, projectId, validation: 'no-client', reason }
       }
       return { ...inv, projectId, clientId, validation: 'ok' }
     })
