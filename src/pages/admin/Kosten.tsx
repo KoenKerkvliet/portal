@@ -257,7 +257,7 @@ export default function Kosten() {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterYear, setFilterYear] = useState<number | 'all'>(new Date().getFullYear())
+  const [filterYear, setFilterYear] = useState<number | 'all'>('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
 
   // Modals
@@ -266,10 +266,11 @@ export default function Kosten() {
   const [showImport, setShowImport] = useState(false)
 
   const fetchExpenses = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('expenses')
       .select('*')
       .order('expense_date', { ascending: false })
+    if (error) console.error('Kon kosten niet laden:', error)
     setExpenses(data || [])
     setLoading(false)
   }
