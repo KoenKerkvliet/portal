@@ -122,7 +122,7 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit, onSplit, onFina
         </select>
       </td>
       <td className="px-5 py-3.5 text-sm text-gray-500">
-        {new Date(invoice.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}
+        {new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}
       </td>
       <td className="px-5 py-3.5 text-sm text-gray-500">
         {new Date(invoice.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -238,10 +238,17 @@ export default function Invoices() {
   const [paidYear, setPaidYear] = useState(new Date().getFullYear())
 
   const fetchInvoices = async () => {
-    const { data } = await supabase.from('invoices').select('*, client:clients(name), project:projects(name)').order('created_at', { ascending: false })
+    // Sort by invoice_date when present, falling back to created_at via the order chain.
+    const { data } = await supabase
+      .from('invoices')
+      .select('*, client:clients(name), project:projects(name)')
+      .order('invoice_date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
     setInvoices(data || [])
     setLoading(false)
   }
+
+  const invoiceDateOf = (i: Invoice) => i.invoice_date || i.created_at
 
   useEffect(() => {
     fetchInvoices()
@@ -413,7 +420,7 @@ export default function Invoices() {
     return [...list].sort((a, b) => {
       let cmp = 0
       if (sortField === 'date') {
-        cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        cmp = new Date(invoiceDateOf(a)).getTime() - new Date(invoiceDateOf(b)).getTime()
       } else {
         cmp = a.amount - b.amount
       }
@@ -424,11 +431,11 @@ export default function Invoices() {
   // Split into sections
   const openInvoices = sortInvoices(filtered.filter(i => i.status === 'draft' || i.status === 'sent'))
   const allPaidInvoices = filtered.filter(i => i.status === 'paid')
-  const paidInvoicesFiltered = sortInvoices(allPaidInvoices.filter(i => new Date(i.created_at).getFullYear() === paidYear))
+  const paidInvoicesFiltered = sortInvoices(allPaidInvoices.filter(i => new Date(invoiceDateOf(i)).getFullYear() === paidYear))
   const recurringInvoices: Invoice[] = []
 
   // Get unique years from paid invoices
-  const paidYears = [...new Set(allPaidInvoices.map(i => new Date(i.created_at).getFullYear()))].sort((a, b) => b - a)
+  const paidYears = [...new Set(allPaidInvoices.map(i => new Date(invoiceDateOf(i)).getFullYear()))].sort((a, b) => b - a)
   if (paidYears.length === 0) paidYears.push(new Date().getFullYear())
 
   const totalFiltered = filtered.length
