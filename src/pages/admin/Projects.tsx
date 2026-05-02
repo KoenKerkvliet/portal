@@ -1726,7 +1726,7 @@ export default function Projects() {
                     )}
 
                     {/* Design tab content */}
-                    {(domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')) === 'design' && (() => {
+                    {(domainCardTab[project.id] || 'intake') === 'design' && (() => {
                       const imgs = designImages[project.id] || { styleguide: '', homepage: '', tweede: '' }
                       const designInstance = getInstance(project.id, 'design')
                       const approvals = (designInstance?.custom_data?.design_approvals || {}) as Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string }>
