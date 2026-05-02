@@ -120,6 +120,64 @@ function InlineEdit({
   )
 }
 
+// Render a row of URL-field cards (Bestanden delen, Feedback, Stagingsite, etc.)
+type UrlFieldDef = {
+  label: string
+  value: string | null
+  field: 'file_sharing_url' | 'feedback_url' | 'staging_url'
+  icon: React.ComponentType<{ className?: string }>
+}
+
+function renderUrlFields(
+  project: Project,
+  fields: UrlFieldDef[],
+  updateProject: (id: string, updates: Partial<Project>) => void | Promise<void>,
+) {
+  return fields.map(({ label, value, field, icon: Icon }) => (
+    <div key={field} className="bg-white rounded-lg border border-gray-100 px-3 py-2 min-w-0">
+      <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+      {value ? (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Icon className="w-3 h-3 text-primary/50 flex-shrink-0" />
+          <a href={value} target="_blank" rel="noopener noreferrer"
+            className="text-xs text-primary hover:text-primary/80 truncate transition-colors"
+            title={value}>
+            {value.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+          </a>
+        </div>
+      ) : (
+        <InlineEdit
+          value=""
+          onSave={(url) => {
+            let finalUrl = url?.trim() || null
+            if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+              finalUrl = `https://${finalUrl}`
+            }
+            updateProject(project.id, { [field]: finalUrl })
+          }}
+          placeholder="URL toevoegen"
+          icon={Icon}
+        />
+      )}
+      {value && (
+        <InlineEdit
+          value={value}
+          onSave={(url) => {
+            let finalUrl = url?.trim() || null
+            if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+              finalUrl = `https://${finalUrl}`
+            }
+            updateProject(project.id, { [field]: finalUrl })
+          }}
+          placeholder="Wijzig URL"
+          icon={Pencil}
+          displayValue=""
+        />
+      )}
+    </div>
+  ))
+}
+
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -1266,55 +1324,11 @@ export default function Projects() {
 
                 {/* ── Sectie 3: Projectdetails ── */}
                 <div className="bg-gray-50/50 border-t border-b border-gray-100 px-5 sm:px-6 py-4 space-y-3">
-                  {/* URLs */}
-                  <div className="grid grid-cols-3 gap-3">
-                    {([
-                      { label: 'Bestanden delen', value: project.file_sharing_url, field: 'file_sharing_url', icon: Upload },
+                  {/* URLs — alleen Feedback. Bestanden delen + Stagingsite zijn verplaatst naar de Development-fase tab. */}
+                  <div className="grid grid-cols-1 gap-3">
+                    {renderUrlFields(project, [
                       { label: 'Feedback', value: project.feedback_url || 'https://feedback.designpixels.nl', field: 'feedback_url', icon: Star },
-                      { label: 'Stagingsite', value: project.staging_url, field: 'staging_url', icon: Globe },
-                    ] as const).map(({ label, value, field, icon: Icon }) => (
-                      <div key={field} className="bg-white rounded-lg border border-gray-100 px-3 py-2 min-w-0">
-                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-                        {value ? (
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <Icon className="w-3 h-3 text-primary/50 flex-shrink-0" />
-                            <a href={value} target="_blank" rel="noopener noreferrer"
-                              className="text-xs text-primary hover:text-primary/80 truncate transition-colors"
-                              title={value}>
-                              {value.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                            </a>
-                          </div>
-                        ) : (
-                          <InlineEdit
-                            value=""
-                            onSave={(url) => {
-                              let finalUrl = url?.trim() || null
-                              if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-                                finalUrl = `https://${finalUrl}`
-                              }
-                              updateProject(project.id, { [field]: finalUrl })
-                            }}
-                            placeholder="URL toevoegen"
-                            icon={Icon}
-                          />
-                        )}
-                        {value && (
-                          <InlineEdit
-                            value={value}
-                            onSave={(url) => {
-                              let finalUrl = url?.trim() || null
-                              if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-                                finalUrl = `https://${finalUrl}`
-                              }
-                              updateProject(project.id, { [field]: finalUrl })
-                            }}
-                            placeholder="Wijzig URL"
-                            icon={Pencil}
-                            displayValue=""
-                          />
-                        )}
-                      </div>
-                    ))}
+                    ], updateProject)}
                   </div>
                 </div>
 
@@ -1825,8 +1839,20 @@ export default function Projects() {
                       )
                     })()}
 
+                    {/* Development tab content */}
+                    {(domainCardTab[project.id] || 'intake') === 'development' && (
+                      <div className="px-5 sm:px-6 py-4 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {renderUrlFields(project, [
+                            { label: 'Bestanden delen', value: project.file_sharing_url, field: 'file_sharing_url', icon: Upload },
+                            { label: 'Stagingsite', value: project.staging_url, field: 'staging_url', icon: Globe },
+                          ], updateProject)}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Other phases — empty state */}
-                    {!['intake', 'design'].includes(domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')) && (
+                    {!['intake', 'design', 'development'].includes(domainCardTab[project.id] || 'intake') && (
                       <div className="px-5 sm:px-6 py-8 text-center">
                         <p className="text-sm text-gray-400">
                           Beheer de inhoud van deze fase via de Templates sectie hierboven.
