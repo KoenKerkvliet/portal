@@ -60,10 +60,20 @@ CREATE TABLE IF NOT EXISTS public.bank_transactions (
   payment_type text,                       -- bv. 'IDEAL', 'SEPA_CREDIT_TRANSFER', 'BUNQ', 'MASTERCARD'
   invoice_id uuid REFERENCES public.invoices(id) ON DELETE SET NULL,
   expense_id uuid REFERENCES public.expenses(id) ON DELETE SET NULL,
+  -- Optionele categorie voor transacties die niet aan factuur/kost gekoppeld zijn,
+  -- maar wel verwerkt moeten zijn. Houdt zakelijke totalen schoon.
+  category text,
   raw jsonb,                               -- originele Bunq-respons voor debugging
   created_at timestamptz DEFAULT now(),
-  -- Een transactie is óf gekoppeld aan een factuur, óf aan een kost — niet allebei.
-  CONSTRAINT bank_transactions_single_link CHECK (invoice_id IS NULL OR expense_id IS NULL)
+  CONSTRAINT bank_transactions_category_valid CHECK (
+    category IS NULL OR category IN ('private_deposit', 'private_withdrawal', 'private_purchase')
+  ),
+  -- Hoogstens één van invoice_id / expense_id / category mag gevuld zijn.
+  CONSTRAINT bank_transactions_single_link CHECK (
+    (CASE WHEN invoice_id IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN expense_id IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN category IS NOT NULL THEN 1 ELSE 0 END) <= 1
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_bank_transactions_booked_at

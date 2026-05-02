@@ -268,6 +268,8 @@ export interface Expense {
   created_at: string
 }
 
+export type TransactionCategory = 'private_deposit' | 'private_withdrawal' | 'private_purchase'
+
 export interface BankTransaction {
   id: string
   bunq_payment_id: number
@@ -281,6 +283,7 @@ export interface BankTransaction {
   payment_type: string | null
   invoice_id: string | null
   expense_id: string | null
+  category: TransactionCategory | null
   created_at: string
 }
 

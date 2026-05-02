@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { BankTransaction, Expense, Invoice } from '../../types'
+import type { BankTransaction, Expense, Invoice, TransactionCategory } from '../../types'
 import Kosten from './Kosten'
 import {
   Wallet,
@@ -20,7 +20,21 @@ import {
   X,
   Unlink,
   ExternalLink,
+  User,
+  Inbox,
 } from 'lucide-react'
+
+const PRIVATE_CATEGORY_LABELS: Record<TransactionCategory, string> = {
+  private_deposit: 'Privé · inleg',
+  private_withdrawal: 'Privé · opname',
+  private_purchase: 'Privé · aankoop',
+}
+
+const PRIVATE_CATEGORY_DESCRIPTIONS: Record<TransactionCategory, string> = {
+  private_deposit: 'Je hebt eigen geld op de zakelijke rekening gestort.',
+  private_withdrawal: 'Je hebt geld voor jezelf van de zakelijke rekening gehaald.',
+  private_purchase: 'Een persoonlijke aankoop met de zakelijke pas.',
+}
 
 type TabKey = 'bank' | 'kosten'
 
@@ -78,6 +92,7 @@ export default function Financien() {
   // Koppel-modal en cross-tab highlight
   const [linkingTx, setLinkingTx] = useState<BankTransaction | null>(null)
   const [highlightExpenseId, setHighlightExpenseId] = useState<string | null>(null)
+  const [showUnprocessedOnly, setShowUnprocessedOnly] = useState(false)
 
   const fetchData = async () => {
     const [txRes, stateRes, invRes, expRes] = await Promise.all([
@@ -115,13 +130,21 @@ export default function Financien() {
     setTimeout(() => setHighlightExpenseId(null), 3000)
   }
 
-  const handleLink = async (tx: BankTransaction, target: { kind: 'invoice' | 'expense'; id: string }) => {
-    const update = target.kind === 'invoice'
-      ? { invoice_id: target.id, expense_id: null }
-      : { expense_id: target.id, invoice_id: null }
+  const handleLink = async (
+    tx: BankTransaction,
+    target: { kind: 'invoice'; id: string } | { kind: 'expense'; id: string } | { kind: 'category'; category: TransactionCategory },
+  ) => {
+    let update: { invoice_id: string | null; expense_id: string | null; category: TransactionCategory | null }
+    if (target.kind === 'invoice') {
+      update = { invoice_id: target.id, expense_id: null, category: null }
+    } else if (target.kind === 'expense') {
+      update = { invoice_id: null, expense_id: target.id, category: null }
+    } else {
+      update = { invoice_id: null, expense_id: null, category: target.category }
+    }
     const { error } = await supabase.from('bank_transactions').update(update).eq('id', tx.id)
     if (error) {
-      alert(`Koppelen mislukt: ${error.message}`)
+      alert(`Verwerken mislukt: ${error.message}`)
       return
     }
     setLinkingTx(null)
@@ -131,7 +154,7 @@ export default function Financien() {
   const handleUnlink = async (tx: BankTransaction) => {
     const { error } = await supabase
       .from('bank_transactions')
-      .update({ invoice_id: null, expense_id: null })
+      .update({ invoice_id: null, expense_id: null, category: null })
       .eq('id', tx.id)
     if (error) {
       alert(`Ontkoppelen mislukt: ${error.message}`)
@@ -162,6 +185,9 @@ export default function Financien() {
     }
   }
 
+  const isUnprocessed = (t: BankTransaction) =>
+    !t.invoice_id && !t.expense_id && !t.category
+
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       const d = new Date(t.booked_at)
@@ -169,6 +195,7 @@ export default function Financien() {
       if (filterMonth !== 'all' && d.getMonth() + 1 !== filterMonth) return false
       if (filterType === 'income' && t.amount < 0) return false
       if (filterType === 'expense' && t.amount >= 0) return false
+      if (showUnprocessedOnly && !isUnprocessed(t)) return false
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
         const blob = [t.description, t.counterparty_name, t.counterparty_iban].filter(Boolean).join(' ').toLowerCase()
@@ -176,17 +203,30 @@ export default function Financien() {
       }
       return true
     })
-  }, [transactions, filterYear, filterMonth, filterType, searchQuery])
+  }, [transactions, filterYear, filterMonth, filterType, showUnprocessedOnly, searchQuery])
+
+  // Stat-cards berekenen ZONDER privé-transacties — anders vertekenen die de zakelijke totalen.
+  const businessFiltered = useMemo(
+    () => filtered.filter((t) => !t.category),
+    [filtered],
+  )
+
+  // Ongekoppelde transacties wereldwijd (niet alleen in zicht) voor de banner.
+  const unprocessedSummary = useMemo(() => {
+    const items = transactions.filter(isUnprocessed)
+    const total = items.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+    return { count: items.length, total }
+  }, [transactions])
 
   const totals = useMemo(() => {
     let income = 0
     let expense = 0
-    for (const t of filtered) {
+    for (const t of businessFiltered) {
       if (t.amount >= 0) income += t.amount
       else expense += Math.abs(t.amount)
     }
     return { income, expense, balance: income - expense }
-  }, [filtered])
+  }, [businessFiltered])
 
   const years = useMemo(() => {
     const set = new Set<number>([now.getFullYear()])
@@ -292,6 +332,42 @@ export default function Financien() {
         </div>
       )}
 
+      {/* Ongekoppeld-banner */}
+      {unprocessedSummary.count > 0 && !showUnprocessedOnly && (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center gap-3">
+          <Inbox className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <p className="font-medium text-blue-900">
+              {unprocessedSummary.count} {unprocessedSummary.count === 1 ? 'transactie' : 'transacties'} nog te verwerken
+            </p>
+            <p className="text-blue-800 mt-0.5">
+              Totaal {formatMoney(unprocessedSummary.total)} aan transacties zonder factuur, kost of privé-markering.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowUnprocessedOnly(true)}
+            className="text-sm font-medium text-blue-700 hover:text-blue-900 whitespace-nowrap px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            Bekijk →
+          </button>
+        </div>
+      )}
+
+      {/* Filter-modus chip */}
+      {showUnprocessedOnly && (
+        <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-900 text-sm">
+          <Inbox className="w-4 h-4" />
+          <span>Alleen ongekoppelde transacties</span>
+          <button
+            onClick={() => setShowUnprocessedOnly(false)}
+            className="text-blue-700 hover:text-blue-900 -mr-1 p-0.5"
+            title="Filter verwijderen"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -331,6 +407,10 @@ export default function Financien() {
           <div className="text-xs text-gray-400 mt-1">Inkomsten − Uitgaven</div>
         </div>
       </div>
+
+      <p className="text-xs text-gray-400 -mt-3 mb-6">
+        Privé-transacties (inleg, opname, persoonlijke aankopen) tellen niet mee in deze totalen.
+      </p>
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
@@ -489,13 +569,30 @@ export default function Financien() {
                               <Unlink className="w-3 h-3" />
                             </button>
                           </div>
+                        ) : t.category ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <span
+                              className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-100 rounded px-2 py-0.5"
+                              title={PRIVATE_CATEGORY_DESCRIPTIONS[t.category]}
+                            >
+                              <User className="w-3 h-3" />
+                              {PRIVATE_CATEGORY_LABELS[t.category]}
+                            </span>
+                            <button
+                              onClick={() => handleUnlink(t)}
+                              className="text-gray-300 hover:text-rose-500 p-0.5"
+                              title="Markering verwijderen"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
                         ) : (
                           <button
                             onClick={() => setLinkingTx(t)}
                             className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary border border-gray-200 hover:border-primary/40 rounded px-2 py-1 transition-colors"
                           >
                             <LinkIcon className="w-3 h-3" />
-                            Koppelen
+                            Verwerken
                           </button>
                         )}
                       </td>
@@ -536,10 +633,10 @@ function LinkModal({
   invoices: Invoice[]
   expenses: Expense[]
   onClose: () => void
-  onSelect: (target: { kind: 'invoice' | 'expense'; id: string }) => void
+  onSelect: (target: { kind: 'invoice'; id: string } | { kind: 'expense'; id: string } | { kind: 'category'; category: TransactionCategory }) => void
 }) {
   const isIncoming = tx.amount >= 0
-  const [tab, setTab] = useState<'invoice' | 'expense'>(isIncoming ? 'invoice' : 'expense')
+  const [tab, setTab] = useState<'invoice' | 'expense' | 'private'>(isIncoming ? 'invoice' : 'expense')
   const [q, setQ] = useState('')
 
   const txAmount = Math.abs(Number(tx.amount))
@@ -587,7 +684,7 @@ function LinkModal({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Koppelen aan factuur of kost</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Transactie verwerken</h2>
             <p className="text-xs text-gray-500 mt-0.5">
               {formatDate(tx.booked_at)} · {tx.counterparty_name || '—'} ·{' '}
               <span className={tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
@@ -607,8 +704,9 @@ function LinkModal({
         <div className="border-b border-gray-100 px-6">
           <div className="flex gap-1">
             {([
-              { key: 'invoice' as const, label: 'Facturen', icon: FileText, count: invoices.length },
-              { key: 'expense' as const, label: 'Kosten', icon: Receipt, count: expenses.length },
+              { key: 'invoice' as const, label: 'Facturen', icon: FileText, count: `(${invoices.length})` },
+              { key: 'expense' as const, label: 'Kosten', icon: Receipt, count: `(${expenses.length})` },
+              { key: 'private' as const, label: 'Privé', icon: User, count: '' },
             ]).map((t) => {
               const isActive = tab === t.key
               return (
@@ -623,36 +721,59 @@ function LinkModal({
                 >
                   <t.icon className="w-4 h-4" />
                   {t.label}
-                  <span className="text-xs text-gray-400">({t.count})</span>
+                  {t.count && <span className="text-xs text-gray-400">{t.count}</span>}
                 </button>
               )
             })}
           </div>
         </div>
 
-        {/* Search */}
-        <div className="px-6 py-3 border-b border-gray-100">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              autoFocus
-              type="text"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={tab === 'invoice'
-                ? 'Zoek op factuurnummer, klant of bedrag…'
-                : 'Zoek op leverancier, omschrijving of bedrag…'}
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
+        {/* Search — alleen voor invoice/expense tabs */}
+        {tab !== 'private' && (
+          <div className="px-6 py-3 border-b border-gray-100">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                autoFocus
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={tab === 'invoice'
+                  ? 'Zoek op factuurnummer, klant of bedrag…'
+                  : 'Zoek op leverancier, omschrijving of bedrag…'}
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              Tip: items met <strong>exact dezelfde bedrag</strong> als deze transactie staan bovenaan.
+            </p>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
-            Tip: items met <strong>exact dezelfde bedrag</strong> als deze transactie staan bovenaan.
-          </p>
-        </div>
+        )}
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
-          {tab === 'invoice' ? (
+          {tab === 'private' ? (
+            <ul className="divide-y divide-gray-100">
+              {(['private_deposit', 'private_withdrawal', 'private_purchase'] as TransactionCategory[]).map((cat) => (
+                <li key={cat}>
+                  <button
+                    onClick={() => onSelect({ kind: 'category', category: cat })}
+                    className="w-full text-left px-6 py-4 hover:bg-gray-50 flex items-start gap-3"
+                  >
+                    <User className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{PRIVATE_CATEGORY_LABELS[cat]}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{PRIVATE_CATEGORY_DESCRIPTIONS[cat]}</p>
+                    </div>
+                  </button>
+                </li>
+              ))}
+              <li className="px-6 py-3 bg-gray-50 text-xs text-gray-500 leading-relaxed">
+                Privé-gemarkeerde transacties tellen <strong>niet</strong> mee in je inkomsten- of uitgaventotaal.
+                Ze blijven wel zichtbaar in de transactielijst — gemarkeerd met een grijs label.
+              </li>
+            </ul>
+          ) : tab === 'invoice' ? (
             invoiceItems.length === 0 ? (
               <p className="text-center text-sm text-gray-400 py-12">Geen facturen gevonden.</p>
             ) : (
