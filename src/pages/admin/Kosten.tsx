@@ -649,6 +649,22 @@ export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, on
     return { ...emptyInput(), ...(prefill ?? {}) }
   })
   const [saving, setSaving] = useState(false)
+  const [categorySuggestions, setCategorySuggestions] = useState<string[]>([])
+
+  // Bestaande categorieën ophalen voor autocomplete-suggesties.
+  useEffect(() => {
+    let cancelled = false
+    supabase.from('expenses').select('category').not('category', 'is', null).then(({ data }) => {
+      if (cancelled || !data) return
+      const set = new Set<string>()
+      for (const row of data as { category: string | null }[]) {
+        const c = row.category?.trim()
+        if (c) set.add(c)
+      }
+      setCategorySuggestions([...set].sort((a, b) => a.localeCompare(b, 'nl')))
+    })
+    return () => { cancelled = true }
+  }, [])
 
   // Auto-recalc btw_amount + amount_incl_btw when excl/percent changes
   const updateExcl = (v: number) => {
@@ -752,11 +768,15 @@ export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, on
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Categorie</label>
                 <input
                   type="text"
+                  list="expense-categories"
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm"
-                  placeholder="Bijv. Kantoor"
+                  placeholder="Kies of typ een nieuwe…"
                 />
+                <datalist id="expense-categories">
+                  {categorySuggestions.map((c) => <option key={c} value={c} />)}
+                </datalist>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Factuurnummer leverancier</label>
