@@ -268,6 +268,21 @@ export interface Expense {
   created_at: string
 }
 
+export interface BankTransaction {
+  id: string
+  bunq_payment_id: number
+  bunq_account_id: number
+  booked_at: string
+  amount: number
+  currency: string
+  description: string
+  counterparty_name: string | null
+  counterparty_iban: string | null
+  payment_type: string | null
+  invoice_id: string | null
+  created_at: string
+}
+
 export type NotificationType = 'quote' | 'invoice' | 'assignment' | 'card_update' | 'general'
 
 export interface ClientNotification {
