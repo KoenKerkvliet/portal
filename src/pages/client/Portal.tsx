@@ -4,7 +4,7 @@ import TicketSystem from './TicketSystem'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
-import { Sparkles, ArrowRight, Calendar, ExternalLink, Star } from 'lucide-react'
+import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 import PunchCardView from '../../components/PunchCardView'
 
@@ -244,7 +244,6 @@ export default function ClientPortal() {
   const [phaseContent, setPhaseContent] = useState<string>('')
   const [phaseSteps, setPhaseSteps] = useState<PhaseStep[]>([])
   const [showFileFooter, setShowFileFooter] = useState(false)
-  const [showFeedbackFooter, setShowFeedbackFooter] = useState(false)
   const [loading, setLoading] = useState(true)
   const [punchCards, setPunchCards] = useState<PunchCard[]>([])
   const [punchCardUses, setPunchCardUses] = useState<Record<string, PunchCardUse[]>>({})
@@ -289,7 +288,6 @@ export default function ClientPortal() {
           setPhaseContent(phaseInstance.custom_data.content || '')
           setPhaseSteps(phaseInstance.custom_data.steps || [])
           setShowFileFooter(phaseInstance.custom_data.show_file_footer || false)
-          setShowFeedbackFooter(phaseInstance.custom_data.show_feedback_footer || false)
         } else {
           // Fallback: load from template directly
           const { data: templateData } = await supabase
@@ -302,7 +300,6 @@ export default function ClientPortal() {
           if (templateData) {
             setPhaseContent(templateData.content || templateData.description || '')
             setShowFileFooter((templateData as unknown as { show_file_footer?: boolean }).show_file_footer || false)
-            setShowFeedbackFooter((templateData as unknown as { show_feedback_footer?: boolean }).show_feedback_footer || false)
             setPhaseSteps(templateData.steps || [])
           }
         }
@@ -588,60 +585,32 @@ export default function ClientPortal() {
         </section>
 
         {/* Footer section — white background */}
-        {(project?.file_sharing_url && showFileFooter) || ((project?.feedback_url || showFeedbackFooter) && showFeedbackFooter) ? (
+        {project?.file_sharing_url && showFileFooter ? (
           <section className="bg-white">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-4">
               {/* File sharing footer */}
-              {project?.file_sharing_url && showFileFooter && (
-                <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-8 py-6 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <ExternalLink className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-800 mb-1">Bestanden delen</h3>
-                      <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                        Heb je bestanden die je met ons wilt delen? Gebruik de onderstaande knop om je bestanden te uploaden.
-                      </p>
-                    </div>
-                    <a
-                      href={project.file_sharing_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-medium transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Bestanden uploaden
-                    </a>
+              <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-8 py-6 text-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <ExternalLink className="w-5 h-5 text-primary" />
                   </div>
-                </div>
-              )}
-
-              {/* Feedback/review footer */}
-              {(project?.feedback_url || showFeedbackFooter) && showFeedbackFooter && (
-                <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-8 py-6 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                      <Star className="w-5 h-5 text-amber-500" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-800 mb-1">{project.feedback_title || 'Laat een review achter'}</h3>
-                      <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                        Ben je tevreden over het proces? We zouden het heel fijn vinden als je een review achterlaat!
-                      </p>
-                    </div>
-                    <a
-                      href={project.feedback_url || 'https://feedback.designpixels.nl'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-colors"
-                    >
-                      <Star className="w-4 h-4" />
-                      Review achterlaten
-                    </a>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Bestanden delen</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed mb-3">
+                      Heb je bestanden die je met ons wilt delen? Gebruik de onderstaande knop om je bestanden te uploaden.
+                    </p>
                   </div>
+                  <a
+                    href={project.file_sharing_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-medium transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Bestanden uploaden
+                  </a>
                 </div>
-              )}
+              </div>
             </div>
           </section>
         ) : null}

@@ -255,15 +255,6 @@ export default function Templates() {
                   />
                   <span className="text-sm text-gray-700">Bestanden delen footer tonen</span>
                 </label>
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.show_feedback_footer}
-                    onChange={(e) => setFormData({ ...formData, show_feedback_footer: e.target.checked })}
-                    className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30"
-                  />
-                  <span className="text-sm text-gray-700">Feedback/review footer tonen</span>
-                </label>
               </div>
 
               {/* Steps */}

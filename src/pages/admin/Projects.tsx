@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
-import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, Star, MessageSquare, Ticket, Key, Copy, Settings, Search, Filter, Archive, ArchiveRestore } from 'lucide-react'
+import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, MessageSquare, Ticket, Key, Copy, Settings, Search, Filter, Archive, ArchiveRestore } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
@@ -1193,145 +1193,6 @@ export default function Projects() {
                   </div>
                 </div>
 
-                {/* ── Sectie 2: Website & Klanten ── */}
-                <div className="px-5 sm:px-6 py-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Website</p>
-                      {project.url && (
-                        <div className="flex items-center gap-1.5">
-                          <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                          <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:text-primary-600 transition-colors truncate">
-                            {project.url.replace(/^https?:\/\//, '')}
-                          </a>
-                          <ExternalLink className="w-3 h-3 text-primary/50 flex-shrink-0" />
-                        </div>
-                      )}
-                      <InlineEdit value={project.url || ''} onSave={(url) => updateProject(project.id, { url: url || null })} type="url"
-                        placeholder={project.url ? 'Wijzig URL' : 'URL toevoegen'} icon={Pencil} displayValue={project.url ? '' : 'URL toevoegen'} />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>
-                      <div className="space-y-1">
-                        {(projectClients[project.id] || []).length === 0 && project.client_id && (() => {
-                          const clientName = (project.client as unknown as { name: string })?.name || 'Onbekend'
-                          return (
-                            <div className="bg-amber-50 rounded-lg border border-amber-100 px-3 py-2 flex items-center gap-2">
-                              <Users className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                              <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
-                              <button
-                                onClick={() => addClientToProject(project.id, project.client_id!)}
-                                className="text-xs text-primary hover:text-primary-600 font-medium whitespace-nowrap"
-                              >
-                                Activeer
-                              </button>
-                            </div>
-                          )
-                        })()}
-                        {(projectClients[project.id] || []).map((pc) => {
-                          const clientName = (pc.client as unknown as { name: string })?.name || 'Onbekend'
-                          const clientEmail = (pc.client as unknown as { email: string })?.email || ''
-                          const isClientExpanded = expandedClientId === pc.id
-                          return (
-                            <div key={pc.id} className="bg-gray-50 rounded-lg border border-gray-100">
-                              <button
-                                onClick={() => setExpandedClientId(isClientExpanded ? null : pc.id)}
-                                className="flex items-center gap-2 w-full px-3 py-2 text-left"
-                              >
-                                <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
-                                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isClientExpanded ? 'rotate-180' : ''}`} />
-                              </button>
-                              {isClientExpanded && (
-                                <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-                                  <p className="text-xs text-gray-400 mb-2">{clientEmail}</p>
-                                  <div className="space-y-1.5">
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                      <input type="checkbox" checked={pc.notify_invoices}
-                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_invoices', e.target.checked, project.id)}
-                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
-                                      <FileText className="w-3.5 h-3.5 text-gray-400" />
-                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Factuur e-mails</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                      <input type="checkbox" checked={pc.notify_quotes}
-                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_quotes', e.target.checked, project.id)}
-                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
-                                      <FileCheck className="w-3.5 h-3.5 text-gray-400" />
-                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Offerte e-mails</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                      <input type="checkbox" checked={pc.notify_portal}
-                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_portal', e.target.checked, project.id)}
-                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
-                                      <Bell className="w-3.5 h-3.5 text-gray-400" />
-                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Portaal meldingen</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                      <input type="checkbox" checked={pc.notify_tickets}
-                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_tickets', e.target.checked, project.id)}
-                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
-                                      <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
-                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Ticket reacties</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer group">
-                                      <input type="checkbox" checked={pc.notify_punch_cards}
-                                        onChange={(e) => toggleProjectClientPref(pc.id, 'notify_punch_cards', e.target.checked, project.id)}
-                                        className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
-                                      <Ticket className="w-3.5 h-3.5 text-gray-400" />
-                                      <span className="text-xs text-gray-600 group-hover:text-gray-800">Strippenkaart afschrijvingen</span>
-                                    </label>
-                                  </div>
-                                  <button
-                                    onClick={() => { if (confirm(`${clientName} verwijderen van dit domein?`)) removeClientFromProject(pc.id, project.id) }}
-                                    className="flex items-center gap-1 mt-2 text-xs text-red-400 hover:text-red-600 transition-colors"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                    Ontkoppelen
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <div className="relative" ref={clientDropdownId === project.id ? clientDropdownRef : undefined}>
-                        <button onClick={() => setClientDropdownId(clientDropdownId === project.id ? null : project.id)}
-                          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-primary transition-colors mt-1">
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>Klant toevoegen</span>
-                        </button>
-                        {clientDropdownId === project.id && (
-                          <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[200px]">
-                            {clients
-                              .filter(c => !(projectClients[project.id] || []).some(pc => pc.client_id === c.id))
-                              .map((c) => (
-                                <button key={c.id} onClick={() => { addClientToProject(project.id, c.id); setClientDropdownId(null) }}
-                                  className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                                  <UserPlus className="w-3.5 h-3.5 text-gray-400" />
-                                  {c.name}
-                                </button>
-                              ))}
-                            {clients.filter(c => !(projectClients[project.id] || []).some(pc => pc.client_id === c.id)).length === 0 && (
-                              <p className="px-3.5 py-2 text-xs text-gray-400 italic">Alle klanten al gekoppeld</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Sectie 3: Projectdetails ── */}
-                <div className="bg-gray-50/50 border-t border-b border-gray-100 px-5 sm:px-6 py-4 space-y-3">
-                  {/* URLs — alleen Feedback. Bestanden delen + Stagingsite zijn verplaatst naar de Development-fase tab. */}
-                  <div className="grid grid-cols-1 gap-3">
-                    {renderUrlFields(project, [
-                      { label: 'Feedback', value: project.feedback_url || 'https://feedback.designpixels.nl', field: 'feedback_url', icon: Star },
-                    ], updateProject)}
-                  </div>
-                </div>
-
                 {/* ── Sectie 4: Templates ── */}
                 <div className="border-t border-gray-100">
                   <button onClick={() => toggleExpand(project.id)}
@@ -1461,15 +1322,6 @@ export default function Projects() {
                                 />
                                 <span className="text-xs text-gray-600">Bestanden delen footer</span>
                               </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={editingInstance.show_feedback_footer || false}
-                                  onChange={(e) => setEditingInstance({ ...editingInstance, show_feedback_footer: e.target.checked })}
-                                  className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30"
-                                />
-                                <span className="text-xs text-gray-600">Feedback/review footer</span>
-                              </label>
                             </div>
 
                             <div>
@@ -1563,8 +1415,24 @@ export default function Projects() {
                 {/* ── Sectie 5: Fase-inhoud tabs ── */}
                 <div className="border-t border-gray-100">
                   <div className="flex border-b border-gray-100 px-5 sm:px-6 overflow-x-auto">
+                    {(() => {
+                      const activeTab = domainCardTab[project.id] || 'algemeen'
+                      return (
+                        <button
+                          key="algemeen"
+                          onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: 'algemeen' }))}
+                          className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors whitespace-nowrap ${
+                            activeTab === 'algemeen'
+                              ? 'border-gray-700 text-gray-900'
+                              : 'border-transparent text-gray-400 hover:text-gray-600'
+                          }`}
+                        >
+                          Algemeen
+                        </button>
+                      )
+                    })()}
                     {phases.map((phase) => {
-                      const activeTab = domainCardTab[project.id] || 'intake'
+                      const activeTab = domainCardTab[project.id] || 'algemeen'
                       const colors = phaseTabColors[phase]
                       return (
                         <button key={phase}
@@ -1581,8 +1449,139 @@ export default function Projects() {
                     })}
                   </div>
 
+                    {/* Algemeen tab content */}
+                    {(domainCardTab[project.id] || 'algemeen') === 'algemeen' && (
+                      <div className="px-5 sm:px-6 py-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Website</p>
+                            {project.url && (
+                              <div className="flex items-center gap-1.5">
+                                <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:text-primary-600 transition-colors truncate">
+                                  {project.url.replace(/^https?:\/\//, '')}
+                                </a>
+                                <ExternalLink className="w-3 h-3 text-primary/50 flex-shrink-0" />
+                              </div>
+                            )}
+                            <InlineEdit value={project.url || ''} onSave={(url) => updateProject(project.id, { url: url || null })} type="url"
+                              placeholder={project.url ? 'Wijzig URL' : 'URL toevoegen'} icon={Pencil} displayValue={project.url ? '' : 'URL toevoegen'} />
+                          </div>
+                          <div className="space-y-1.5 sm:col-span-2">
+                            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>
+                            <div className="space-y-1">
+                              {(projectClients[project.id] || []).length === 0 && project.client_id && (() => {
+                                const clientName = (project.client as unknown as { name: string })?.name || 'Onbekend'
+                                return (
+                                  <div className="bg-amber-50 rounded-lg border border-amber-100 px-3 py-2 flex items-center gap-2">
+                                    <Users className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                                    <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
+                                    <button
+                                      onClick={() => addClientToProject(project.id, project.client_id!)}
+                                      className="text-xs text-primary hover:text-primary-600 font-medium whitespace-nowrap"
+                                    >
+                                      Activeer
+                                    </button>
+                                  </div>
+                                )
+                              })()}
+                              {(projectClients[project.id] || []).map((pc) => {
+                                const clientName = (pc.client as unknown as { name: string })?.name || 'Onbekend'
+                                const clientEmail = (pc.client as unknown as { email: string })?.email || ''
+                                const isClientExpanded = expandedClientId === pc.id
+                                return (
+                                  <div key={pc.id} className="bg-gray-50 rounded-lg border border-gray-100">
+                                    <button
+                                      onClick={() => setExpandedClientId(isClientExpanded ? null : pc.id)}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-left"
+                                    >
+                                      <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                      <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
+                                      <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isClientExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {isClientExpanded && (
+                                      <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                                        <p className="text-xs text-gray-400 mb-2">{clientEmail}</p>
+                                        <div className="space-y-1.5">
+                                          <label className="flex items-center gap-2 cursor-pointer group">
+                                            <input type="checkbox" checked={pc.notify_invoices}
+                                              onChange={(e) => toggleProjectClientPref(pc.id, 'notify_invoices', e.target.checked, project.id)}
+                                              className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                            <FileText className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-xs text-gray-600 group-hover:text-gray-800">Factuur e-mails</span>
+                                          </label>
+                                          <label className="flex items-center gap-2 cursor-pointer group">
+                                            <input type="checkbox" checked={pc.notify_quotes}
+                                              onChange={(e) => toggleProjectClientPref(pc.id, 'notify_quotes', e.target.checked, project.id)}
+                                              className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                            <FileCheck className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-xs text-gray-600 group-hover:text-gray-800">Offerte e-mails</span>
+                                          </label>
+                                          <label className="flex items-center gap-2 cursor-pointer group">
+                                            <input type="checkbox" checked={pc.notify_portal}
+                                              onChange={(e) => toggleProjectClientPref(pc.id, 'notify_portal', e.target.checked, project.id)}
+                                              className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                            <Bell className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-xs text-gray-600 group-hover:text-gray-800">Portaal meldingen</span>
+                                          </label>
+                                          <label className="flex items-center gap-2 cursor-pointer group">
+                                            <input type="checkbox" checked={pc.notify_tickets}
+                                              onChange={(e) => toggleProjectClientPref(pc.id, 'notify_tickets', e.target.checked, project.id)}
+                                              className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                            <MessageSquare className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-xs text-gray-600 group-hover:text-gray-800">Ticket reacties</span>
+                                          </label>
+                                          <label className="flex items-center gap-2 cursor-pointer group">
+                                            <input type="checkbox" checked={pc.notify_punch_cards}
+                                              onChange={(e) => toggleProjectClientPref(pc.id, 'notify_punch_cards', e.target.checked, project.id)}
+                                              className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                                            <Ticket className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="text-xs text-gray-600 group-hover:text-gray-800">Strippenkaart afschrijvingen</span>
+                                          </label>
+                                        </div>
+                                        <button
+                                          onClick={() => { if (confirm(`${clientName} verwijderen van dit domein?`)) removeClientFromProject(pc.id, project.id) }}
+                                          className="flex items-center gap-1 mt-2 text-xs text-red-400 hover:text-red-600 transition-colors"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                          Ontkoppelen
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            <div className="relative" ref={clientDropdownId === project.id ? clientDropdownRef : undefined}>
+                              <button onClick={() => setClientDropdownId(clientDropdownId === project.id ? null : project.id)}
+                                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-primary transition-colors mt-1">
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>Klant toevoegen</span>
+                              </button>
+                              {clientDropdownId === project.id && (
+                                <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[200px]">
+                                  {clients
+                                    .filter(c => !(projectClients[project.id] || []).some(pc => pc.client_id === c.id))
+                                    .map((c) => (
+                                      <button key={c.id} onClick={() => { addClientToProject(project.id, c.id); setClientDropdownId(null) }}
+                                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                                        <UserPlus className="w-3.5 h-3.5 text-gray-400" />
+                                        {c.name}
+                                      </button>
+                                    ))}
+                                  {clients.filter(c => !(projectClients[project.id] || []).some(pc => pc.client_id === c.id)).length === 0 && (
+                                    <p className="px-3.5 py-2 text-xs text-gray-400 italic">Alle klanten al gekoppeld</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Intake tab content */}
-                    {(domainCardTab[project.id] || 'intake') === 'intake' && (
+                    {(domainCardTab[project.id] || 'algemeen') === 'intake' && (
                       <div className="px-5 sm:px-6 py-4 space-y-4">
                         {/* Datums — altijd zichtbaar in Intake-fase */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1726,7 +1725,7 @@ export default function Projects() {
                     )}
 
                     {/* Design tab content */}
-                    {(domainCardTab[project.id] || 'intake') === 'design' && (() => {
+                    {(domainCardTab[project.id] || 'algemeen') === 'design' && (() => {
                       const imgs = designImages[project.id] || { styleguide: '', homepage: '', tweede: '' }
                       const designInstance = getInstance(project.id, 'design')
                       const approvals = (designInstance?.custom_data?.design_approvals || {}) as Record<string, { status?: string; declined_reason?: string; declined_name?: string; declined_at?: string; accepted_at?: string }>
@@ -1840,7 +1839,7 @@ export default function Projects() {
                     })()}
 
                     {/* Development tab content */}
-                    {(domainCardTab[project.id] || 'intake') === 'development' && (
+                    {(domainCardTab[project.id] || 'algemeen') === 'development' && (
                       <div className="px-5 sm:px-6 py-4 space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {renderUrlFields(project, [
@@ -1852,7 +1851,7 @@ export default function Projects() {
                     )}
 
                     {/* Other phases — empty state */}
-                    {!['intake', 'design', 'development'].includes(domainCardTab[project.id] || 'intake') && (
+                    {!['algemeen', 'intake', 'design', 'development'].includes(domainCardTab[project.id] || 'algemeen') && (
                       <div className="px-5 sm:px-6 py-8 text-center">
                         <p className="text-sm text-gray-400">
                           Beheer de inhoud van deze fase via de Templates sectie hierboven.
