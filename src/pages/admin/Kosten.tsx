@@ -163,7 +163,7 @@ function rowToInput(row: string[], colMap: Record<CsvField, number | undefined>)
 
 // --- Page ---
 
-export default function Kosten() {
+export default function Kosten({ highlightId }: { highlightId?: string | null } = {}) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -424,7 +424,13 @@ export default function Kosten() {
               </thead>
               <tbody>
                 {filtered.map((expense) => (
-                  <ExpenseRow key={expense.id} expense={expense} onEdit={openEdit} onDelete={handleDelete} />
+                  <ExpenseRow
+                    key={expense.id}
+                    expense={expense}
+                    onEdit={openEdit}
+                    onDelete={handleDelete}
+                    highlight={highlightId === expense.id}
+                  />
                 ))}
               </tbody>
             </table>
@@ -457,15 +463,26 @@ export default function Kosten() {
 
 // --- Row with action menu ---
 
-function ExpenseRow({ expense, onEdit, onDelete }: {
+function ExpenseRow({ expense, onEdit, onDelete, highlight }: {
   expense: Expense
   onEdit: (e: Expense) => void
   onDelete: (id: string) => void
+  highlight?: boolean
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const rowRef = useRef<HTMLTableRowElement>(null)
+  const [flash, setFlash] = useState(false)
+
+  useEffect(() => {
+    if (!highlight) return
+    rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setFlash(true)
+    const t = setTimeout(() => setFlash(false), 2500)
+    return () => clearTimeout(t)
+  }, [highlight])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -493,7 +510,10 @@ function ExpenseRow({ expense, onEdit, onDelete }: {
   }
 
   return (
-    <tr className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
+    <tr
+      ref={rowRef}
+      className={`border-t border-gray-100 transition-colors ${flash ? 'bg-amber-100' : 'hover:bg-gray-50/50'}`}
+    >
       <td className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">{formatDate(expense.expense_date)}</td>
       <td className="px-5 py-3.5 text-sm text-gray-700">{expense.vendor || '—'}</td>
       <td className="px-5 py-3.5 text-sm text-gray-900">

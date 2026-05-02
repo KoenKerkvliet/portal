@@ -59,14 +59,19 @@ CREATE TABLE IF NOT EXISTS public.bank_transactions (
   counterparty_iban text,
   payment_type text,                       -- bv. 'IDEAL', 'SEPA_CREDIT_TRANSFER', 'BUNQ', 'MASTERCARD'
   invoice_id uuid REFERENCES public.invoices(id) ON DELETE SET NULL,
+  expense_id uuid REFERENCES public.expenses(id) ON DELETE SET NULL,
   raw jsonb,                               -- originele Bunq-respons voor debugging
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  -- Een transactie is óf gekoppeld aan een factuur, óf aan een kost — niet allebei.
+  CONSTRAINT bank_transactions_single_link CHECK (invoice_id IS NULL OR expense_id IS NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bank_transactions_booked_at
   ON public.bank_transactions(booked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bank_transactions_invoice
   ON public.bank_transactions(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_expense
+  ON public.bank_transactions(expense_id);
 CREATE INDEX IF NOT EXISTS idx_bank_transactions_account
   ON public.bank_transactions(bunq_account_id);
 

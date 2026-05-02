@@ -280,6 +280,7 @@ export interface BankTransaction {
   counterparty_iban: string | null
   payment_type: string | null
   invoice_id: string | null
+  expense_id: string | null
   created_at: string
 }
 

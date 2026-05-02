@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { BankTransaction } from '../../types'
+import type { BankTransaction, Expense, Invoice } from '../../types'
 import Kosten from './Kosten'
 import {
   Wallet,
@@ -14,6 +16,10 @@ import {
   CheckCircle2,
   Receipt,
   Landmark,
+  FileText,
+  X,
+  Unlink,
+  ExternalLink,
 } from 'lucide-react'
 
 type TabKey = 'bank' | 'kosten'
@@ -44,8 +50,11 @@ function monthLabel(year: number, month: number): string {
 }
 
 export default function Financien() {
+  const navigate = useNavigate()
   const now = new Date()
   const [transactions, setTransactions] = useState<BankTransaction[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
@@ -65,16 +74,69 @@ export default function Financien() {
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // Koppel-modal en cross-tab highlight
+  const [linkingTx, setLinkingTx] = useState<BankTransaction | null>(null)
+  const [highlightExpenseId, setHighlightExpenseId] = useState<string | null>(null)
+
   const fetchData = async () => {
-    const [txRes, stateRes] = await Promise.all([
+    const [txRes, stateRes, invRes, expRes] = await Promise.all([
       supabase.from('bank_transactions').select('*').order('booked_at', { ascending: false }),
       supabase.from('bunq_state').select('last_sync_at, session_token').eq('id', 1).maybeSingle(),
+      supabase.from('invoices').select('*').order('invoice_date', { ascending: false, nullsFirst: false }),
+      supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
     ])
     if (txRes.error) console.error('Kon transacties niet laden:', txRes.error)
     setTransactions((txRes.data as BankTransaction[] | null) ?? [])
+    setInvoices((invRes.data as Invoice[] | null) ?? [])
+    setExpenses((expRes.data as Expense[] | null) ?? [])
     setLastSyncAt(stateRes.data?.last_sync_at ?? null)
     setIsConnected(Boolean(stateRes.data?.session_token))
     setLoading(false)
+  }
+
+  const invoiceById = useMemo(() => {
+    const m = new Map<string, Invoice>()
+    for (const i of invoices) m.set(i.id, i)
+    return m
+  }, [invoices])
+  const expenseById = useMemo(() => {
+    const m = new Map<string, Expense>()
+    for (const e of expenses) m.set(e.id, e)
+    return m
+  }, [expenses])
+
+  const handleOpenInvoice = (invoiceId: string) => {
+    navigate(`/admin/facturen/${invoiceId}`)
+  }
+  const handleOpenExpense = (expenseId: string) => {
+    setActiveTab('kosten')
+    setHighlightExpenseId(expenseId)
+    setTimeout(() => setHighlightExpenseId(null), 3000)
+  }
+
+  const handleLink = async (tx: BankTransaction, target: { kind: 'invoice' | 'expense'; id: string }) => {
+    const update = target.kind === 'invoice'
+      ? { invoice_id: target.id, expense_id: null }
+      : { expense_id: target.id, invoice_id: null }
+    const { error } = await supabase.from('bank_transactions').update(update).eq('id', tx.id)
+    if (error) {
+      alert(`Koppelen mislukt: ${error.message}`)
+      return
+    }
+    setLinkingTx(null)
+    await fetchData()
+  }
+
+  const handleUnlink = async (tx: BankTransaction) => {
+    const { error } = await supabase
+      .from('bank_transactions')
+      .update({ invoice_id: null, expense_id: null })
+      .eq('id', tx.id)
+    if (error) {
+      alert(`Ontkoppelen mislukt: ${error.message}`)
+      return
+    }
+    await fetchData()
   }
 
   useEffect(() => {
@@ -196,7 +258,7 @@ export default function Financien() {
       </div>
 
       {activeTab === 'kosten' ? (
-        <Kosten />
+        <Kosten highlightId={highlightExpenseId} />
       ) : (
         <>
       {/* Sync feedback */}
@@ -333,35 +395,78 @@ export default function Financien() {
                   <th className="px-4 py-3 font-medium">Tegenpartij</th>
                   <th className="px-4 py-3 font-medium">Omschrijving</th>
                   <th className="px-4 py-3 font-medium text-right">Bedrag</th>
-                  <th className="px-4 py-3 font-medium">Factuur</th>
+                  <th className="px-4 py-3 font-medium">Koppeling</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(t.booked_at)}</td>
-                    <td className="px-4 py-3 text-gray-900">
-                      {t.counterparty_name || '—'}
-                      {t.counterparty_iban && (
-                        <span className="block text-xs text-gray-400 font-mono">{t.counterparty_iban}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{t.description}</td>
-                    <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {t.amount >= 0 ? '+' : '−'} {formatMoney(t.amount, t.currency)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {t.invoice_id ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-primary">
-                          <LinkIcon className="w-3 h-3" />
-                          Gekoppeld
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((t) => {
+                  const linkedInvoice = t.invoice_id ? invoiceById.get(t.invoice_id) : null
+                  const linkedExpense = t.expense_id ? expenseById.get(t.expense_id) : null
+                  return (
+                    <tr key={t.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(t.booked_at)}</td>
+                      <td className="px-4 py-3 text-gray-900">
+                        {t.counterparty_name || '—'}
+                        {t.counterparty_iban && (
+                          <span className="block text-xs text-gray-400 font-mono">{t.counterparty_iban}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{t.description}</td>
+                      <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {t.amount >= 0 ? '+' : '−'} {formatMoney(t.amount, t.currency)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {linkedInvoice ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenInvoice(linkedInvoice.id)}
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                              title="Open factuur"
+                            >
+                              <FileText className="w-3 h-3" />
+                              {linkedInvoice.number || 'Factuur'}
+                              <ExternalLink className="w-3 h-3 opacity-60" />
+                            </button>
+                            <button
+                              onClick={() => handleUnlink(t)}
+                              className="text-gray-300 hover:text-rose-500 p-0.5"
+                              title="Ontkoppelen"
+                            >
+                              <Unlink className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : linkedExpense ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenExpense(linkedExpense.id)}
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                              title="Open kost"
+                            >
+                              <Receipt className="w-3 h-3" />
+                              {linkedExpense.vendor || linkedExpense.description.slice(0, 30) || 'Kost'}
+                              <ExternalLink className="w-3 h-3 opacity-60" />
+                            </button>
+                            <button
+                              onClick={() => handleUnlink(t)}
+                              className="text-gray-300 hover:text-rose-500 p-0.5"
+                              title="Ontkoppelen"
+                            >
+                              <Unlink className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setLinkingTx(t)}
+                            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary border border-gray-200 hover:border-primary/40 rounded px-2 py-1 transition-colors"
+                          >
+                            <LinkIcon className="w-3 h-3" />
+                            Koppelen
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -369,6 +474,238 @@ export default function Financien() {
       </div>
         </>
       )}
+
+      {linkingTx && (
+        <LinkModal
+          tx={linkingTx}
+          invoices={invoices}
+          expenses={expenses}
+          onClose={() => setLinkingTx(null)}
+          onSelect={(target) => handleLink(linkingTx, target)}
+        />
+      )}
     </div>
+  )
+}
+
+// ---- Koppel-modal ----------------------------------------------------------
+
+function LinkModal({
+  tx,
+  invoices,
+  expenses,
+  onClose,
+  onSelect,
+}: {
+  tx: BankTransaction
+  invoices: Invoice[]
+  expenses: Expense[]
+  onClose: () => void
+  onSelect: (target: { kind: 'invoice' | 'expense'; id: string }) => void
+}) {
+  const isIncoming = tx.amount >= 0
+  const [tab, setTab] = useState<'invoice' | 'expense'>(isIncoming ? 'invoice' : 'expense')
+  const [q, setQ] = useState('')
+
+  const txAmount = Math.abs(Number(tx.amount))
+
+  const matchAmount = (a: number) => Math.abs(a - txAmount) <= 0.005
+
+  const invoiceItems = useMemo(() => {
+    const ql = q.trim().toLowerCase()
+    const list = invoices.filter((inv) => {
+      if (!ql) return true
+      const blob = [inv.number, inv.client_name, String(inv.amount)].filter(Boolean).join(' ').toLowerCase()
+      return blob.includes(ql)
+    })
+    // Sorteer matches op bedrag bovenaan
+    return list.sort((a, b) => {
+      const ma = matchAmount(Number(a.amount)) ? 1 : 0
+      const mb = matchAmount(Number(b.amount)) ? 1 : 0
+      if (ma !== mb) return mb - ma
+      return (b.invoice_date || '').localeCompare(a.invoice_date || '')
+    })
+  }, [invoices, q, txAmount])
+
+  const expenseItems = useMemo(() => {
+    const ql = q.trim().toLowerCase()
+    const list = expenses.filter((ex) => {
+      if (!ql) return true
+      const blob = [ex.vendor, ex.description, ex.invoice_number, ex.category, String(ex.amount_incl_btw)]
+        .filter(Boolean).join(' ').toLowerCase()
+      return blob.includes(ql)
+    })
+    return list.sort((a, b) => {
+      const ma = matchAmount(Number(a.amount_incl_btw)) ? 1 : 0
+      const mb = matchAmount(Number(b.amount_incl_btw)) ? 1 : 0
+      if (ma !== mb) return mb - ma
+      return b.expense_date.localeCompare(a.expense_date)
+    })
+  }, [expenses, q, txAmount])
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Koppelen aan factuur of kost</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {formatDate(tx.booked_at)} · {tx.counterparty_name || '—'} ·{' '}
+              <span className={tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                {tx.amount >= 0 ? '+' : '−'} {formatMoney(tx.amount, tx.currency)}
+              </span>
+            </p>
+            {tx.description && (
+              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-md">{tx.description}</p>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-gray-100 px-6">
+          <div className="flex gap-1">
+            {([
+              { key: 'invoice' as const, label: 'Facturen', icon: FileText, count: invoices.length },
+              { key: 'expense' as const, label: 'Kosten', icon: Receipt, count: expenses.length },
+            ]).map((t) => {
+              const isActive = tab === t.key
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex items-center gap-2 px-3 py-2 -mb-px text-sm font-medium border-b-2 transition-colors ${
+                    isActive
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  <t.icon className="w-4 h-4" />
+                  {t.label}
+                  <span className="text-xs text-gray-400">({t.count})</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="px-6 py-3 border-b border-gray-100">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              autoFocus
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={tab === 'invoice'
+                ? 'Zoek op factuurnummer, klant of bedrag…'
+                : 'Zoek op leverancier, omschrijving of bedrag…'}
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            Tip: items met <strong>exact dezelfde bedrag</strong> als deze transactie staan bovenaan.
+          </p>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto">
+          {tab === 'invoice' ? (
+            invoiceItems.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-12">Geen facturen gevonden.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {invoiceItems.map((inv) => {
+                  const exact = matchAmount(Number(inv.amount))
+                  return (
+                    <li key={inv.id}>
+                      <button
+                        onClick={() => onSelect({ kind: 'invoice', id: inv.id })}
+                        className="w-full text-left px-6 py-3 hover:bg-gray-50 flex items-center gap-3"
+                      >
+                        <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {inv.number || '(zonder nummer)'}
+                            </span>
+                            {exact && (
+                              <span className="text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                                Match
+                              </span>
+                            )}
+                            <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                              inv.status === 'paid' ? 'bg-emerald-50 text-emerald-700'
+                                : inv.status === 'sent' ? 'bg-amber-50 text-amber-700'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {inv.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 truncate">
+                            {inv.client_name || '—'}
+                            {inv.invoice_date && <> · {formatDate(inv.invoice_date)}</>}
+                          </p>
+                        </div>
+                        <div className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                          {formatMoney(Number(inv.amount))}
+                        </div>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )
+          ) : (
+            expenseItems.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-12">Geen kosten gevonden.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {expenseItems.map((ex) => {
+                  const exact = matchAmount(Number(ex.amount_incl_btw))
+                  return (
+                    <li key={ex.id}>
+                      <button
+                        onClick={() => onSelect({ kind: 'expense', id: ex.id })}
+                        className="w-full text-left px-6 py-3 hover:bg-gray-50 flex items-center gap-3"
+                      >
+                        <Receipt className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {ex.vendor || ex.description}
+                            </span>
+                            {exact && (
+                              <span className="text-[10px] uppercase tracking-wide bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                                Match
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 truncate">
+                            {ex.description}
+                            {ex.expense_date && <> · {formatDate(ex.expense_date)}</>}
+                          </p>
+                        </div>
+                        <div className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                          {formatMoney(Number(ex.amount_incl_btw), ex.currency)}
+                        </div>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
