@@ -69,6 +69,7 @@ export default function Financien() {
 
   const [filterYear, setFilterYear] = useState<number>(now.getFullYear())
   const [filterMonth, setFilterMonth] = useState<number | 'all'>(now.getMonth() + 1)
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   const [syncing, setSyncing] = useState(false)
@@ -166,6 +167,8 @@ export default function Financien() {
       const d = new Date(t.booked_at)
       if (d.getFullYear() !== filterYear) return false
       if (filterMonth !== 'all' && d.getMonth() + 1 !== filterMonth) return false
+      if (filterType === 'income' && t.amount < 0) return false
+      if (filterType === 'expense' && t.amount >= 0) return false
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
         const blob = [t.description, t.counterparty_name, t.counterparty_iban].filter(Boolean).join(' ').toLowerCase()
@@ -173,7 +176,7 @@ export default function Financien() {
       }
       return true
     })
-  }, [transactions, filterYear, filterMonth, searchQuery])
+  }, [transactions, filterYear, filterMonth, filterType, searchQuery])
 
   const totals = useMemo(() => {
     let income = 0
@@ -331,7 +334,7 @@ export default function Financien() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Jaar</label>
             <select
@@ -360,6 +363,38 @@ export default function Financien() {
             </select>
           </div>
           <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+            <div className="inline-flex w-full rounded-lg border border-gray-300 overflow-hidden">
+              {([
+                { key: 'all' as const, label: 'Alles' },
+                { key: 'income' as const, label: 'Inkomsten' },
+                { key: 'expense' as const, label: 'Uitgaven' },
+              ]).map((opt, i) => {
+                const isActive = filterType === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setFilterType(opt.key)}
+                    className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                      i > 0 ? 'border-l border-gray-300' : ''
+                    } ${
+                      isActive
+                        ? opt.key === 'income'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : opt.key === 'expense'
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'bg-gray-100 text-gray-900'
+                        : 'bg-white text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
             <label className="block text-xs font-medium text-gray-500 mb-1">Zoeken</label>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
