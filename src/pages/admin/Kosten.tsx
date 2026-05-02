@@ -585,10 +585,12 @@ function ExpenseRow({ expense, onEdit, onDelete, highlight, attachmentCount }: {
 
 // --- Add/Edit form modal ---
 
-function ExpenseFormModal({ expense, onClose, onSaved }: {
+export function ExpenseFormModal({ expense, prefill, onClose, onSaved, submitLabel }: {
   expense: Expense | null
+  prefill?: Partial<ExpenseInput>
   onClose: () => void
-  onSaved: () => void
+  onSaved: (id?: string) => void
+  submitLabel?: string
 }) {
   const [form, setForm] = useState<ExpenseInput>(() => {
     if (expense) {
@@ -606,7 +608,7 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
         currency: expense.currency || 'EUR',
       }
     }
-    return emptyInput()
+    return { ...emptyInput(), ...(prefill ?? {}) }
   })
   const [saving, setSaving] = useState(false)
 
@@ -641,13 +643,21 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
       notes: form.notes,
       currency: form.currency,
     }
+    let savedId: string | undefined
     if (expense) {
       await supabase.from('expenses').update(payload).eq('id', expense.id)
+      savedId = expense.id
     } else {
-      await supabase.from('expenses').insert(payload)
+      const { data, error } = await supabase.from('expenses').insert(payload).select('id').single()
+      if (error) {
+        alert(`Opslaan mislukt: ${error.message}`)
+        setSaving(false)
+        return
+      }
+      savedId = (data as { id: string }).id
     }
     setSaving(false)
-    onSaved()
+    onSaved(savedId)
   }
 
   return (
@@ -809,7 +819,7 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
               className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Opslaan
+              {submitLabel ?? 'Opslaan'}
             </button>
           </div>
         </div>

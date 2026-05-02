@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { BankTransaction, Expense, Invoice, TransactionCategory } from '../../types'
-import Kosten from './Kosten'
+import Kosten, { ExpenseFormModal } from './Kosten'
 import {
   Wallet,
   ArrowDownLeft,
@@ -22,6 +22,7 @@ import {
   ExternalLink,
   User,
   Inbox,
+  Plus,
 } from 'lucide-react'
 
 const PRIVATE_CATEGORY_LABELS: Record<TransactionCategory, string> = {
@@ -91,6 +92,7 @@ export default function Financien() {
 
   // Koppel-modal en cross-tab highlight
   const [linkingTx, setLinkingTx] = useState<BankTransaction | null>(null)
+  const [creatingExpenseFor, setCreatingExpenseFor] = useState<BankTransaction | null>(null)
   const [highlightExpenseId, setHighlightExpenseId] = useState<string | null>(null)
   const [showUnprocessedOnly, setShowUnprocessedOnly] = useState(false)
 
@@ -160,6 +162,28 @@ export default function Financien() {
       alert(`Ontkoppelen mislukt: ${error.message}`)
       return
     }
+    await fetchData()
+  }
+
+  // Nieuwe kost direct vanuit een banktransactie aanmaken (Patroon C):
+  // ExpenseFormModal opent met velden vooringevuld. Bij save wordt de
+  // nieuwe expense.id automatisch aan de transactie gekoppeld.
+  const handleStartCreateExpense = (tx: BankTransaction) => {
+    setLinkingTx(null)
+    setCreatingExpenseFor(tx)
+  }
+
+  const handleNewExpenseSaved = async (expenseId?: string) => {
+    if (creatingExpenseFor && expenseId) {
+      const { error } = await supabase
+        .from('bank_transactions')
+        .update({ expense_id: expenseId, invoice_id: null, category: null })
+        .eq('id', creatingExpenseFor.id)
+      if (error) {
+        alert(`Kost is opgeslagen, maar koppelen aan transactie mislukt: ${error.message}`)
+      }
+    }
+    setCreatingExpenseFor(null)
     await fetchData()
   }
 
@@ -614,6 +638,26 @@ export default function Financien() {
           expenses={expenses}
           onClose={() => setLinkingTx(null)}
           onSelect={(target) => handleLink(linkingTx, target)}
+          onCreateNewExpense={() => handleStartCreateExpense(linkingTx)}
+        />
+      )}
+
+      {creatingExpenseFor && (
+        <ExpenseFormModal
+          expense={null}
+          prefill={{
+            expense_date: creatingExpenseFor.booked_at.slice(0, 10),
+            vendor: creatingExpenseFor.counterparty_name ?? '',
+            description: creatingExpenseFor.description || creatingExpenseFor.counterparty_name || '',
+            amount_excl_btw: Math.abs(Number(creatingExpenseFor.amount)),
+            btw_percent: 0,
+            btw_amount: 0,
+            amount_incl_btw: Math.abs(Number(creatingExpenseFor.amount)),
+            currency: creatingExpenseFor.currency || 'EUR',
+          }}
+          onClose={() => setCreatingExpenseFor(null)}
+          onSaved={handleNewExpenseSaved}
+          submitLabel="Opslaan en koppelen"
         />
       )}
     </div>
@@ -628,12 +672,14 @@ function LinkModal({
   expenses,
   onClose,
   onSelect,
+  onCreateNewExpense,
 }: {
   tx: BankTransaction
   invoices: Invoice[]
   expenses: Expense[]
   onClose: () => void
   onSelect: (target: { kind: 'invoice'; id: string } | { kind: 'expense'; id: string } | { kind: 'category'; category: TransactionCategory }) => void
+  onCreateNewExpense: () => void
 }) {
   const isIncoming = tx.amount >= 0
   const [tab, setTab] = useState<'invoice' | 'expense' | 'private'>(isIncoming ? 'invoice' : 'expense')
@@ -820,9 +866,26 @@ function LinkModal({
               </ul>
             )
           ) : (
-            expenseItems.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-12">Geen kosten gevonden.</p>
-            ) : (
+            <>
+              {/* Knop om direct vanuit deze transactie een nieuwe kost te maken */}
+              <button
+                onClick={onCreateNewExpense}
+                className="w-full text-left px-6 py-3 hover:bg-primary/5 flex items-center gap-3 border-b border-gray-100 group"
+              >
+                <span className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20">
+                  <Plus className="w-4 h-4" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900">Maak nieuwe kost van deze transactie</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Datum, bedrag en tegenpartij worden vooringevuld. Daarna kun je een bonnetje uploaden.
+                  </p>
+                </div>
+              </button>
+
+              {expenseItems.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-12">Of zoek tussen bestaande kosten — geen kosten gevonden.</p>
+              ) : (
               <ul className="divide-y divide-gray-100">
                 {expenseItems.map((ex) => {
                   const exact = matchAmount(Number(ex.amount_incl_btw))
@@ -857,7 +920,8 @@ function LinkModal({
                   )
                 })}
               </ul>
-            )
+              )}
+            </>
           )}
         </div>
       </div>
