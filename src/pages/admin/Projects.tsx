@@ -1266,28 +1266,7 @@ export default function Projects() {
 
                 {/* ── Sectie 3: Projectdetails ── */}
                 <div className="bg-gray-50/50 border-t border-b border-gray-100 px-5 sm:px-6 py-4 space-y-3">
-                  {/* Rij 1: Datums */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 bg-white rounded-lg border border-gray-100 px-3 py-2">
-                      <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Opleverdatum</p>
-                        <input type="date" value={project.due_date || ''}
-                          onChange={(e) => updateProject(project.id, { due_date: e.target.value || null })}
-                          className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 bg-white rounded-lg border border-gray-100 px-3 py-2">
-                      <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Startgesprek</p>
-                        <input type="datetime-local" value={toDatetimeLocal(project.start_meeting_at)}
-                          onChange={(e) => updateProject(project.id, { start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                          className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
-                      </div>
-                    </div>
-                  </div>
-                  {/* Rij 2: URLs */}
+                  {/* URLs */}
                   <div className="grid grid-cols-3 gap-3">
                     {([
                       { label: 'Bestanden delen', value: project.file_sharing_url, field: 'file_sharing_url', icon: Upload },
@@ -1571,9 +1550,7 @@ export default function Projects() {
                 <div className="border-t border-gray-100">
                   <div className="flex border-b border-gray-100 px-5 sm:px-6 overflow-x-auto">
                     {phases.map((phase) => {
-                      const hasInstance = !!getInstance(project.id, phase)
-                      if (phase === 'intake' && !hasInstance) return null
-                      const activeTab = domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')
+                      const activeTab = domainCardTab[project.id] || 'intake'
                       const colors = phaseTabColors[phase]
                       return (
                         <button key={phase}
@@ -1591,9 +1568,32 @@ export default function Projects() {
                   </div>
 
                     {/* Intake tab content */}
-                    {(domainCardTab[project.id] || (getInstance(project.id, 'intake') ? 'intake' : 'design')) === 'intake' && getInstance(project.id, 'intake') && (
-                      <div className="px-5 sm:px-6 py-4">
-                        {(() => {
+                    {(domainCardTab[project.id] || 'intake') === 'intake' && (
+                      <div className="px-5 sm:px-6 py-4 space-y-4">
+                        {/* Datums — altijd zichtbaar in Intake-fase */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="flex items-center gap-3 bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
+                            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Opleverdatum</p>
+                              <input type="date" value={project.due_date || ''}
+                                onChange={(e) => updateProject(project.id, { due_date: e.target.value || null })}
+                                className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
+                            <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Startgesprek</p>
+                              <input type="datetime-local" value={toDatetimeLocal(project.start_meeting_at)}
+                                onChange={(e) => updateProject(project.id, { start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                                className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Offerte/opdracht/factuur koppelingen — alleen als er een intake-instance is */}
+                        {getInstance(project.id, 'intake') && (() => {
                           const links = intakeLinks[project.id] || { quote_id: '', invoice_id: '', assignment_id: '' }
                           const quotes = projectQuotes[project.id]
                           const invoices = projectInvoices[project.id]
