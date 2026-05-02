@@ -655,6 +655,7 @@ export default function Financien() {
             amount_incl_btw: Math.abs(Number(creatingExpenseFor.amount)),
             currency: creatingExpenseFor.currency || 'EUR',
           }}
+          sourceBookedAt={creatingExpenseFor.booked_at}
           onClose={() => setCreatingExpenseFor(null)}
           onSaved={handleNewExpenseSaved}
           submitLabel="Opslaan en koppelen"

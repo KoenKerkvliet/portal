@@ -190,14 +190,16 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
 
   const fetchExpenses = async () => {
     const [{ data, error }, { data: atts }] = await Promise.all([
-      // expense_date is een DATE-kolom (geen tijd), dus secundair op created_at
-      // sorteren zodat kosten op dezelfde datum een stabiele volgorde krijgen.
-      // Ascending zodat de eerst aangemaakte boven staat — sluit aan op hoe
-      // banktransacties van boven naar beneden verwerkt worden.
+      // Sortering binnen dezelfde datum:
+      //   1. source_booked_at desc — kosten gekoppeld aan een banktransactie
+      //      volgen exact dezelfde volgorde als de banktransactie-tab.
+      //   2. created_at asc — handmatig aangemaakte kosten (zonder bron-tx)
+      //      vallen onderaan terug op aanmaakvolgorde, oudste eerst.
       supabase
         .from('expenses')
         .select('*')
         .order('expense_date', { ascending: false })
+        .order('source_booked_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: true }),
       supabase.from('expense_attachments').select('expense_id'),
     ])
@@ -620,9 +622,10 @@ function ExpenseRow({ expense, onEdit, onDelete, highlight, attachmentCount }: {
 
 // --- Add/Edit form modal ---
 
-export function ExpenseFormModal({ expense, prefill, onClose, onSaved, submitLabel }: {
+export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, onSaved, submitLabel }: {
   expense: Expense | null
   prefill?: Partial<ExpenseInput>
+  sourceBookedAt?: string | null
   onClose: () => void
   onSaved: (id?: string) => void
   submitLabel?: string
@@ -683,7 +686,8 @@ export function ExpenseFormModal({ expense, prefill, onClose, onSaved, submitLab
       await supabase.from('expenses').update(payload).eq('id', expense.id)
       savedId = expense.id
     } else {
-      const { data, error } = await supabase.from('expenses').insert(payload).select('id').single()
+      const insertPayload = { ...payload, source_booked_at: sourceBookedAt ?? null }
+      const { data, error } = await supabase.from('expenses').insert(insertPayload).select('id').single()
       if (error) {
         alert(`Opslaan mislukt: ${error.message}`)
         setSaving(false)

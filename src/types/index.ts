@@ -265,6 +265,7 @@ export interface Expense {
   invoice_number: string | null
   notes: string
   currency: string
+  source_booked_at: string | null
   created_at: string
 }
 
