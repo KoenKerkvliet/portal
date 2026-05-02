@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
 import { parseCsv, parseAmount, parseDate, mapHeaders } from '../../lib/csv'
-import type { Expense } from '../../types'
+import type { Expense, ExpenseAttachment } from '../../types'
 import {
   Plus,
   Receipt,
@@ -17,6 +17,10 @@ import {
   Save,
   AlertCircle,
   CheckCircle2,
+  Paperclip,
+  FileText,
+  Image as ImageIcon,
+  Download,
 } from 'lucide-react'
 
 // --- Helpers ---
@@ -165,6 +169,7 @@ function rowToInput(row: string[], colMap: Record<CsvField, number | undefined>)
 
 export default function Kosten({ highlightId }: { highlightId?: string | null } = {}) {
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -183,12 +188,17 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
   const [rateError, setRateError] = useState<string | null>(null)
 
   const fetchExpenses = async () => {
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .order('expense_date', { ascending: false })
+    const [{ data, error }, { data: atts }] = await Promise.all([
+      supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
+      supabase.from('expense_attachments').select('expense_id'),
+    ])
     if (error) console.error('Kon kosten niet laden:', error)
     setExpenses(data || [])
+    const counts: Record<string, number> = {}
+    for (const a of (atts as { expense_id: string }[] | null) ?? []) {
+      counts[a.expense_id] = (counts[a.expense_id] ?? 0) + 1
+    }
+    setAttachmentCounts(counts)
     setLoading(false)
   }
 
@@ -430,6 +440,7 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
                     onEdit={openEdit}
                     onDelete={handleDelete}
                     highlight={highlightId === expense.id}
+                    attachmentCount={attachmentCounts[expense.id] ?? 0}
                   />
                 ))}
               </tbody>
@@ -463,11 +474,12 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
 
 // --- Row with action menu ---
 
-function ExpenseRow({ expense, onEdit, onDelete, highlight }: {
+function ExpenseRow({ expense, onEdit, onDelete, highlight, attachmentCount }: {
   expense: Expense
   onEdit: (e: Expense) => void
   onDelete: (id: string) => void
   highlight?: boolean
+  attachmentCount?: number
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
@@ -517,7 +529,18 @@ function ExpenseRow({ expense, onEdit, onDelete, highlight }: {
       <td className="px-5 py-3.5 text-sm text-gray-700 whitespace-nowrap">{formatDate(expense.expense_date)}</td>
       <td className="px-5 py-3.5 text-sm text-gray-700">{expense.vendor || '—'}</td>
       <td className="px-5 py-3.5 text-sm text-gray-900">
-        <p className="font-medium">{expense.description}</p>
+        <p className="font-medium flex items-center gap-1.5">
+          {expense.description}
+          {(attachmentCount ?? 0) > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-xs text-gray-500 bg-gray-100 rounded px-1.5 py-0.5"
+              title={`${attachmentCount} ${attachmentCount === 1 ? 'bijlage' : 'bijlagen'}`}
+            >
+              <Paperclip className="w-3 h-3" />
+              {attachmentCount}
+            </span>
+          )}
+        </p>
         {expense.invoice_number && <p className="text-xs text-gray-400 mt-0.5">Factuur: {expense.invoice_number}</p>}
       </td>
       <td className="px-5 py-3.5 text-sm text-gray-500">
@@ -759,6 +782,21 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
                 placeholder="Optionele notities..."
               />
             </div>
+
+            {/* Bonnen / facturen — alleen na opslaan beschikbaar zodat we een expense.id hebben */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+                <Paperclip className="w-4 h-4 text-gray-400" />
+                Bonnen of facturen
+              </label>
+              {expense ? (
+                <AttachmentsSection expenseId={expense.id} />
+              ) : (
+                <p className="text-xs text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-3">
+                  Sla deze kost eerst op om bonnen of facturen toe te kunnen voegen.
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
@@ -777,6 +815,209 @@ function ExpenseFormModal({ expense, onClose, onSaved }: {
         </div>
       </div>
     </>
+  )
+}
+
+// --- Attachments section (gebruikt in ExpenseFormModal) ---
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf']
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
+}
+
+function AttachmentsSection({ expenseId }: { expenseId: string }) {
+  const [items, setItems] = useState<ExpenseAttachment[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const fetchAttachments = async () => {
+    const { data, error: err } = await supabase
+      .from('expense_attachments')
+      .select('*')
+      .eq('expense_id', expenseId)
+      .order('uploaded_at', { ascending: false })
+    if (err) {
+      console.error('Bijlagen laden mislukt:', err)
+      setError(err.message)
+    }
+    setItems((data as ExpenseAttachment[] | null) ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    fetchAttachments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expenseId])
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    setError(null)
+    const arr = Array.from(files)
+    if (arr.length === 0) return
+
+    for (const file of arr) {
+      if (!ACCEPTED_TYPES.includes(file.type)) {
+        setError(`'${file.name}' heeft een niet-ondersteund type (alleen JPG/PNG/WEBP/HEIC of PDF).`)
+        return
+      }
+      if (file.size > MAX_FILE_BYTES) {
+        setError(`'${file.name}' is groter dan 10 MB.`)
+        return
+      }
+    }
+
+    setUploading(true)
+    try {
+      for (const file of arr) {
+        const path = `${expenseId}/${Date.now()}_${sanitizeFilename(file.name)}`
+        const { error: upErr } = await supabase.storage
+          .from('expense-receipts')
+          .upload(path, file, { contentType: file.type, upsert: false })
+        if (upErr) throw upErr
+
+        const { error: insErr } = await supabase.from('expense_attachments').insert({
+          expense_id: expenseId,
+          storage_path: path,
+          filename: file.name,
+          content_type: file.type,
+          size_bytes: file.size,
+        })
+        if (insErr) {
+          // Rollback: bestand weer verwijderen uit storage
+          await supabase.storage.from('expense-receipts').remove([path])
+          throw insErr
+        }
+      }
+      await fetchAttachments()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(`Upload mislukt: ${msg}`)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleOpen = async (att: ExpenseAttachment) => {
+    const { data, error: err } = await supabase.storage
+      .from('expense-receipts')
+      .createSignedUrl(att.storage_path, 300)
+    if (err || !data?.signedUrl) {
+      alert(`Kon bijlage niet openen: ${err?.message ?? 'onbekende fout'}`)
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleDelete = async (att: ExpenseAttachment) => {
+    if (!confirm(`'${att.filename}' verwijderen?`)) return
+    const { error: stErr } = await supabase.storage
+      .from('expense-receipts')
+      .remove([att.storage_path])
+    if (stErr) {
+      alert(`Verwijderen uit storage mislukt: ${stErr.message}`)
+      return
+    }
+    await supabase.from('expense_attachments').delete().eq('id', att.id)
+    await fetchAttachments()
+  }
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (e.dataTransfer.files?.length) uploadFiles(e.dataTransfer.files)
+  }
+
+  return (
+    <div className="space-y-2">
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        onClick={() => fileInputRef.current?.click()}
+        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_TYPES.join(',')}
+          onChange={(e) => e.target.files && uploadFiles(e.target.files)}
+          className="hidden"
+        />
+        {uploading ? (
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Uploaden…
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500">
+            <Upload className="w-4 h-4 inline mr-1 -mt-0.5" />
+            Sleep bestanden hierheen of klik — JPG, PNG, PDF (max 10 MB)
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <p className="text-xs text-rose-600 flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </p>
+      )}
+
+      {loading ? (
+        <div className="text-center py-2">
+          <Loader2 className="w-4 h-4 animate-spin text-gray-400 mx-auto" />
+        </div>
+      ) : items.length > 0 ? (
+        <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+          {items.map((att) => {
+            const isImage = att.content_type?.startsWith('image/')
+            const Icon = isImage ? ImageIcon : FileText
+            return (
+              <li key={att.id} className="flex items-center gap-2 px-3 py-2">
+                <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <button
+                  onClick={() => handleOpen(att)}
+                  className="flex-1 min-w-0 text-left text-sm text-primary hover:underline truncate"
+                  title={att.filename}
+                >
+                  {att.filename}
+                </button>
+                {att.size_bytes && (
+                  <span className="text-xs text-gray-400 whitespace-nowrap">{formatBytes(att.size_bytes)}</span>
+                )}
+                <button
+                  onClick={() => handleOpen(att)}
+                  className="p-1 text-gray-400 hover:text-primary"
+                  title="Openen"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleDelete(att)}
+                  className="p-1 text-gray-400 hover:text-rose-500"
+                  title="Verwijderen"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+    </div>
   )
 }
 

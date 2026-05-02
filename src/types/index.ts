@@ -268,6 +268,16 @@ export interface Expense {
   created_at: string
 }
 
+export interface ExpenseAttachment {
+  id: string
+  expense_id: string
+  storage_path: string
+  filename: string
+  content_type: string | null
+  size_bytes: number | null
+  uploaded_at: string
+}
+
 export type TransactionCategory = 'private_deposit' | 'private_withdrawal' | 'private_purchase'
 
 export interface BankTransaction {
