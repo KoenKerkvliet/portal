@@ -129,6 +129,7 @@ export default function Projects() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterPhase, setFilterPhase] = useState<ProjectPhase | 'all'>('all')
   const [filterClient, setFilterClient] = useState('all')
+  const [filterLetter, setFilterLetter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const [phaseDropdownId, setPhaseDropdownId] = useState<string | null>(null)
   const [clientDropdownId, setClientDropdownId] = useState<string | null>(null)
@@ -813,6 +814,22 @@ export default function Projects() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
+  // Projects after viewMode + search + phase + client filters, before letter filter.
+  // Used to determine which letters have available projects (so empty letters can be faded).
+  const baseFilteredProjects = projects.filter((p) => {
+    const projectStatus = p.status || 'active'
+    if (viewMode === 'active' && projectStatus !== 'active') return false
+    if (viewMode === 'archived' && projectStatus !== 'archived') return false
+    if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    if (filterPhase !== 'all' && p.current_phase !== filterPhase) return false
+    if (filterClient !== 'all' && p.client_id !== filterClient) return false
+    return true
+  })
+
+  const lettersWithProjects = new Set(
+    baseFilteredProjects.map((p) => (p.name?.[0] || '').toLowerCase()).filter((c) => /[a-z]/.test(c))
+  )
+
   const filteredProjects = projects.filter((p) => {
     const projectStatus = p.status || 'active'
     if (viewMode === 'active' && projectStatus !== 'active') return false
@@ -820,6 +837,7 @@ export default function Projects() {
     if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
     if (filterPhase !== 'all' && p.current_phase !== filterPhase) return false
     if (filterClient !== 'all' && p.client_id !== filterClient) return false
+    if (filterLetter !== 'all' && (p.name?.[0] || '').toLowerCase() !== filterLetter) return false
     return true
   })
 
@@ -859,6 +877,43 @@ export default function Projects() {
         </div>
       </div>
 
+      {/* Alfabet-balk */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 mb-3 flex items-center gap-1 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setFilterLetter('all')}
+          className={`px-2.5 py-1 text-xs sm:text-sm font-medium rounded-md transition-colors flex-shrink-0 ${
+            filterLetter === 'all'
+              ? 'bg-primary text-white'
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          Alle
+        </button>
+        <div className="w-px h-5 bg-gray-200 mx-1 flex-shrink-0" />
+        {Array.from({ length: 26 }, (_, i) => String.fromCharCode(97 + i)).map((letter) => {
+          const hasProjects = lettersWithProjects.has(letter)
+          const isActive = filterLetter === letter
+          return (
+            <button
+              key={letter}
+              type="button"
+              onClick={() => setFilterLetter(letter)}
+              disabled={!hasProjects && !isActive}
+              className={`w-7 h-7 text-xs sm:text-sm font-medium rounded-md transition-colors flex-shrink-0 uppercase ${
+                isActive
+                  ? 'bg-primary text-white'
+                  : hasProjects
+                  ? 'text-gray-700 hover:bg-gray-100'
+                  : 'text-gray-300 cursor-not-allowed'
+              }`}
+            >
+              {letter}
+            </button>
+          )
+        })}
+      </div>
+
       {/* Filter bar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 mb-6 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -894,7 +949,7 @@ export default function Projects() {
             ))}
           </select>
         </div>
-        {(searchQuery || filterPhase !== 'all' || filterClient !== 'all') && (
+        {(searchQuery || filterPhase !== 'all' || filterClient !== 'all' || filterLetter !== 'all') && (
           <span className="text-xs text-gray-400">
             {filteredProjects.length} van {projects.length} domeinen
           </span>
