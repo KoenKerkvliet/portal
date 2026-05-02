@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import JSZip from 'jszip'
 import { supabase } from '../../lib/supabase'
-import type { BankTransaction, Expense, Invoice, TransactionCategory } from '../../types'
+import type { BankTransaction, Expense, ExpenseAttachment, Invoice, TransactionCategory } from '../../types'
 import Kosten, { ExpenseFormModal } from './Kosten'
+import {
+  generateTransactionsCsv,
+  generateExpensesCsv,
+  generateSummaryText,
+  generatePdfReport,
+  buildAttachmentFilename,
+} from '../../lib/financialExport'
 import {
   Wallet,
   ArrowDownLeft,
@@ -23,6 +31,8 @@ import {
   User,
   Inbox,
   Plus,
+  Download,
+  FileArchive,
 } from 'lucide-react'
 
 const PRIVATE_CATEGORY_LABELS: Record<TransactionCategory, string> = {
@@ -95,6 +105,7 @@ export default function Financien() {
   const [creatingExpenseFor, setCreatingExpenseFor] = useState<BankTransaction | null>(null)
   const [highlightExpenseId, setHighlightExpenseId] = useState<string | null>(null)
   const [showUnprocessedOnly, setShowUnprocessedOnly] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const fetchData = async () => {
     const [txRes, stateRes, invRes, expRes] = await Promise.all([
@@ -286,16 +297,26 @@ export default function Financien() {
             )}
           </p>
         </div>
-        {activeTab === 'bank' && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            onClick={() => setExportOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+            title="Exporteer een periode als ZIP"
           >
-            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {syncing ? 'Synchroniseren…' : 'Verversen'}
+            <Download className="w-4 h-4" />
+            Exporteren
           </button>
-        )}
+          {activeTab === 'bank' && (
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {syncing ? 'Synchroniseren…' : 'Verversen'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab-strip */}
@@ -661,6 +682,15 @@ export default function Financien() {
           submitLabel="Opslaan en koppelen"
         />
       )}
+
+      {exportOpen && (
+        <ExportModal
+          transactions={transactions}
+          invoiceById={invoiceById}
+          expenseById={expenseById}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -924,6 +954,314 @@ function LinkModal({
               )}
             </>
           )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+// ---- Export-modal --------------------------------------------------------
+
+function ExportModal({
+  transactions,
+  invoiceById,
+  expenseById,
+  onClose,
+}: {
+  transactions: BankTransaction[]
+  invoiceById: Map<string, Invoice>
+  expenseById: Map<string, Expense>
+  onClose: () => void
+}) {
+  const now = new Date()
+  const yearStart = `${now.getFullYear()}-01-01`
+  const today = now.toISOString().slice(0, 10)
+
+  const [dateFrom, setDateFrom] = useState(yearStart)
+  const [dateTo, setDateTo] = useState(today)
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all')
+  const [includeTransactions, setIncludeTransactions] = useState(true)
+  const [includeExpenses, setIncludeExpenses] = useState(true)
+  const [includeAttachments, setIncludeAttachments] = useState(true)
+  const [includePdf, setIncludePdf] = useState(true)
+
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleExport = async () => {
+    setBusy(true)
+    setError(null)
+    setProgress('Voorbereiden…')
+    try {
+      // 1. Banktransacties filteren
+      const fromTs = new Date(dateFrom + 'T00:00:00').getTime()
+      const toTs = new Date(dateTo + 'T23:59:59.999').getTime()
+      const txsInRange = transactions.filter((t) => {
+        const ts = new Date(t.booked_at).getTime()
+        if (ts < fromTs || ts > toTs) return false
+        if (filterType === 'income' && t.amount < 0) return false
+        if (filterType === 'expense' && t.amount >= 0) return false
+        return true
+      })
+
+      // 2. Kosten ophalen voor de periode
+      setProgress('Kosten ophalen…')
+      const expRes = await supabase
+        .from('expenses')
+        .select('*')
+        .gte('expense_date', dateFrom)
+        .lte('expense_date', dateTo)
+        .order('expense_date', { ascending: false })
+      if (expRes.error) throw new Error(`Kosten ophalen mislukt: ${expRes.error.message}`)
+      const expsInRange = (expRes.data as Expense[] | null) ?? []
+      // Voor type-filter: toepassen op kosten als 'expense' actief is.
+      // Inkomsten-filter: kosten zijn altijd uitgaven, dus dan leeg.
+      const expsAfterFilter = filterType === 'income' ? [] : expsInRange
+
+      // 3. Bijlages ophalen indien gevraagd
+      let atts: ExpenseAttachment[] = []
+      if (includeAttachments && includeExpenses && expsAfterFilter.length > 0) {
+        setProgress('Bijlages registreren…')
+        const expIds = expsAfterFilter.map((e) => e.id)
+        const attRes = await supabase
+          .from('expense_attachments')
+          .select('*')
+          .in('expense_id', expIds)
+          .order('uploaded_at', { ascending: true })
+        if (attRes.error) throw new Error(`Bijlages ophalen mislukt: ${attRes.error.message}`)
+        atts = (attRes.data as ExpenseAttachment[] | null) ?? []
+      }
+
+      // 4. ZIP bouwen
+      setProgress('ZIP samenstellen…')
+      const zip = new JSZip()
+      const periode = `${dateFrom}_tot_${dateTo}`
+
+      if (includeTransactions) {
+        zip.file(
+          'transacties.csv',
+          generateTransactionsCsv(txsInRange, invoiceById, expenseById),
+        )
+      }
+      if (includeExpenses) {
+        zip.file('kosten.csv', generateExpensesCsv(expsAfterFilter))
+      }
+      zip.file(
+        'samenvatting.txt',
+        generateSummaryText({ txs: txsInRange, expenses: expsAfterFilter, dateFrom, dateTo }),
+      )
+
+      if (includePdf) {
+        const pdfBlob = generatePdfReport({
+          txs: txsInRange,
+          expenses: expsAfterFilter,
+          invoiceById,
+          expenseById,
+          dateFrom,
+          dateTo,
+        })
+        zip.file('rapport.pdf', pdfBlob)
+      }
+
+      // 5. Bijlages downloaden + toevoegen
+      if (atts.length > 0) {
+        const expById = new Map(expsAfterFilter.map((e) => [e.id, e]))
+        // Tellers per expense voor unieke filenames bij meerdere bijlages
+        const counters = new Map<string, number>()
+        const folder = zip.folder('bonnen')
+        for (let i = 0; i < atts.length; i++) {
+          const att = atts[i]
+          const expense = expById.get(att.expense_id)
+          if (!expense) continue
+          setProgress(`Bonnetje ${i + 1} / ${atts.length}…`)
+          const idx = counters.get(att.expense_id) ?? 0
+          counters.set(att.expense_id, idx + 1)
+          const filename = buildAttachmentFilename(expense, att, idx)
+
+          // Signed URL ophalen + downloaden
+          const { data: urlData, error: urlErr } = await supabase.storage
+            .from('expense-receipts')
+            .createSignedUrl(att.storage_path, 600)
+          if (urlErr || !urlData?.signedUrl) {
+            console.warn(`Bijlage overgeslagen (${att.filename}): ${urlErr?.message}`)
+            continue
+          }
+          try {
+            const res = await fetch(urlData.signedUrl)
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            const blob = await res.blob()
+            folder?.file(filename, blob)
+          } catch (err) {
+            console.warn(`Bijlage ophalen mislukt (${att.filename}):`, err)
+          }
+        }
+      }
+
+      // 6. Genereren + downloaden
+      setProgress('Bestand genereren…')
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `financien-${periode}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      setProgress('Klaar!')
+      setTimeout(() => {
+        setBusy(false)
+        onClose()
+      }, 800)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      setBusy(false)
+      setProgress(null)
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={busy ? undefined : onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileArchive className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold text-gray-900">Exporteren</h2>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="text-gray-400 hover:text-gray-600 p-1 disabled:opacity-40"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Periode */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Vanaf</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                disabled={busy}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Tot en met</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                disabled={busy}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </div>
+
+          {/* Type-filter */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+            <div className="inline-flex w-full rounded-lg border border-gray-300 overflow-hidden">
+              {([
+                { key: 'all' as const, label: 'Alles' },
+                { key: 'income' as const, label: 'Inkomsten' },
+                { key: 'expense' as const, label: 'Uitgaven' },
+              ]).map((opt, i) => {
+                const isActive = filterType === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setFilterType(opt.key)}
+                    disabled={busy}
+                    className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                      i > 0 ? 'border-l border-gray-300' : ''
+                    } ${
+                      isActive
+                        ? opt.key === 'income'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : opt.key === 'expense'
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'bg-gray-100 text-gray-900'
+                        : 'bg-white text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Inhoud-checkboxes */}
+          <div className="space-y-2">
+            <p className="block text-xs font-medium text-gray-500">Inhoud</p>
+            {([
+              { key: 'tx' as const, value: includeTransactions, set: setIncludeTransactions, label: 'Banktransacties (transacties.csv)' },
+              { key: 'ex' as const, value: includeExpenses, set: setIncludeExpenses, label: 'Kosten (kosten.csv)' },
+              { key: 'at' as const, value: includeAttachments, set: setIncludeAttachments, label: 'Bijlages (bonnen-map)' },
+              { key: 'pdf' as const, value: includePdf, set: setIncludePdf, label: 'PDF-rapport (rapport.pdf)' },
+            ]).map((opt) => (
+              <label
+                key={opt.key}
+                className={`flex items-center gap-2 text-sm text-gray-700 ${busy ? 'opacity-60' : 'cursor-pointer'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={opt.value}
+                  onChange={(e) => opt.set(e.target.checked)}
+                  disabled={busy}
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/30"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+
+          {(busy || error) && (
+            <div className={`rounded-lg p-3 text-sm ${error ? 'bg-rose-50 text-rose-800' : 'bg-blue-50 text-blue-800'}`}>
+              {error ? (
+                <div className="flex gap-2 items-start">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              ) : (
+                <div className="flex gap-2 items-center">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{progress}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-40"
+          >
+            Annuleren
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={busy || (!includeTransactions && !includeExpenses && !includeAttachments && !includePdf)}
+            className="inline-flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Download ZIP
+          </button>
         </div>
       </div>
     </div>,
