@@ -292,28 +292,22 @@ export default function Kosten() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Kosten</h1>
-          <p className="text-gray-500 mt-1">Beheer je uitgaven en kostenposten</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowImport(true)}
-            className="flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium transition-colors"
-          >
-            <Upload className="w-4 h-4" />
-            Importeer CSV
-          </button>
-          <button
-            onClick={openNew}
-            className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Nieuwe kost
-          </button>
-        </div>
+      {/* Actie-knoppen (page-header zit in Financien-tab-container) */}
+      <div className="flex items-center justify-end mb-4 gap-2 flex-wrap">
+        <button
+          onClick={() => setShowImport(true)}
+          className="flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-lg font-medium transition-colors"
+        >
+          <Upload className="w-4 h-4" />
+          Importeer CSV
+        </button>
+        <button
+          onClick={openNew}
+          className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Nieuwe kost
+        </button>
       </div>
 
       {/* Filter bar */}

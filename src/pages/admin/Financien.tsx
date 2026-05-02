@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { BankTransaction } from '../../types'
+import Kosten from './Kosten'
 import {
   Wallet,
   ArrowDownLeft,
@@ -11,7 +12,11 @@ import {
   Link as LinkIcon,
   Loader2,
   CheckCircle2,
+  Receipt,
+  Landmark,
 } from 'lucide-react'
+
+type TabKey = 'bank' | 'kosten'
 
 function formatMoney(amount: number, currency = 'EUR'): string {
   const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : currency
@@ -44,6 +49,14 @@ export default function Financien() {
   const [loading, setLoading] = useState(true)
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const saved = (typeof window !== 'undefined' && window.sessionStorage.getItem('financien_tab')) as TabKey | null
+    return saved === 'kosten' ? 'kosten' : 'bank'
+  })
+  useEffect(() => {
+    window.sessionStorage.setItem('financien_tab', activeTab)
+  }, [activeTab])
 
   const [filterYear, setFilterYear] = useState<number>(now.getFullYear())
   const [filterMonth, setFilterMonth] = useState<number | 'all'>(now.getMonth() + 1)
@@ -124,32 +137,68 @@ export default function Financien() {
     )
   }
 
+  const tabSubtitle = activeTab === 'bank'
+    ? 'Inkomsten en uitgaven via Bunq'
+    : 'Beheer je uitgaven en kostenposten'
+
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+      {/* Header — gedeeld tussen beide tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Wallet className="w-6 h-6 text-primary" />
             Financiën
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Inkomsten en uitgaven via Bunq
-            {lastSyncAt && (
+            {tabSubtitle}
+            {activeTab === 'bank' && lastSyncAt && (
               <span className="ml-2 text-gray-400">· laatst gesynchroniseerd {formatRelativeTime(lastSyncAt)}</span>
             )}
           </p>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-        >
-          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          {syncing ? 'Synchroniseren…' : 'Verversen'}
-        </button>
+        {activeTab === 'bank' && (
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {syncing ? 'Synchroniseren…' : 'Verversen'}
+          </button>
+        )}
       </div>
 
+      {/* Tab-strip */}
+      <div className="border-b border-gray-200 mb-6">
+        <div className="flex gap-1">
+          {([
+            { key: 'bank', label: 'Banktransacties', icon: Landmark },
+            { key: 'kosten', label: 'Kosten', icon: Receipt },
+          ] as const).map((tab) => {
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2.5 -mb-px text-sm font-medium border-b-2 transition-colors ${
+                  isActive
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {activeTab === 'kosten' ? (
+        <Kosten />
+      ) : (
+        <>
       {/* Sync feedback */}
       {syncMessage && (
         <div className={`mb-4 rounded-xl border p-4 flex gap-3 ${syncMessage.type === 'success' ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
@@ -318,6 +367,8 @@ export default function Financien() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }
