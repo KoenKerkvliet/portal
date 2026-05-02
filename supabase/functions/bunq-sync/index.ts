@@ -18,8 +18,14 @@
 //   BUNQ_DEVICE_DESCRIPTION — default 'DesignPixels Klantportaal'
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
 import { generateKeypair, signBody } from './crypto.ts'
+
+// Inline (geen import uit ../_shared) zodat de dashboard-editor de function
+// kan bundelen zonder het _shared-pad te kennen.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 type BunqState = {
   id: number
