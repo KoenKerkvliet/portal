@@ -21,6 +21,7 @@ import {
   FileText,
   Image as ImageIcon,
   Download,
+  Eye,
 } from 'lucide-react'
 
 // --- Helpers ---
@@ -532,13 +533,39 @@ function ExpenseRow({ expense, onEdit, onDelete, highlight, attachmentCount }: {
         <p className="font-medium flex items-center gap-1.5">
           {expense.description}
           {(attachmentCount ?? 0) > 0 && (
-            <span
-              className="inline-flex items-center gap-0.5 text-xs text-gray-500 bg-gray-100 rounded px-1.5 py-0.5"
-              title={`${attachmentCount} ${attachmentCount === 1 ? 'bijlage' : 'bijlagen'}`}
+            <button
+              onClick={async (e) => {
+                e.stopPropagation()
+                const { data: atts, error: queryErr } = await supabase
+                  .from('expense_attachments')
+                  .select('storage_path, filename')
+                  .eq('expense_id', expense.id)
+                  .order('uploaded_at', { ascending: true })
+                  .limit(1)
+                if (queryErr || !atts || atts.length === 0) {
+                  alert('Geen bijlage gevonden')
+                  return
+                }
+                const path = (atts[0] as { storage_path: string }).storage_path
+                const { data, error: urlErr } = await supabase.storage
+                  .from('expense-receipts')
+                  .createSignedUrl(path, 300)
+                if (urlErr || !data?.signedUrl) {
+                  alert(`Kon bijlage niet openen: ${urlErr?.message ?? 'onbekende fout'}`)
+                  return
+                }
+                window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+              }}
+              title={
+                (attachmentCount ?? 0) === 1
+                  ? 'Bonnetje openen'
+                  : `${attachmentCount} bijlagen — open de eerste (rest via Bewerken)`
+              }
+              className="inline-flex items-center gap-0.5 text-xs text-gray-500 bg-gray-100 hover:bg-primary/10 hover:text-primary rounded px-1.5 py-0.5 transition-colors"
             >
-              <Paperclip className="w-3 h-3" />
+              <Eye className="w-3 h-3" />
               {attachmentCount}
-            </span>
+            </button>
           )}
         </p>
         {expense.invoice_number && <p className="text-xs text-gray-400 mt-0.5">Factuur: {expense.invoice_number}</p>}
