@@ -191,13 +191,14 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
   const fetchExpenses = async () => {
     const [{ data, error }, { data: atts }] = await Promise.all([
       // expense_date is een DATE-kolom (geen tijd), dus secundair op created_at
-      // sorteren zodat kosten op dezelfde datum een stabiele, voorspelbare volgorde
-      // krijgen: meest recent aangemaakt staat bovenaan.
+      // sorteren zodat kosten op dezelfde datum een stabiele volgorde krijgen.
+      // Ascending zodat de eerst aangemaakte boven staat — sluit aan op hoe
+      // banktransacties van boven naar beneden verwerkt worden.
       supabase
         .from('expenses')
         .select('*')
         .order('expense_date', { ascending: false })
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: true }),
       supabase.from('expense_attachments').select('expense_id'),
     ])
     if (error) console.error('Kon kosten niet laden:', error)
