@@ -11,11 +11,14 @@
 //   BUNQ_API_KEY        — productie API-key uit de Bunq-app
 //   SUPABASE_URL        — automatisch aanwezig
 //   SUPABASE_SERVICE_ROLE_KEY — automatisch aanwezig
+//   EMAILIT_API_KEY     — voor de "factuur betaald"-notificatiemail
 //
 // Optioneel:
 //   BUNQ_API_BASE       — default 'https://api.bunq.com' (productie).
 //                         Zet op 'https://public-api.sandbox.bunq.com' voor sandbox.
 //   BUNQ_DEVICE_DESCRIPTION — default 'DesignPixels Klantportaal'
+//   EMAILIT_FROM        — default 'DesignPixels <noreply@designpixels.nl>'
+//   ADMIN_EMAIL         — default 'koen.kerkvliet@designpixels.nl'
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { generateKeypair, signBody } from './crypto.ts'
@@ -333,7 +336,185 @@ async function runSync(): Promise<{ inserted: number; accounts: number; lastPaym
     updated_at: new Date().toISOString(),
   }).eq('id', 1)
 
-  return { inserted, accounts: accountIds.length, lastPaymentId: highest }
+  const matched = await matchInvoices(db)
+
+  return { inserted, accounts: accountIds.length, lastPaymentId: highest, matched }
+}
+
+// ---- Factuurkoppeling --------------------------------------------------------
+
+type MatchableTx = {
+  id: string
+  amount: number
+  description: string
+  counterparty_name: string | null
+  booked_at: string
+}
+
+type OpenInvoice = {
+  id: string
+  number: string
+  amount: number
+  client_name: string | null
+}
+
+async function matchInvoices(db: ReturnType<typeof createClient>): Promise<number> {
+  // 1. Haal alle ongekoppelde inkomende transacties op (positief bedrag).
+  const { data: txs, error: txErr } = await db
+    .from('bank_transactions')
+    .select('id, amount, description, counterparty_name, booked_at')
+    .is('invoice_id', null)
+    .gt('amount', 0)
+  if (txErr) {
+    console.error('matchInvoices: kon transacties niet laden:', txErr.message)
+    return 0
+  }
+  if (!txs || txs.length === 0) return 0
+
+  // 2. Haal alle open facturen op (status 'sent', niet test).
+  const { data: invoices, error: invErr } = await db
+    .from('invoices')
+    .select('id, number, amount, client_name')
+    .eq('status', 'sent')
+    .eq('is_test', false)
+  if (invErr) {
+    console.error('matchInvoices: kon facturen niet laden:', invErr.message)
+    return 0
+  }
+  if (!invoices || invoices.length === 0) return 0
+
+  let matchedCount = 0
+
+  for (const tx of txs as MatchableTx[]) {
+    const candidates = (invoices as OpenInvoice[]).filter((inv) => {
+      // Bedrag exact gelijk (centafronding-marge).
+      if (Math.abs(Number(inv.amount) - Number(tx.amount)) > 0.005) return false
+      // Factuurnummer voorkomen in omschrijving (case-insensitive).
+      if (!inv.number) return false
+      const desc = (tx.description || '').toLowerCase()
+      return desc.includes(inv.number.toLowerCase())
+    })
+
+    // Alleen bij precies één match auto-koppelen — bij dubbele match overslaan
+    // om verkeerde toekenning te voorkomen.
+    if (candidates.length !== 1) continue
+    const inv = candidates[0]
+
+    // Update factuur → paid
+    const { error: invUpdErr } = await db
+      .from('invoices')
+      .update({ status: 'paid' })
+      .eq('id', inv.id)
+      .eq('status', 'sent') // race-conditie: alleen als nog steeds 'sent'
+    if (invUpdErr) {
+      console.error(`matchInvoices: update factuur ${inv.number} mislukt:`, invUpdErr.message)
+      continue
+    }
+
+    // Koppel transactie aan factuur
+    const { error: txUpdErr } = await db
+      .from('bank_transactions')
+      .update({ invoice_id: inv.id })
+      .eq('id', tx.id)
+    if (txUpdErr) {
+      console.error(`matchInvoices: koppeling transactie ${tx.id} mislukt:`, txUpdErr.message)
+      // Factuur staat al op paid; niet rollbacken — beter dat hij betaald staat.
+    }
+
+    // Mail naar admin
+    try {
+      await sendInvoicePaidEmail({
+        invoiceNumber: inv.number,
+        amount: Number(inv.amount),
+        clientName: inv.client_name || tx.counterparty_name || 'onbekende klant',
+        counterpartyName: tx.counterparty_name,
+        bookedAt: tx.booked_at,
+        description: tx.description,
+      })
+    } catch (mailErr) {
+      console.error(`matchInvoices: notificatiemail voor factuur ${inv.number} mislukt:`,
+        mailErr instanceof Error ? mailErr.message : String(mailErr))
+      // Mail-fout mag de match niet ongedaan maken.
+    }
+
+    // Verwijder uit lokale lijst zodat één factuur niet twee transacties claimt.
+    const idx = (invoices as OpenInvoice[]).indexOf(inv)
+    if (idx >= 0) (invoices as OpenInvoice[]).splice(idx, 1)
+
+    matchedCount++
+  }
+
+  return matchedCount
+}
+
+async function sendInvoicePaidEmail(opts: {
+  invoiceNumber: string
+  amount: number
+  clientName: string
+  counterpartyName: string | null
+  bookedAt: string
+  description: string
+}): Promise<void> {
+  const apiKey = Deno.env.get('EMAILIT_API_KEY')
+  if (!apiKey) {
+    console.warn('EMAILIT_API_KEY niet ingesteld — slaat notificatiemail over')
+    return
+  }
+  const from = Deno.env.get('EMAILIT_FROM') || 'DesignPixels <noreply@designpixels.nl>'
+  const to = Deno.env.get('ADMIN_EMAIL') || 'koen.kerkvliet@designpixels.nl'
+
+  const amountStr = `€ ${opts.amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const bookedStr = new Date(opts.bookedAt).toLocaleString('nl-NL', { dateStyle: 'full', timeStyle: 'short' })
+
+  const subject = `Factuur ${opts.invoiceNumber} betaald door ${opts.clientName}`
+  const html = `
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0;padding:0;background:#f8f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05);">
+        <div style="background:linear-gradient(135deg,#9e86ff,#7c3aed);padding:32px;text-align:center;">
+          <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">DesignPixels</h1>
+        </div>
+        <div style="padding:32px;">
+          <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">Factuur betaald</h2>
+          <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 24px;">
+            Factuur <strong>${opts.invoiceNumber}</strong> is automatisch op <em>betaald</em> gezet
+            omdat er een Bunq-transactie is binnengekomen die exact overeenkomt op bedrag en factuurnummer.
+          </p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;">
+            <table style="width:100%;border-collapse:collapse;">
+              <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Factuur</td><td style="color:#1f2937;font-size:13px;font-weight:600;text-align:right;padding:4px 0;">${opts.invoiceNumber}</td></tr>
+              <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Bedrag</td><td style="color:#1f2937;font-size:13px;font-weight:600;text-align:right;padding:4px 0;">${amountStr}</td></tr>
+              <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Klant</td><td style="color:#1f2937;font-size:13px;font-weight:600;text-align:right;padding:4px 0;">${opts.clientName}</td></tr>
+              ${opts.counterpartyName && opts.counterpartyName !== opts.clientName ? `<tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Tegenpartij Bunq</td><td style="color:#1f2937;font-size:13px;font-weight:600;text-align:right;padding:4px 0;">${opts.counterpartyName}</td></tr>` : ''}
+              <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Geboekt op</td><td style="color:#1f2937;font-size:13px;font-weight:600;text-align:right;padding:4px 0;">${bookedStr}</td></tr>
+              <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Status</td><td style="color:#16a34a;font-size:13px;font-weight:700;text-align:right;padding:4px 0;">Betaald</td></tr>
+            </table>
+          </div>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-top:16px;">
+            <p style="color:#6b7280;font-size:12px;font-weight:600;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em;">Omschrijving betaling</p>
+            <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">${opts.description || '—'}</p>
+          </div>
+        </div>
+        <div style="padding:16px 32px;background:#f9fafb;text-align:center;">
+          <p style="color:#9ca3af;font-size:11px;margin:0;">&copy; ${new Date().getFullYear()} DesignPixels</p>
+        </div>
+      </div>
+    </body></html>
+  `
+
+  const res = await fetch('https://api.emailit.com/v2/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from, to, subject, html }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`EmailIt ${res.status}: ${t}`)
+  }
 }
 
 // ---- HTTP entrypoint ---------------------------------------------------------
