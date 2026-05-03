@@ -108,8 +108,10 @@ export default function Financien() {
   const [linkingTx, setLinkingTx] = useState<BankTransaction | null>(null)
   const [creatingExpenseFor, setCreatingExpenseFor] = useState<BankTransaction | null>(null)
   const [highlightExpenseId, setHighlightExpenseId] = useState<string | null>(null)
-  const [showUnprocessedOnly, setShowUnprocessedOnly] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  // Filter op verwerkings-status: 'all' = alles, 'processed' = alleen gekoppeld
+  // (factuur/kost/privé), 'unprocessed' = nog niets aan gedaan.
+  const [filterStatus, setFilterStatus] = useState<'all' | 'processed' | 'unprocessed'>('all')
 
   const fetchData = async () => {
     const [txRes, stateRes, invRes, expRes] = await Promise.all([
@@ -239,7 +241,8 @@ export default function Financien() {
       if (filterMonth !== 'all' && d.getMonth() + 1 !== filterMonth) return false
       if (filterType === 'income' && t.amount < 0) return false
       if (filterType === 'expense' && t.amount >= 0) return false
-      if (showUnprocessedOnly && !isUnprocessed(t)) return false
+      if (filterStatus === 'unprocessed' && !isUnprocessed(t)) return false
+      if (filterStatus === 'processed' && isUnprocessed(t)) return false
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
         const blob = [t.description, t.counterparty_name, t.counterparty_iban].filter(Boolean).join(' ').toLowerCase()
@@ -247,7 +250,7 @@ export default function Financien() {
       }
       return true
     })
-  }, [transactions, filterYear, filterMonth, filterType, showUnprocessedOnly, searchQuery])
+  }, [transactions, filterYear, filterMonth, filterType, filterStatus, searchQuery])
 
   // Stat-cards berekenen ZONDER privé-transacties — anders vertekenen die de zakelijke totalen.
   const businessFiltered = useMemo(
@@ -410,7 +413,7 @@ export default function Financien() {
       )}
 
       {/* Ongekoppeld-banner */}
-      {unprocessedSummary.count > 0 && !showUnprocessedOnly && (
+      {unprocessedSummary.count > 0 && filterStatus !== 'unprocessed' && (
         <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-center gap-3">
           <Inbox className="w-5 h-5 text-blue-600 flex-shrink-0" />
           <div className="text-sm flex-1">
@@ -422,25 +425,10 @@ export default function Financien() {
             </p>
           </div>
           <button
-            onClick={() => setShowUnprocessedOnly(true)}
+            onClick={() => setFilterStatus('unprocessed')}
             className="text-sm font-medium text-blue-700 hover:text-blue-900 whitespace-nowrap px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
           >
             Bekijk →
-          </button>
-        </div>
-      )}
-
-      {/* Filter-modus chip */}
-      {showUnprocessedOnly && (
-        <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-900 text-sm">
-          <Inbox className="w-4 h-4" />
-          <span>Alleen ongekoppelde transacties</span>
-          <button
-            onClick={() => setShowUnprocessedOnly(false)}
-            className="text-blue-700 hover:text-blue-900 -mr-1 p-0.5"
-            title="Filter verwijderen"
-          >
-            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -491,7 +479,7 @@ export default function Financien() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Jaar</label>
             <select
@@ -542,6 +530,38 @@ export default function Financien() {
                           ? 'bg-emerald-50 text-emerald-700'
                           : opt.key === 'expense'
                             ? 'bg-rose-50 text-rose-700'
+                            : 'bg-gray-100 text-gray-900'
+                        : 'bg-white text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <div className="inline-flex w-full rounded-lg border border-gray-300 overflow-hidden">
+              {([
+                { key: 'all' as const, label: 'Alles' },
+                { key: 'processed' as const, label: 'Verwerkt' },
+                { key: 'unprocessed' as const, label: 'Open' },
+              ]).map((opt, i) => {
+                const isActive = filterStatus === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setFilterStatus(opt.key)}
+                    className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                      i > 0 ? 'border-l border-gray-300' : ''
+                    } ${
+                      isActive
+                        ? opt.key === 'processed'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : opt.key === 'unprocessed'
+                            ? 'bg-blue-50 text-blue-700'
                             : 'bg-gray-100 text-gray-900'
                         : 'bg-white text-gray-500 hover:text-gray-900'
                     }`}
