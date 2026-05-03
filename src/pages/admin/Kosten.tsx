@@ -296,10 +296,16 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
   })
   const filtered = dateSort === 'desc' ? filteredRaw : [...filteredRaw].reverse()
 
+  // Netto-totalen: bruto-bedrag van iedere kost, minus eventuele refund die
+  // aan die kost gekoppeld is. Refunds zijn altijd in EUR (Bunq) — voor kosten
+  // in een andere valuta is dit een vereenvoudiging die in de praktijk klopt
+  // omdat refunds vrijwel uitsluitend op EUR-kosten plaatsvinden.
   const totalsByCurrency: Record<string, number> = {}
   for (const e of filtered) {
     const cur = e.currency || 'EUR'
-    totalsByCurrency[cur] = (totalsByCurrency[cur] || 0) + Number(e.amount_incl_btw)
+    const gross = Number(e.amount_incl_btw)
+    const refund = refundsByExpense[e.id] ?? 0
+    totalsByCurrency[cur] = (totalsByCurrency[cur] || 0) + (gross - refund)
   }
   const totalCurrencies = Object.keys(totalsByCurrency).sort((a, b) => {
     if (a === 'EUR') return -1
