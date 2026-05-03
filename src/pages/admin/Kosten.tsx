@@ -22,6 +22,7 @@ import {
   Image as ImageIcon,
   Download,
   Eye,
+  RotateCcw,
 } from 'lucide-react'
 
 // --- Helpers ---
@@ -171,6 +172,7 @@ function rowToInput(row: string[], colMap: Record<CsvField, number | undefined>)
 export default function Kosten({ highlightId }: { highlightId?: string | null } = {}) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [attachmentCounts, setAttachmentCounts] = useState<Record<string, number>>({})
+  const [refundsByExpense, setRefundsByExpense] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
   // Filters
@@ -189,7 +191,7 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
   const [rateError, setRateError] = useState<string | null>(null)
 
   const fetchExpenses = async () => {
-    const [{ data, error }, { data: atts }] = await Promise.all([
+    const [{ data, error }, { data: atts }, { data: refunds }] = await Promise.all([
       // Sortering binnen dezelfde datum:
       //   1. source_booked_at desc — kosten gekoppeld aan een banktransactie
       //      volgen exact dezelfde volgorde als de banktransactie-tab.
@@ -202,6 +204,12 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
         .order('source_booked_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: true }),
       supabase.from('expense_attachments').select('expense_id'),
+      // Refunds: positieve banktransacties gekoppeld aan een kost.
+      supabase
+        .from('bank_transactions')
+        .select('expense_id, amount')
+        .gt('amount', 0)
+        .not('expense_id', 'is', null),
     ])
     if (error) console.error('Kon kosten niet laden:', error)
     setExpenses(data || [])
@@ -210,6 +218,11 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
       counts[a.expense_id] = (counts[a.expense_id] ?? 0) + 1
     }
     setAttachmentCounts(counts)
+    const refundTotals: Record<string, number> = {}
+    for (const r of (refunds as { expense_id: string; amount: number }[] | null) ?? []) {
+      refundTotals[r.expense_id] = (refundTotals[r.expense_id] ?? 0) + Number(r.amount)
+    }
+    setRefundsByExpense(refundTotals)
     setLoading(false)
   }
 
@@ -452,6 +465,7 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
                     onDelete={handleDelete}
                     highlight={highlightId === expense.id}
                     attachmentCount={attachmentCounts[expense.id] ?? 0}
+                    refundAmount={refundsByExpense[expense.id] ?? 0}
                   />
                 ))}
               </tbody>
@@ -485,12 +499,13 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
 
 // --- Row with action menu ---
 
-function ExpenseRow({ expense, onEdit, onDelete, highlight, attachmentCount }: {
+function ExpenseRow({ expense, onEdit, onDelete, highlight, attachmentCount, refundAmount }: {
   expense: Expense
   onEdit: (e: Expense) => void
   onDelete: (id: string) => void
   highlight?: boolean
   attachmentCount?: number
+  refundAmount?: number
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
@@ -587,7 +602,24 @@ function ExpenseRow({ expense, onEdit, onDelete, highlight, attachmentCount }: {
       </td>
       <td className="px-5 py-3.5 text-sm text-gray-700 text-right whitespace-nowrap">{formatMoney(Number(expense.amount_excl_btw), expense.currency || 'EUR')}</td>
       <td className="px-5 py-3.5 text-sm text-gray-500 text-right whitespace-nowrap">{formatMoney(Number(expense.btw_amount), expense.currency || 'EUR')}</td>
-      <td className="px-5 py-3.5 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">{formatMoney(Number(expense.amount_incl_btw), expense.currency || 'EUR')}</td>
+      <td className="px-5 py-3.5 text-sm text-right whitespace-nowrap">
+        <div className={`font-semibold ${(refundAmount ?? 0) > 0 ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+          {formatMoney(Number(expense.amount_incl_btw), expense.currency || 'EUR')}
+        </div>
+        {(refundAmount ?? 0) > 0 && (() => {
+          const total = Number(expense.amount_incl_btw)
+          const net = total - (refundAmount ?? 0)
+          return (
+            <div
+              className="text-xs text-amber-600 flex items-center gap-1 justify-end mt-0.5"
+              title={`Refund: ${formatMoney(refundAmount ?? 0, expense.currency || 'EUR')} terug`}
+            >
+              <RotateCcw className="w-3 h-3" />
+              netto {formatMoney(net, expense.currency || 'EUR')}
+            </div>
+          )
+        })()}
+      </td>
       <td className="px-5 py-3.5 text-right">
         <button ref={buttonRef} onClick={toggleMenu} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
           <MoreVertical className="w-4 h-4" />

@@ -33,6 +33,7 @@ import {
   Plus,
   Download,
   FileArchive,
+  RotateCcw,
 } from 'lucide-react'
 
 const PRIVATE_CATEGORY_LABELS: Record<TransactionCategory, string> = {
@@ -223,6 +224,11 @@ export default function Financien() {
   const isUnprocessed = (t: BankTransaction) =>
     !t.invoice_id && !t.expense_id && !t.category
 
+  // Een refund: positieve banktransactie gekoppeld aan een Kost. Telt niet als
+  // omzet, maar als correctie op de oorspronkelijke uitgave.
+  const isRefund = (t: BankTransaction) =>
+    Number(t.amount) > 0 && t.expense_id != null
+
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       const d = new Date(t.booked_at)
@@ -257,8 +263,15 @@ export default function Financien() {
     let income = 0
     let expense = 0
     for (const t of businessFiltered) {
-      if (t.amount >= 0) income += t.amount
-      else expense += Math.abs(t.amount)
+      const amt = Number(t.amount)
+      if (isRefund(t)) {
+        // Refund: trek af van uitgaven (geen omzet)
+        expense -= amt
+      } else if (amt >= 0) {
+        income += amt
+      } else {
+        expense += Math.abs(amt)
+      }
     }
     return { income, expense, balance: income - expense }
   }, [businessFiltered])
@@ -571,6 +584,7 @@ export default function Financien() {
                 {filtered.map((t) => {
                   const linkedInvoice = t.invoice_id ? invoiceById.get(t.invoice_id) : null
                   const linkedExpense = t.expense_id ? expenseById.get(t.expense_id) : null
+                  const refund = isRefund(t)
                   return (
                     <tr key={t.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{formatDate(t.booked_at)}</td>
@@ -608,11 +622,13 @@ export default function Financien() {
                           <div className="inline-flex items-center gap-1.5">
                             <button
                               onClick={() => handleOpenExpense(linkedExpense.id)}
-                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                              title="Open kost"
+                              className={`inline-flex items-center gap-1 text-xs hover:underline ${
+                                refund ? 'text-amber-600' : 'text-primary'
+                              }`}
+                              title={refund ? 'Open kost (refund)' : 'Open kost'}
                             >
-                              <Receipt className="w-3 h-3" />
-                              {linkedExpense.vendor || linkedExpense.description.slice(0, 30) || 'Kost'}
+                              {refund ? <RotateCcw className="w-3 h-3" /> : <Receipt className="w-3 h-3" />}
+                              {refund ? 'Refund: ' : ''}{linkedExpense.vendor || linkedExpense.description.slice(0, 30) || 'Kost'}
                               <ExternalLink className="w-3 h-3 opacity-60" />
                             </button>
                             <button
@@ -907,6 +923,18 @@ function LinkModal({
             )
           ) : (
             <>
+              {/* Refund-hint: positieve transactie aan een bestaande kost koppelen = refund */}
+              {tx.amount > 0 && (
+                <div className="px-6 py-2.5 bg-amber-50 border-b border-amber-100 flex items-start gap-2">
+                  <RotateCcw className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Deze transactie is een <strong>inkomend</strong> bedrag — als je 'm aan een bestaande kost koppelt,
+                    wordt het automatisch verwerkt als <strong>refund</strong>: het bedrag wordt afgetrokken van je
+                    uitgaven en telt niet mee als omzet.
+                  </p>
+                </div>
+              )}
+
               {/* Knop om direct vanuit deze transactie een nieuwe kost te maken */}
               <button
                 onClick={onCreateNewExpense}
