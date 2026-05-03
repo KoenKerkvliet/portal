@@ -650,6 +650,9 @@ export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, on
   })
   const [saving, setSaving] = useState(false)
   const [categorySuggestions, setCategorySuggestions] = useState<string[]>([])
+  // Bestanden die de user heeft toegevoegd vóór de kost is opgeslagen.
+  // Worden pas naar storage geüpload na de insert van de kost.
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
 
   // Bestaande categorieën ophalen voor autocomplete-suggesties.
   useEffect(() => {
@@ -710,6 +713,16 @@ export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, on
         return
       }
       savedId = (data as { id: string }).id
+
+      // Wachtrij-bestanden uploaden naar de zojuist aangemaakte kost
+      if (pendingFiles.length > 0) {
+        try {
+          await uploadValidatedFilesToExpense(savedId, pendingFiles)
+        } catch (uploadErr) {
+          const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr)
+          alert(`Kost is opgeslagen, maar uploaden van bijlages mislukte: ${msg}\n\nJe kunt de bestanden alsnog uploaden door de kost opnieuw te openen.`)
+        }
+      }
     }
     setSaving(false)
     onSaved(savedId)
@@ -852,7 +865,7 @@ export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, on
               />
             </div>
 
-            {/* Bonnen / facturen — alleen na opslaan beschikbaar zodat we een expense.id hebben */}
+            {/* Bonnen / facturen */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
                 <Paperclip className="w-4 h-4 text-gray-400" />
@@ -861,9 +874,7 @@ export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, on
               {expense ? (
                 <AttachmentsSection expenseId={expense.id} />
               ) : (
-                <p className="text-xs text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-3">
-                  Sla deze kost eerst op om bonnen of facturen toe te kunnen voegen.
-                </p>
+                <PendingAttachmentsSection files={pendingFiles} onChange={setPendingFiles} />
               )}
             </div>
           </div>
@@ -878,7 +889,9 @@ export function ExpenseFormModal({ expense, prefill, sourceBookedAt, onClose, on
               className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {submitLabel ?? 'Opslaan'}
+              {saving && pendingFiles.length > 0
+                ? 'Opslaan & uploaden…'
+                : submitLabel ?? 'Opslaan'}
             </button>
           </div>
         </div>
@@ -900,6 +913,42 @@ function formatBytes(n: number): string {
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
+}
+
+/** Valideer een batch File-objecten. Return errortekst of null wanneer alles OK is. */
+function validateFiles(files: File[]): string | null {
+  for (const file of files) {
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      return `'${file.name}' heeft een niet-ondersteund type (alleen JPG/PNG/WEBP/HEIC of PDF).`
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      return `'${file.name}' is groter dan 10 MB.`
+    }
+  }
+  return null
+}
+
+/** Upload reeds-gevalideerde bestanden naar storage en koppel ze aan een Kost. */
+async function uploadValidatedFilesToExpense(expenseId: string, files: File[]): Promise<void> {
+  for (const file of files) {
+    const path = `${expenseId}/${Date.now()}_${sanitizeFilename(file.name)}`
+    const { error: upErr } = await supabase.storage
+      .from('expense-receipts')
+      .upload(path, file, { contentType: file.type, upsert: false })
+    if (upErr) throw upErr
+
+    const { error: insErr } = await supabase.from('expense_attachments').insert({
+      expense_id: expenseId,
+      storage_path: path,
+      filename: file.name,
+      content_type: file.type,
+      size_bytes: file.size,
+    })
+    if (insErr) {
+      await supabase.storage.from('expense-receipts').remove([path])
+      throw insErr
+    }
+  }
 }
 
 function AttachmentsSection({ expenseId }: { expenseId: string }) {
@@ -934,39 +983,15 @@ function AttachmentsSection({ expenseId }: { expenseId: string }) {
     const arr = Array.from(files)
     if (arr.length === 0) return
 
-    for (const file of arr) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError(`'${file.name}' heeft een niet-ondersteund type (alleen JPG/PNG/WEBP/HEIC of PDF).`)
-        return
-      }
-      if (file.size > MAX_FILE_BYTES) {
-        setError(`'${file.name}' is groter dan 10 MB.`)
-        return
-      }
+    const validationError = validateFiles(arr)
+    if (validationError) {
+      setError(validationError)
+      return
     }
 
     setUploading(true)
     try {
-      for (const file of arr) {
-        const path = `${expenseId}/${Date.now()}_${sanitizeFilename(file.name)}`
-        const { error: upErr } = await supabase.storage
-          .from('expense-receipts')
-          .upload(path, file, { contentType: file.type, upsert: false })
-        if (upErr) throw upErr
-
-        const { error: insErr } = await supabase.from('expense_attachments').insert({
-          expense_id: expenseId,
-          storage_path: path,
-          filename: file.name,
-          content_type: file.type,
-          size_bytes: file.size,
-        })
-        if (insErr) {
-          // Rollback: bestand weer verwijderen uit storage
-          await supabase.storage.from('expense-receipts').remove([path])
-          throw insErr
-        }
-      }
+      await uploadValidatedFilesToExpense(expenseId, arr)
       await fetchAttachments()
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -1086,6 +1111,109 @@ function AttachmentsSection({ expenseId }: { expenseId: string }) {
           })}
         </ul>
       ) : null}
+    </div>
+  )
+}
+
+/** Variant voor nog-niet-opgeslagen kosten: houdt de gekozen bestanden lokaal
+ *  in component-state. ExpenseFormModal uploadt ze pas na insert van de kost. */
+function PendingAttachmentsSection({
+  files,
+  onChange,
+}: {
+  files: File[]
+  onChange: (files: File[]) => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const addFiles = (incoming: FileList | File[]) => {
+    setError(null)
+    const arr = Array.from(incoming)
+    if (arr.length === 0) return
+    const validationError = validateFiles(arr)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    onChange([...files, ...arr])
+  }
+
+  const removeAt = (idx: number) => {
+    const next = [...files]
+    next.splice(idx, 1)
+    onChange(next)
+  }
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files)
+  }
+
+  return (
+    <div className="space-y-2">
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        onClick={() => fileInputRef.current?.click()}
+        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300 bg-gray-50'
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_TYPES.join(',')}
+          onChange={(e) => e.target.files && addFiles(e.target.files)}
+          className="hidden"
+        />
+        <p className="text-xs text-gray-500">
+          <Upload className="w-4 h-4 inline mr-1 -mt-0.5" />
+          Sleep bestanden hierheen of klik — JPG, PNG, PDF (max 10 MB)
+        </p>
+        <p className="text-[11px] text-gray-400 mt-1">
+          Worden geüpload zodra je deze kost opslaat.
+        </p>
+      </div>
+
+      {error && (
+        <p className="text-xs text-rose-600 flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </p>
+      )}
+
+      {files.length > 0 && (
+        <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
+          {files.map((file, idx) => {
+            const isImage = file.type.startsWith('image/')
+            const Icon = isImage ? ImageIcon : FileText
+            return (
+              <li key={idx} className="flex items-center gap-2 px-3 py-2">
+                <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <span className="flex-1 min-w-0 text-sm text-gray-700 truncate" title={file.name}>
+                  {file.name}
+                </span>
+                <span className="text-xs text-gray-400 whitespace-nowrap">{formatBytes(file.size)}</span>
+                <span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                  Wachtrij
+                </span>
+                <button
+                  onClick={() => removeAt(idx)}
+                  className="p-1 text-gray-400 hover:text-rose-500"
+                  title="Verwijderen uit wachtrij"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
