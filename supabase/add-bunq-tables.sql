@@ -122,3 +122,26 @@ CREATE POLICY "Admins can manage bank_transactions"
 -- );
 --
 -- Stop cron weer met:  SELECT cron.unschedule('bunq-hourly-sync');
+
+-- =============================================================================
+-- Optioneel: wekelijkse herinnering voor onverwerkte banktransacties
+-- =============================================================================
+-- Vrijdagavond 18:00 UTC (= 19:00 winter NL / 20:00 zomer NL).
+-- Stuurt alleen mail als er ook daadwerkelijk onverwerkte transacties zijn.
+--
+-- SELECT cron.schedule(
+--   'weekly-unprocessed-reminder',
+--   '0 18 * * 5',  -- vrijdag 18:00 UTC
+--   $$
+--   SELECT net.http_post(
+--     url := 'https://<PROJECT-REF>.supabase.co/functions/v1/weekly-unprocessed-reminder',
+--     headers := jsonb_build_object(
+--       'Content-Type', 'application/json',
+--       'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
+--     ),
+--     body := '{}'::jsonb
+--   );
+--   $$
+-- );
+--
+-- Stop met:  SELECT cron.unschedule('weekly-unprocessed-reminder');
