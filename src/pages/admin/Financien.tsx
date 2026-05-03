@@ -38,17 +38,26 @@ import {
   BarChart3,
 } from 'lucide-react'
 
-const PRIVATE_CATEGORY_LABELS: Record<TransactionCategory, string> = {
+const CATEGORY_LABELS: Record<TransactionCategory, string> = {
   private_deposit: 'Privé · inleg',
   private_withdrawal: 'Privé · opname',
   private_purchase: 'Privé · aankoop',
+  interest: 'Rente',
 }
 
-const PRIVATE_CATEGORY_DESCRIPTIONS: Record<TransactionCategory, string> = {
+const CATEGORY_DESCRIPTIONS: Record<TransactionCategory, string> = {
   private_deposit: 'Je hebt eigen geld op de zakelijke rekening gestort.',
   private_withdrawal: 'Je hebt geld voor jezelf van de zakelijke rekening gehaald.',
   private_purchase: 'Een persoonlijke aankoop met de zakelijke pas.',
+  interest: 'Rente bijgeschreven (of afgeschreven) door de bank.',
 }
+
+const PRIVATE_CATEGORIES = new Set<TransactionCategory>([
+  'private_deposit', 'private_withdrawal', 'private_purchase',
+])
+
+const isPrivateCategory = (c: TransactionCategory | null) =>
+  c != null && PRIVATE_CATEGORIES.has(c)
 
 type TabKey = 'bank' | 'income' | 'kosten' | 'balans'
 
@@ -253,8 +262,9 @@ export default function Financien() {
   }, [transactions, filterYear, filterMonth, filterType, filterStatus, searchQuery])
 
   // Stat-cards berekenen ZONDER privé-transacties — anders vertekenen die de zakelijke totalen.
+  // Rente telt wel mee als zakelijke inkomst.
   const businessFiltered = useMemo(
-    () => filtered.filter((t) => !t.category),
+    () => filtered.filter((t) => !isPrivateCategory(t.category)),
     [filtered],
   )
 
@@ -673,11 +683,17 @@ export default function Financien() {
                         ) : t.category ? (
                           <div className="inline-flex items-center gap-1.5">
                             <span
-                              className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-100 rounded px-2 py-0.5"
-                              title={PRIVATE_CATEGORY_DESCRIPTIONS[t.category]}
+                              className={`inline-flex items-center gap-1 text-xs rounded px-2 py-0.5 ${
+                                t.category === 'interest'
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}
+                              title={CATEGORY_DESCRIPTIONS[t.category]}
                             >
-                              <User className="w-3 h-3" />
-                              {PRIVATE_CATEGORY_LABELS[t.category]}
+                              {t.category === 'interest'
+                                ? <TrendingUp className="w-3 h-3" />
+                                : <User className="w-3 h-3" />}
+                              {CATEGORY_LABELS[t.category]}
                             </span>
                             <button
                               onClick={() => handleUnlink(t)}
@@ -839,7 +855,7 @@ function LinkModal({
             {([
               { key: 'invoice' as const, label: 'Facturen', icon: FileText, count: `(${invoices.length})` },
               { key: 'expense' as const, label: 'Kosten', icon: Receipt, count: `(${expenses.length})` },
-              { key: 'private' as const, label: 'Privé', icon: User, count: '' },
+              { key: 'private' as const, label: 'Overig', icon: User, count: '' },
             ]).map((t) => {
               const isActive = tab === t.key
               return (
@@ -887,23 +903,41 @@ function LinkModal({
         <div className="flex-1 overflow-y-auto">
           {tab === 'private' ? (
             <ul className="divide-y divide-gray-100">
+              <li className="px-6 pt-4 pb-1.5 text-[10px] uppercase tracking-wider font-semibold text-gray-400">
+                Privé
+              </li>
               {(['private_deposit', 'private_withdrawal', 'private_purchase'] as TransactionCategory[]).map((cat) => (
                 <li key={cat}>
                   <button
                     onClick={() => onSelect({ kind: 'category', category: cat })}
-                    className="w-full text-left px-6 py-4 hover:bg-gray-50 flex items-start gap-3"
+                    className="w-full text-left px-6 py-3 hover:bg-gray-50 flex items-start gap-3"
                   >
                     <User className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{PRIVATE_CATEGORY_LABELS[cat]}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{PRIVATE_CATEGORY_DESCRIPTIONS[cat]}</p>
+                      <p className="text-sm font-medium text-gray-900">{CATEGORY_LABELS[cat]}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{CATEGORY_DESCRIPTIONS[cat]}</p>
                     </div>
                   </button>
                 </li>
               ))}
+              <li className="px-6 pt-4 pb-1.5 text-[10px] uppercase tracking-wider font-semibold text-gray-400 border-t border-gray-100">
+                Bank
+              </li>
+              <li>
+                <button
+                  onClick={() => onSelect({ kind: 'category', category: 'interest' })}
+                  className="w-full text-left px-6 py-3 hover:bg-gray-50 flex items-start gap-3"
+                >
+                  <TrendingUp className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{CATEGORY_LABELS.interest}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{CATEGORY_DESCRIPTIONS.interest}</p>
+                  </div>
+                </button>
+              </li>
               <li className="px-6 py-3 bg-gray-50 text-xs text-gray-500 leading-relaxed">
-                Privé-gemarkeerde transacties tellen <strong>niet</strong> mee in je inkomsten- of uitgaventotaal.
-                Ze blijven wel zichtbaar in de transactielijst — gemarkeerd met een grijs label.
+                <strong>Privé</strong>-transacties tellen niet mee in je zakelijke totalen.
+                <strong> Rente</strong> telt wel als zakelijke inkomst.
               </li>
             </ul>
           ) : tab === 'invoice' ? (
@@ -1536,7 +1570,11 @@ function BalansTab({ transactions }: { transactions: BankTransaction[] }) {
     return [...set].sort((a, b) => b - a)
   }, [transactions])
 
-  const business = useMemo(() => transactions.filter((t) => !t.category), [transactions])
+  // Privé-transacties uitsluiten; rente telt wel mee als zakelijke inkomst.
+  const business = useMemo(
+    () => transactions.filter((t) => !isPrivateCategory(t.category)),
+    [transactions],
+  )
 
   type Bucket = { label: string; income: number; expense: number }
 

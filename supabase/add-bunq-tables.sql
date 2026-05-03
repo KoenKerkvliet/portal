@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.bank_transactions (
   raw jsonb,                               -- originele Bunq-respons voor debugging
   created_at timestamptz DEFAULT now(),
   CONSTRAINT bank_transactions_category_valid CHECK (
-    category IS NULL OR category IN ('private_deposit', 'private_withdrawal', 'private_purchase')
+    category IS NULL OR category IN ('private_deposit', 'private_withdrawal', 'private_purchase', 'interest')
   ),
   -- Hoogstens één van invoice_id / expense_id / category mag gevuld zijn.
   CONSTRAINT bank_transactions_single_link CHECK (

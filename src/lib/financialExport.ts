@@ -24,11 +24,15 @@ function nlMoney(n: number): string {
   return Number(n).toFixed(2).replace('.', ',')
 }
 
-const PRIVATE_LABELS: Record<string, string> = {
+const CATEGORY_LABELS: Record<string, string> = {
   private_deposit: 'Privé inleg',
   private_withdrawal: 'Privé opname',
   private_purchase: 'Privé aankoop',
+  interest: 'Rente',
 }
+
+const isPrivateCat = (c: string | null) =>
+  c === 'private_deposit' || c === 'private_withdrawal' || c === 'private_purchase'
 
 export function generateTransactionsCsv(
   txs: BankTransaction[],
@@ -49,7 +53,7 @@ export function generateTransactionsCsv(
       const ex = expenseById.get(t.expense_id)
       koppeling = `Kost: ${ex?.vendor ?? ex?.description ?? t.expense_id}`
     } else if (t.category) {
-      koppeling = PRIVATE_LABELS[t.category] ?? t.category
+      koppeling = CATEGORY_LABELS[t.category] ?? t.category
     }
     lines.push(csvLine([
       nlDate(t.booked_at),
@@ -101,7 +105,7 @@ export function generateSummaryText(opts: {
   const { txs, expenses, dateFrom, dateTo } = opts
 
   // Privé-transacties tellen niet mee in totalen
-  const business = txs.filter((t) => !t.category)
+  const business = txs.filter((t) => !isPrivateCat(t.category))
   let income = 0, expense = 0
   for (const t of business) {
     if (t.amount >= 0) income += Number(t.amount)
@@ -181,7 +185,7 @@ export function generatePdfReport(opts: {
   y += 10
 
   // ---- Samenvatting ----
-  const business = txs.filter((t) => !t.category)
+  const business = txs.filter((t) => !isPrivateCat(t.category))
   let income = 0, expense = 0
   for (const t of business) {
     if (t.amount >= 0) income += Number(t.amount)
@@ -259,7 +263,7 @@ export function generatePdfReport(opts: {
           : t.expense_id
             ? `Kost: ${(expenseById.get(t.expense_id)?.vendor ?? '?').slice(0, 18)}`
             : t.category
-              ? PRIVATE_LABELS[t.category] ?? t.category
+              ? CATEGORY_LABELS[t.category] ?? t.category
               : '',
       ]
       txCols.forEach((col, i) => {

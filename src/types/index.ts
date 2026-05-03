@@ -279,7 +279,7 @@ export interface ExpenseAttachment {
   uploaded_at: string
 }
 
-export type TransactionCategory = 'private_deposit' | 'private_withdrawal' | 'private_purchase'
+export type TransactionCategory = 'private_deposit' | 'private_withdrawal' | 'private_purchase' | 'interest'
 
 export interface BankTransaction {
   id: string
