@@ -400,7 +400,7 @@ export default function Financien() {
       ) : activeTab === 'income' ? (
         <IncomeTab invoices={invoices} />
       ) : activeTab === 'balans' ? (
-        <BalansTab transactions={transactions} />
+        <BalansTab transactions={transactions} invoices={invoices} expenses={expenses} />
       ) : (
         <>
       {/* Sync feedback */}
@@ -1578,37 +1578,86 @@ function IncomeTab({ invoices }: { invoices: Invoice[] }) {
 
 // ---- Balans-tab ----------------------------------------------------------
 
-function BalansTab({ transactions }: { transactions: BankTransaction[] }) {
+function BalansTab({
+  transactions,
+  invoices,
+  expenses,
+}: {
+  transactions: BankTransaction[]
+  invoices: Invoice[]
+  expenses: Expense[]
+}) {
   const now = new Date()
   const [filterYear, setFilterYear] = useState<number | 'all'>(now.getFullYear())
 
-  const years = useMemo(() => {
-    const set = new Set<number>([now.getFullYear()])
-    for (const t of transactions) set.add(new Date(t.booked_at).getFullYear())
-    return [...set].sort((a, b) => b - a)
+  // Bron 1 — Uitgaven uit kosten (met refund-correctie)
+  // Bron 2 — Inkomsten uit betaalde facturen (op invoice_date)
+  // Bron 3 — Inkomsten uit rente (banktransacties met category='interest')
+
+  // Refunds per kost berekenen uit banktransacties
+  const refundsByExpense = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const t of transactions) {
+      const amt = Number(t.amount)
+      if (amt > 0 && t.expense_id) {
+        map[t.expense_id] = (map[t.expense_id] ?? 0) + amt
+      }
+    }
+    return map
   }, [transactions])
 
-  // Privé-transacties uitsluiten; rente telt wel mee als zakelijke inkomst.
-  const business = useMemo(
-    () => transactions.filter((t) => !isPrivateCategory(t.category)),
+  const paidInvoices = useMemo(
+    () => invoices.filter((inv) => inv.status === 'paid' && !inv.is_test && inv.invoice_date),
+    [invoices],
+  )
+
+  const interestTxs = useMemo(
+    () => transactions.filter((t) => t.category === 'interest'),
     [transactions],
   )
+
+  const years = useMemo(() => {
+    const set = new Set<number>([now.getFullYear()])
+    for (const e of expenses) {
+      if (e.expense_date) set.add(new Date(e.expense_date).getFullYear())
+    }
+    for (const inv of paidInvoices) {
+      if (inv.invoice_date) set.add(new Date(inv.invoice_date).getFullYear())
+    }
+    for (const t of interestTxs) set.add(new Date(t.booked_at).getFullYear())
+    return [...set].sort((a, b) => b - a)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expenses, paidInvoices, interestTxs])
 
   type Bucket = { label: string; income: number; expense: number }
 
   const buckets = useMemo<Bucket[]>(() => {
     if (filterYear === 'all') {
       const yearMap = new Map<number, { income: number; expense: number }>()
-      for (const t of business) {
-        const y = new Date(t.booked_at).getFullYear()
+      const bumpIncome = (y: number, amt: number) => {
         const cur = yearMap.get(y) ?? { income: 0, expense: 0 }
-        const amt = Number(t.amount)
-        const isRefundTx = amt > 0 && t.expense_id != null
-        if (isRefundTx) cur.expense -= amt
-        else if (amt >= 0) cur.income += amt
-        else cur.expense += Math.abs(amt)
+        cur.income += amt
         yearMap.set(y, cur)
       }
+      const bumpExpense = (y: number, amt: number) => {
+        const cur = yearMap.get(y) ?? { income: 0, expense: 0 }
+        cur.expense += amt
+        yearMap.set(y, cur)
+      }
+
+      for (const inv of paidInvoices) {
+        bumpIncome(new Date(inv.invoice_date!).getFullYear(), Number(inv.amount))
+      }
+      for (const t of interestTxs) {
+        bumpIncome(new Date(t.booked_at).getFullYear(), Number(t.amount))
+      }
+      for (const e of expenses) {
+        if (!e.expense_date) continue
+        const refund = refundsByExpense[e.id] ?? 0
+        const net = Number(e.amount_incl_btw) - refund
+        bumpExpense(new Date(e.expense_date).getFullYear(), net)
+      }
+
       return [...yearMap.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([y, v]) => ({ label: String(y), income: v.income, expense: v.expense }))
@@ -1619,18 +1668,27 @@ function BalansTab({ transactions }: { transactions: BankTransaction[] }) {
       income: 0,
       expense: 0,
     }))
-    for (const t of business) {
+
+    for (const inv of paidInvoices) {
+      const d = new Date(inv.invoice_date!)
+      if (d.getFullYear() !== filterYear) continue
+      months[d.getMonth()].income += Number(inv.amount)
+    }
+    for (const t of interestTxs) {
       const d = new Date(t.booked_at)
       if (d.getFullYear() !== filterYear) continue
-      const m = d.getMonth()
-      const amt = Number(t.amount)
-      const isRefundTx = amt > 0 && t.expense_id != null
-      if (isRefundTx) months[m].expense -= amt
-      else if (amt >= 0) months[m].income += amt
-      else months[m].expense += Math.abs(amt)
+      months[d.getMonth()].income += Number(t.amount)
     }
+    for (const e of expenses) {
+      if (!e.expense_date) continue
+      const d = new Date(e.expense_date)
+      if (d.getFullYear() !== filterYear) continue
+      const refund = refundsByExpense[e.id] ?? 0
+      months[d.getMonth()].expense += Number(e.amount_incl_btw) - refund
+    }
+
     return months
-  }, [business, filterYear])
+  }, [paidInvoices, interestTxs, expenses, refundsByExpense, filterYear])
 
   const totals = useMemo(() => {
     let income = 0, expense = 0
@@ -1681,7 +1739,8 @@ function BalansTab({ transactions }: { transactions: BankTransaction[] }) {
       </div>
 
       <p className="text-xs text-gray-400 -mt-3 mb-6">
-        Privé-transacties tellen niet mee. Refunds verlagen de uitgaven.
+        Inkomsten = betaalde facturen + rente · Uitgaven = kosten met refunds verrekend.
+        Ongekoppelde banktransacties tellen niet mee — verwerk ze via de Banktransacties-tab.
       </p>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
