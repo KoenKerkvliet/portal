@@ -34,6 +34,8 @@ import {
   Download,
   FileArchive,
   RotateCcw,
+  TrendingUp,
+  BarChart3,
 } from 'lucide-react'
 
 const PRIVATE_CATEGORY_LABELS: Record<TransactionCategory, string> = {
@@ -48,7 +50,7 @@ const PRIVATE_CATEGORY_DESCRIPTIONS: Record<TransactionCategory, string> = {
   private_purchase: 'Een persoonlijke aankoop met de zakelijke pas.',
 }
 
-type TabKey = 'bank' | 'kosten'
+type TabKey = 'bank' | 'income' | 'kosten' | 'balans'
 
 function formatMoney(amount: number, currency = 'EUR'): string {
   const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency === 'GBP' ? '£' : currency
@@ -87,7 +89,8 @@ export default function Financien() {
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const saved = (typeof window !== 'undefined' && window.sessionStorage.getItem('financien_tab')) as TabKey | null
-    return saved === 'kosten' ? 'kosten' : 'bank'
+    if (saved === 'kosten' || saved === 'income' || saved === 'balans') return saved
+    return 'bank'
   })
   useEffect(() => {
     window.sessionStorage.setItem('financien_tab', activeTab)
@@ -290,9 +293,11 @@ export default function Financien() {
     )
   }
 
-  const tabSubtitle = activeTab === 'bank'
-    ? 'Inkomsten en uitgaven via Bunq'
-    : 'Beheer je uitgaven en kostenposten'
+  const tabSubtitle =
+    activeTab === 'bank' ? 'Inkomsten en uitgaven via Bunq'
+    : activeTab === 'income' ? 'Overzicht van al je facturen'
+    : activeTab === 'kosten' ? 'Beheer je uitgaven en kostenposten'
+    : 'Inkomsten afgezet tegen uitgaven'
 
   const periodLabel = (() => {
     if (filterMonth === 'all' && filterYear === 'all') return 'Alle perioden'
@@ -342,10 +347,12 @@ export default function Financien() {
 
       {/* Tab-strip */}
       <div className="border-b border-gray-200 mb-6">
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto">
           {([
             { key: 'bank', label: 'Banktransacties', icon: Landmark },
+            { key: 'income', label: 'Inkomsten', icon: TrendingUp },
             { key: 'kosten', label: 'Kosten', icon: Receipt },
+            { key: 'balans', label: 'Balans', icon: BarChart3 },
           ] as const).map((tab) => {
             const isActive = activeTab === tab.key
             return (
@@ -368,6 +375,10 @@ export default function Financien() {
 
       {activeTab === 'kosten' ? (
         <Kosten highlightId={highlightExpenseId} />
+      ) : activeTab === 'income' ? (
+        <IncomeTab invoices={invoices} />
+      ) : activeTab === 'balans' ? (
+        <BalansTab transactions={transactions} />
       ) : (
         <>
       {/* Sync feedback */}
@@ -1303,5 +1314,437 @@ function ExportModal({
       </div>
     </div>,
     document.body,
+  )
+}
+
+// ---- Inkomsten-tab -------------------------------------------------------
+
+function IncomeTab({ invoices }: { invoices: Invoice[] }) {
+  const navigate = useNavigate()
+  const now = new Date()
+  const [filterYear, setFilterYear] = useState<number | 'all'>(now.getFullYear())
+  const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'sent' | 'draft'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const real = useMemo(() => invoices.filter((inv) => !inv.is_test), [invoices])
+
+  const years = useMemo(() => {
+    const set = new Set<number>([now.getFullYear()])
+    for (const inv of real) {
+      if (inv.invoice_date) set.add(new Date(inv.invoice_date).getFullYear())
+    }
+    return [...set].sort((a, b) => b - a)
+  }, [real])
+
+  const filtered = useMemo(() => {
+    return real.filter((inv) => {
+      if (filterYear !== 'all') {
+        if (!inv.invoice_date) return false
+        if (new Date(inv.invoice_date).getFullYear() !== filterYear) return false
+      }
+      if (filterStatus !== 'all' && inv.status !== filterStatus) return false
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const blob = [inv.number, inv.client_name, String(inv.amount)].filter(Boolean).join(' ').toLowerCase()
+        if (!blob.includes(q)) return false
+      }
+      return true
+    })
+  }, [real, filterYear, filterStatus, searchQuery])
+
+  const totals = useMemo(() => {
+    let total = 0, paid = 0, outstanding = 0, draft = 0
+    for (const inv of filtered) {
+      const amt = Number(inv.amount)
+      total += amt
+      if (inv.status === 'paid') paid += amt
+      else if (inv.status === 'sent') outstanding += amt
+      else if (inv.status === 'draft') draft += amt
+    }
+    return { count: filtered.length, total, paid, outstanding, draft }
+  }, [filtered])
+
+  const periodLabel = filterYear === 'all' ? 'Alle jaren' : `${filterYear}`
+
+  return (
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <FileText className="w-4 h-4 text-gray-700" />
+            Totaal verstuurd
+          </div>
+          <div className="mt-2 text-2xl font-bold text-gray-900">{formatMoney(totals.total)}</div>
+          <div className="text-xs text-gray-400 mt-1">{totals.count} facturen · {periodLabel}</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            Betaald
+          </div>
+          <div className="mt-2 text-2xl font-bold text-emerald-600">{formatMoney(totals.paid)}</div>
+          <div className="text-xs text-gray-400 mt-1">Status: paid</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+            Openstaand
+          </div>
+          <div className="mt-2 text-2xl font-bold text-amber-600">{formatMoney(totals.outstanding)}</div>
+          <div className="text-xs text-gray-400 mt-1">Status: sent</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <FileText className="w-4 h-4 text-gray-400" />
+            Concept
+          </div>
+          <div className="mt-2 text-2xl font-bold text-gray-500">{formatMoney(totals.draft)}</div>
+          <div className="text-xs text-gray-400 mt-1">Status: draft</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Jaar</label>
+            <select
+              value={String(filterYear)}
+              onChange={(e) => setFilterYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="all">Alle jaren</option>
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as 'all' | 'paid' | 'sent' | 'draft')}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="all">Alle</option>
+              <option value="paid">Betaald</option>
+              <option value="sent">Openstaand</option>
+              <option value="draft">Concept</option>
+            </select>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <label className="block text-xs font-medium text-gray-500 mb-1">Zoeken</label>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Factuurnummer of klant…"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-sm text-gray-500">Geen facturen gevonden voor deze filter.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Nummer</th>
+                  <th className="px-4 py-3 font-medium">Klant</th>
+                  <th className="px-4 py-3 font-medium">Factuurdatum</th>
+                  <th className="px-4 py-3 font-medium">Vervaldatum</th>
+                  <th className="px-4 py-3 font-medium text-right">Bedrag</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((inv) => (
+                  <tr
+                    key={inv.id}
+                    onClick={() => navigate(`/admin/facturen/${inv.id}`)}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      {inv.number || <span className="text-gray-400">(zonder nummer)</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{inv.client_name || '—'}</td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                      {inv.invoice_date ? formatDate(inv.invoice_date) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                      {inv.due_date ? formatDate(inv.due_date) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900 whitespace-nowrap">
+                      {formatMoney(Number(inv.amount))}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded ${
+                        inv.status === 'paid' ? 'bg-emerald-50 text-emerald-700'
+                          : inv.status === 'sent' ? 'bg-amber-50 text-amber-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {inv.status === 'paid' ? 'Betaald' : inv.status === 'sent' ? 'Openstaand' : 'Concept'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ---- Balans-tab ----------------------------------------------------------
+
+function BalansTab({ transactions }: { transactions: BankTransaction[] }) {
+  const now = new Date()
+  const [filterYear, setFilterYear] = useState<number | 'all'>(now.getFullYear())
+
+  const years = useMemo(() => {
+    const set = new Set<number>([now.getFullYear()])
+    for (const t of transactions) set.add(new Date(t.booked_at).getFullYear())
+    return [...set].sort((a, b) => b - a)
+  }, [transactions])
+
+  const business = useMemo(() => transactions.filter((t) => !t.category), [transactions])
+
+  type Bucket = { label: string; income: number; expense: number }
+
+  const buckets = useMemo<Bucket[]>(() => {
+    if (filterYear === 'all') {
+      const yearMap = new Map<number, { income: number; expense: number }>()
+      for (const t of business) {
+        const y = new Date(t.booked_at).getFullYear()
+        const cur = yearMap.get(y) ?? { income: 0, expense: 0 }
+        const amt = Number(t.amount)
+        const isRefundTx = amt > 0 && t.expense_id != null
+        if (isRefundTx) cur.expense -= amt
+        else if (amt >= 0) cur.income += amt
+        else cur.expense += Math.abs(amt)
+        yearMap.set(y, cur)
+      }
+      return [...yearMap.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([y, v]) => ({ label: String(y), income: v.income, expense: v.expense }))
+    }
+
+    const months: Bucket[] = Array.from({ length: 12 }, (_, m) => ({
+      label: new Date(2000, m, 1).toLocaleDateString('nl-NL', { month: 'short' }),
+      income: 0,
+      expense: 0,
+    }))
+    for (const t of business) {
+      const d = new Date(t.booked_at)
+      if (d.getFullYear() !== filterYear) continue
+      const m = d.getMonth()
+      const amt = Number(t.amount)
+      const isRefundTx = amt > 0 && t.expense_id != null
+      if (isRefundTx) months[m].expense -= amt
+      else if (amt >= 0) months[m].income += amt
+      else months[m].expense += Math.abs(amt)
+    }
+    return months
+  }, [business, filterYear])
+
+  const totals = useMemo(() => {
+    let income = 0, expense = 0
+    for (const b of buckets) { income += b.income; expense += b.expense }
+    return { income, expense, balance: income - expense }
+  }, [buckets])
+
+  const maxValue = useMemo(() => {
+    let m = 0
+    for (const b of buckets) {
+      if (b.income > m) m = b.income
+      if (b.expense > m) m = b.expense
+    }
+    return m || 1
+  }, [buckets])
+
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+            Inkomsten
+          </div>
+          <div className="mt-2 text-2xl font-bold text-emerald-600">{formatMoney(totals.income)}</div>
+          <div className="text-xs text-gray-400 mt-1">
+            {filterYear === 'all' ? 'Alle jaren' : `${filterYear}`}
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <ArrowUpRight className="w-4 h-4 text-rose-600" />
+            Uitgaven
+          </div>
+          <div className="mt-2 text-2xl font-bold text-rose-600">{formatMoney(totals.expense)}</div>
+          <div className="text-xs text-gray-400 mt-1">Refunds verrekend</div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Wallet className="w-4 h-4 text-gray-700" />
+            Saldo
+          </div>
+          <div className={`mt-2 text-2xl font-bold ${totals.balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {totals.balance < 0 ? '−' : ''}{formatMoney(totals.balance)}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">Inkomsten − Uitgaven</div>
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-400 -mt-3 mb-6">
+        Privé-transacties tellen niet mee. Refunds verlagen de uitgaven.
+      </p>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <div className="max-w-xs">
+          <label className="block text-xs font-medium text-gray-500 mb-1">Jaar</label>
+          <select
+            value={String(filterYear)}
+            onChange={(e) => setFilterYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="all">Alle jaren</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-900">
+            {filterYear === 'all' ? 'Per jaar' : `Per maand (${filterYear})`}
+          </h3>
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+              Inkomsten
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
+              Uitgaven
+            </span>
+          </div>
+        </div>
+
+        <BarChart buckets={buckets} maxValue={maxValue} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+              <tr>
+                <th className="px-4 py-3 font-medium">{filterYear === 'all' ? 'Jaar' : 'Maand'}</th>
+                <th className="px-4 py-3 font-medium text-right">Inkomsten</th>
+                <th className="px-4 py-3 font-medium text-right">Uitgaven</th>
+                <th className="px-4 py-3 font-medium text-right">Saldo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {buckets.map((b) => {
+                const saldo = b.income - b.expense
+                return (
+                  <tr key={b.label} className="hover:bg-gray-50">
+                    <td className="px-4 py-2.5 text-gray-700 capitalize">{b.label}</td>
+                    <td className="px-4 py-2.5 text-right text-emerald-600 whitespace-nowrap">
+                      {b.income > 0 ? `+ ${formatMoney(b.income)}` : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-rose-600 whitespace-nowrap">
+                      {b.expense > 0 ? `− ${formatMoney(b.expense)}` : '—'}
+                    </td>
+                    <td className={`px-4 py-2.5 text-right font-medium whitespace-nowrap ${
+                      saldo >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                    }`}>
+                      {saldo < 0 ? '−' : ''}{formatMoney(saldo)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// Simpele staaf-grafiek met SVG, geen library nodig
+function BarChart({ buckets, maxValue }: { buckets: { label: string; income: number; expense: number }[]; maxValue: number }) {
+  const colWidth = 100 / Math.max(buckets.length, 1)
+  const barGap = 2
+  const barWidth = (colWidth - barGap) / 2
+  const chartHeight = 200
+
+  return (
+    <div className="space-y-2">
+      <svg
+        width="100%"
+        height={chartHeight}
+        viewBox={`0 0 100 ${chartHeight}`}
+        preserveAspectRatio="none"
+        className="overflow-visible"
+      >
+        {[0.25, 0.5, 0.75, 1].map((frac) => (
+          <line
+            key={frac}
+            x1={0}
+            x2={100}
+            y1={chartHeight - chartHeight * frac}
+            y2={chartHeight - chartHeight * frac}
+            stroke="#e5e7eb"
+            strokeWidth={0.2}
+            strokeDasharray="0.5 0.5"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+        {buckets.map((b, i) => {
+          const x = i * colWidth
+          const incomeH = (b.income / maxValue) * chartHeight
+          const expenseH = (Math.max(0, b.expense) / maxValue) * chartHeight
+          return (
+            <g key={i}>
+              <rect
+                x={x + barGap / 2}
+                y={chartHeight - incomeH}
+                width={barWidth}
+                height={incomeH}
+                fill="#10b981"
+              >
+                <title>{`${b.label}: € ${b.income.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} inkomsten`}</title>
+              </rect>
+              <rect
+                x={x + barGap / 2 + barWidth}
+                y={chartHeight - expenseH}
+                width={barWidth}
+                height={expenseH}
+                fill="#f43f5e"
+              >
+                <title>{`${b.label}: € ${b.expense.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} uitgaven`}</title>
+              </rect>
+            </g>
+          )
+        })}
+      </svg>
+      <div className="flex">
+        {buckets.map((b) => (
+          <div key={b.label} style={{ width: `${colWidth}%` }} className="text-center text-[10px] text-gray-500 capitalize">
+            {b.label}
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
