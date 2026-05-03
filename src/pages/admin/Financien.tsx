@@ -92,7 +92,7 @@ export default function Financien() {
     window.sessionStorage.setItem('financien_tab', activeTab)
   }, [activeTab])
 
-  const [filterYear, setFilterYear] = useState<number>(now.getFullYear())
+  const [filterYear, setFilterYear] = useState<number | 'all'>(now.getFullYear())
   const [filterMonth, setFilterMonth] = useState<number | 'all'>(now.getMonth() + 1)
   const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -226,7 +226,7 @@ export default function Financien() {
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
       const d = new Date(t.booked_at)
-      if (d.getFullYear() !== filterYear) return false
+      if (filterYear !== 'all' && d.getFullYear() !== filterYear) return false
       if (filterMonth !== 'all' && d.getMonth() + 1 !== filterMonth) return false
       if (filterType === 'income' && t.amount < 0) return false
       if (filterType === 'expense' && t.amount >= 0) return false
@@ -280,6 +280,14 @@ export default function Financien() {
   const tabSubtitle = activeTab === 'bank'
     ? 'Inkomsten en uitgaven via Bunq'
     : 'Beheer je uitgaven en kostenposten'
+
+  const periodLabel = (() => {
+    if (filterMonth === 'all' && filterYear === 'all') return 'Alle perioden'
+    if (filterMonth === 'all') return `Heel ${filterYear}`
+    const monthName = new Date(2000, (filterMonth as number) - 1, 1).toLocaleDateString('nl-NL', { month: 'long' })
+    if (filterYear === 'all') return `${monthName} (alle jaren)`
+    return monthLabel(filterYear, filterMonth as number)
+  })()
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -424,7 +432,7 @@ export default function Financien() {
             {formatMoney(totals.income)}
           </div>
           <div className="text-xs text-gray-400 mt-1">
-            {filterMonth === 'all' ? `Heel ${filterYear}` : monthLabel(filterYear, filterMonth as number)}
+            {periodLabel}
           </div>
         </div>
 
@@ -437,7 +445,7 @@ export default function Financien() {
             {formatMoney(totals.expense)}
           </div>
           <div className="text-xs text-gray-400 mt-1">
-            {filterMonth === 'all' ? `Heel ${filterYear}` : monthLabel(filterYear, filterMonth as number)}
+            {periodLabel}
           </div>
         </div>
 
@@ -463,10 +471,11 @@ export default function Financien() {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Jaar</label>
             <select
-              value={filterYear}
-              onChange={(e) => setFilterYear(Number(e.target.value))}
+              value={String(filterYear)}
+              onChange={(e) => setFilterYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
               className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
+              <option value="all">Alle jaren</option>
               {years.map((y) => (
                 <option key={y} value={y}>{y}</option>
               ))}
