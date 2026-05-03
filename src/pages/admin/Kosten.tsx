@@ -23,6 +23,8 @@ import {
   Download,
   Eye,
   RotateCcw,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 // --- Helpers ---
@@ -179,6 +181,7 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterYear, setFilterYear] = useState<number | 'all'>('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [dateSort, setDateSort] = useState<'desc' | 'asc'>('desc')
 
   // Modals
   const [editing, setEditing] = useState<Expense | null>(null)
@@ -281,7 +284,7 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
 
   const categories = [...new Set(expenses.map((e) => e.category).filter((c): c is string => Boolean(c)))].sort()
 
-  const filtered = expenses.filter((e) => {
+  const filteredRaw = expenses.filter((e) => {
     if (filterYear !== 'all' && new Date(e.expense_date).getFullYear() !== filterYear) return false
     if (filterCategory !== 'all' && e.category !== filterCategory) return false
     if (searchQuery) {
@@ -291,6 +294,7 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
     }
     return true
   })
+  const filtered = dateSort === 'desc' ? filteredRaw : [...filteredRaw].reverse()
 
   const totalsByCurrency: Record<string, number> = {}
   for (const e of filtered) {
@@ -446,7 +450,16 @@ export default function Kosten({ highlightId }: { highlightId?: string | null } 
             <table className="w-full">
               <thead>
                 <tr className="text-left">
-                  <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Datum</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">
+                    <button
+                      onClick={() => setDateSort((d) => (d === 'desc' ? 'asc' : 'desc'))}
+                      className="inline-flex items-center gap-1 hover:text-primary-700 transition-colors"
+                      title={dateSort === 'desc' ? 'Nu: nieuwste boven · klik voor oudste boven' : 'Nu: oudste boven · klik voor nieuwste boven'}
+                    >
+                      Datum
+                      {dateSort === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                    </button>
+                  </th>
                   <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Leverancier</th>
                   <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Omschrijving</th>
                   <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Categorie</th>

@@ -36,6 +36,8 @@ import {
   RotateCcw,
   TrendingUp,
   BarChart3,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 const CATEGORY_LABELS: Record<TransactionCategory, string> = {
@@ -121,6 +123,7 @@ export default function Financien() {
   // Filter op verwerkings-status: 'all' = alles, 'processed' = alleen gekoppeld
   // (factuur/kost/privé), 'unprocessed' = nog niets aan gedaan.
   const [filterStatus, setFilterStatus] = useState<'all' | 'processed' | 'unprocessed'>('all')
+  const [dateSort, setDateSort] = useState<'desc' | 'asc'>('desc')
 
   const fetchData = async () => {
     const [txRes, stateRes, invRes, expRes] = await Promise.all([
@@ -266,6 +269,12 @@ export default function Financien() {
   const businessFiltered = useMemo(
     () => filtered.filter((t) => !isPrivateCategory(t.category)),
     [filtered],
+  )
+
+  // Sort-richting: standaard desc (nieuwste boven). Klik op datum-header wisselt.
+  const sortedForTable = useMemo(
+    () => (dateSort === 'desc' ? filtered : [...filtered].reverse()),
+    [filtered, dateSort],
   )
 
   // Ongekoppelde transacties wereldwijd (niet alleen in zicht) voor de banner.
@@ -614,7 +623,16 @@ export default function Financien() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Datum</th>
+                  <th className="px-4 py-3 font-medium">
+                    <button
+                      onClick={() => setDateSort((d) => (d === 'desc' ? 'asc' : 'desc'))}
+                      className="inline-flex items-center gap-1 hover:text-gray-900 transition-colors"
+                      title={dateSort === 'desc' ? 'Nu: nieuwste boven · klik voor oudste boven' : 'Nu: oudste boven · klik voor nieuwste boven'}
+                    >
+                      Datum
+                      {dateSort === 'desc' ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                    </button>
+                  </th>
                   <th className="px-4 py-3 font-medium">Tegenpartij</th>
                   <th className="px-4 py-3 font-medium">Omschrijving</th>
                   <th className="px-4 py-3 font-medium text-right">Bedrag</th>
@@ -622,7 +640,7 @@ export default function Financien() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((t) => {
+                {sortedForTable.map((t) => {
                   const linkedInvoice = t.invoice_id ? invoiceById.get(t.invoice_id) : null
                   const linkedExpense = t.expense_id ? expenseById.get(t.expense_id) : null
                   const refund = isRefund(t)
