@@ -140,7 +140,7 @@ function buildPdf(txs: Tx[]): Uint8Array {
     doc.setTextColor(0)
   }
 
-  return doc.output('arraybuffer') as unknown as Uint8Array
+  return new Uint8Array(doc.output('arraybuffer'))
 }
 
 function uint8ToBase64(bytes: Uint8Array): string {
