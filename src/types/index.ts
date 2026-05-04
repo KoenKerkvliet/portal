@@ -6,6 +6,8 @@ export type ProjectStatus = 'active' | 'archived'
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid'
 
+export type RecurrenceInterval = 'daily' | 'weekly' | 'monthly' | 'yearly'
+
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined'
 
 export type PhaseStatus = 'pending' | 'active' | 'completed'
@@ -126,6 +128,12 @@ export interface Invoice {
   has_temp_number: boolean
   deposit_percentage: number | null
   parent_invoice_id: string | null
+  is_recurring: boolean
+  recurrence_interval: RecurrenceInterval | null
+  recurrence_send_time: string
+  recurrence_next_run_at: string | null
+  recurrence_last_run_at: string | null
+  recurring_template_id: string | null
   created_at: string
   project?: Project
   client?: Client

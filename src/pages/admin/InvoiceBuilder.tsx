@@ -2,13 +2,14 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { Product, QuoteItem, InvoiceStatus, YearFormat, InvoiceSettings } from '../../types'
+import type { Product, QuoteItem, InvoiceStatus, YearFormat, InvoiceSettings, RecurrenceInterval } from '../../types'
 import {
   ArrowLeft,
   Save,
   Loader2,
   Check,
   Calendar,
+  Clock,
   Globe,
   Package,
   Type,
@@ -61,6 +62,28 @@ const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '')
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 
+const recurrenceLabels: Record<RecurrenceInterval, string> = {
+  daily: 'Dagelijks',
+  weekly: 'Wekelijks',
+  monthly: 'Maandelijks',
+  yearly: 'Jaarlijks',
+}
+
+// Berekent het eerstvolgende moment waarop een terugkerende factuur moet draaien.
+// Tijd is lokale "verzendtijd" (HH:MM); we slaan UTC op zodat pg_cron het correct vergelijkt.
+function computeNextRunAt(interval: RecurrenceInterval, sendTime: string, from: Date = new Date()): Date {
+  const [hh, mm] = sendTime.split(':').map((n) => parseInt(n, 10))
+  const next = new Date(from)
+  next.setHours(hh || 9, mm || 0, 0, 0)
+  if (next <= from) {
+    if (interval === 'daily') next.setDate(next.getDate() + 1)
+    else if (interval === 'weekly') next.setDate(next.getDate() + 7)
+    else if (interval === 'monthly') next.setMonth(next.getMonth() + 1)
+    else if (interval === 'yearly') next.setFullYear(next.getFullYear() + 1)
+  }
+  return next
+}
+
 interface ProjectWithClients {
   id: string
   name: string
@@ -95,6 +118,13 @@ export default function InvoiceBuilder() {
   const [btwPercent, setBtwPercent] = useState(21)
   const [notes, setNotes] = useState('')
   const [isTestInvoice, setIsTestInvoice] = useState(isTest)
+
+  // Terugkerend
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [recurrenceInterval, setRecurrenceInterval] = useState<RecurrenceInterval>('monthly')
+  const [recurrenceSendTime, setRecurrenceSendTime] = useState('09:00')
+  const [recurrenceNextRunAt, setRecurrenceNextRunAt] = useState<string | null>(null)
+  const [recurrenceLastRunAt, setRecurrenceLastRunAt] = useState<string | null>(null)
 
   // UI
   const [loading, setLoading] = useState(true)
@@ -203,6 +233,11 @@ export default function InvoiceBuilder() {
           setDiscountPercent(invoice.discount_percent || 0)
           setBtwPercent(invoice.btw_percent ?? 21)
           setNotes(invoice.notes || '')
+          setIsRecurring(invoice.is_recurring || false)
+          if (invoice.recurrence_interval) setRecurrenceInterval(invoice.recurrence_interval)
+          if (invoice.recurrence_send_time) setRecurrenceSendTime(invoice.recurrence_send_time)
+          setRecurrenceNextRunAt(invoice.recurrence_next_run_at || null)
+          setRecurrenceLastRunAt(invoice.recurrence_last_run_at || null)
         }
       }
 
@@ -326,6 +361,21 @@ export default function InvoiceBuilder() {
     setSaving(true)
     setSaved(false)
 
+    // Voor templates herberekenen we recurrence_next_run_at als interval of tijd is gewijzigd,
+    // of als het pas vanaf nu een template wordt. Anders behouden we de bestaande waarde
+    // (zodat de cron niet per ongeluk dubbel triggert).
+    let nextRunAt: string | null = null
+    if (isRecurring) {
+      const [hh, mm] = recurrenceSendTime.split(':').map((n) => parseInt(n, 10))
+      const existingNext = recurrenceNextRunAt ? new Date(recurrenceNextRunAt) : null
+      const sameTime = existingNext && existingNext.getHours() === (hh || 9) && existingNext.getMinutes() === (mm || 0)
+      if (existingNext && sameTime) {
+        nextRunAt = recurrenceNextRunAt
+      } else {
+        nextRunAt = computeNextRunAt(recurrenceInterval, recurrenceSendTime).toISOString()
+      }
+    }
+
     const payload = {
       number,
       project_id: projectId,
@@ -343,6 +393,10 @@ export default function InvoiceBuilder() {
       discount_percent: discountPercent,
       btw_percent: btwPercent,
       notes,
+      is_recurring: isRecurring,
+      recurrence_interval: isRecurring ? recurrenceInterval : null,
+      recurrence_send_time: recurrenceSendTime,
+      recurrence_next_run_at: nextRunAt,
     }
 
     if (editId) {
@@ -562,6 +616,81 @@ export default function InvoiceBuilder() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Herhaling */}
+      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Repeat className="w-4 h-4 text-blue-500" />
+            <h2 className="text-base font-semibold text-gray-900">Herhaling</h2>
+          </div>
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <span className="text-sm text-gray-600">Terugkerende factuur</span>
+            <input
+              type="checkbox"
+              checked={isRecurring}
+              onChange={(e) => setIsRecurring(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="relative w-10 h-6 bg-gray-200 peer-checked:bg-primary rounded-full transition-colors">
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isRecurring ? 'translate-x-4' : ''}`} />
+            </div>
+          </label>
+        </div>
+        {isRecurring ? (
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Interval</label>
+                <div className="relative">
+                  <Repeat className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={recurrenceInterval}
+                    onChange={(e) => setRecurrenceInterval(e.target.value as RecurrenceInterval)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all appearance-none"
+                  >
+                    {(Object.keys(recurrenceLabels) as RecurrenceInterval[]).map((key) => (
+                      <option key={key} value={key}>{recurrenceLabels[key]}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Verzendtijd</label>
+                <div className="relative">
+                  <Clock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="time"
+                    value={recurrenceSendTime}
+                    onChange={(e) => setRecurrenceSendTime(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+            {recurrenceNextRunAt && (
+              <p className="text-xs text-gray-500">
+                Volgende verzending: <strong className="text-gray-700">
+                  {new Date(recurrenceNextRunAt).toLocaleString('nl-NL', { dateStyle: 'long', timeStyle: 'short' })}
+                </strong>
+                {recurrenceLastRunAt && (
+                  <span className="text-gray-400"> &middot; laatst gegenereerd {new Date(recurrenceLastRunAt).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                )}
+              </p>
+            )}
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+              <p className="text-xs text-blue-800">
+                Deze factuur dient als <strong>sjabloon</strong>. Elke periode wordt er automatisch een nieuwe factuur uit gegenereerd met een vers factuurnummer. Het sjabloon zelf blijft staan in &quot;Terugkerende facturen&quot;.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="px-6 py-5">
+            <p className="text-sm text-gray-400">Eenmalige factuur. Zet de schakelaar aan om er een terugkerende factuur van te maken.</p>
+          </div>
+        )}
       </section>
 
       {/* Elementen */}

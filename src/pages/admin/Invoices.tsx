@@ -2,12 +2,19 @@ import { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { Invoice, InvoiceStatus, QuoteItem, YearFormat } from '../../types'
+import type { Invoice, InvoiceStatus, QuoteItem, RecurrenceInterval, YearFormat } from '../../types'
 import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload } from 'lucide-react'
 import InvoiceImportModal from '../../components/InvoiceImportModal'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
+
+const recurrenceLabels: Record<RecurrenceInterval, string> = {
+  daily: 'Dagelijks',
+  weekly: 'Wekelijks',
+  monthly: 'Maandelijks',
+  yearly: 'Jaarlijks',
+}
 
 const DEPOSIT_PERCENTAGE = 30
 
@@ -187,6 +194,142 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit, onSplit, onFina
   )
 }
 
+function RecurringInvoiceRow({ invoice, onPause, onDelete, onEdit }: {
+  invoice: Invoice
+  onPause: (invoice: Invoice) => void
+  onDelete: (id: string) => void
+  onEdit: (id: string) => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false })
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const estimatedMenuHeight = 3 * 36 + 8
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) setMenuOpen(false)
+    }
+    if (menuOpen) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [menuOpen])
+
+  const toggleMenu = () => {
+    if (!menuOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      const openUp = spaceBelow < estimatedMenuHeight + 16
+      setMenuPos({
+        top: openUp ? rect.top - estimatedMenuHeight - 4 : rect.bottom + 4,
+        left: rect.right - 180,
+        openUp,
+      })
+    }
+    setMenuOpen((v) => !v)
+  }
+
+  const clientName = (invoice.client as unknown as { name: string })?.name || '—'
+  const intervalLabel = invoice.recurrence_interval ? recurrenceLabels[invoice.recurrence_interval] : '—'
+  const nextRun = invoice.recurrence_next_run_at
+    ? new Date(invoice.recurrence_next_run_at).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })
+    : '—'
+  const lastRun = invoice.recurrence_last_run_at
+    ? new Date(invoice.recurrence_last_run_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'nog niet'
+
+  return (
+    <tr className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
+      <td className="px-5 py-3.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-sm text-gray-900">{invoice.number}</span>
+          {invoice.is_test && (
+            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full">Test</span>
+          )}
+          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-medium rounded-full inline-flex items-center gap-1">
+            <Repeat className="w-2.5 h-2.5" />
+            Sjabloon
+          </span>
+        </div>
+      </td>
+      <td className="px-5 py-3.5 text-sm text-gray-700">{clientName}</td>
+      <td className="px-5 py-3.5 text-sm text-gray-700">{intervalLabel}</td>
+      <td className="px-5 py-3.5 text-sm text-gray-500">{nextRun}</td>
+      <td className="px-5 py-3.5 text-sm text-gray-500">{lastRun}</td>
+      <td className="px-5 py-3.5 text-sm font-semibold text-gray-900 text-right">
+        &euro;&nbsp;{invoice.amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </td>
+      <td className="px-5 py-3.5 text-right">
+        <button ref={buttonRef} onClick={toggleMenu} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+          <MoreVertical className="w-4 h-4" />
+        </button>
+        {menuOpen && createPortal(
+          <div
+            ref={menuRef}
+            className="fixed bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-[9999] min-w-[180px]"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            <button
+              onClick={() => { setMenuOpen(false); onEdit(invoice.id) }}
+              className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Pencil className="w-4 h-4" />
+              Bewerken
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); onPause(invoice) }}
+              className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Stop herhalen
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); onDelete(invoice.id) }}
+              className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Verwijderen
+            </button>
+          </div>,
+          document.body
+        )}
+      </td>
+    </tr>
+  )
+}
+
+function RecurringInvoiceTable({ invoices, onPause, onDelete, onEdit }: {
+  invoices: Invoice[]
+  onPause: (invoice: Invoice) => void
+  onDelete: (id: string) => void
+  onEdit: (id: string) => void
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="text-left">
+            <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Factuurnummer</th>
+            <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Klant</th>
+            <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Interval</th>
+            <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Volgende verzending</th>
+            <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider">Laatst gegenereerd</th>
+            <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider text-right">Bedrag</th>
+            <th className="px-5 py-3 text-xs font-semibold text-primary uppercase tracking-wider text-right">Acties</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoices.map((invoice) => (
+            <RecurringInvoiceRow key={invoice.id} invoice={invoice} onPause={onPause} onDelete={onDelete} onEdit={onEdit} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function InvoiceTable({ invoices, onStatusChange, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
   invoices: Invoice[]
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
@@ -275,6 +418,19 @@ export default function Invoices() {
 
   const handleEdit = (id: string) => {
     navigate(`/admin/facturen/${id}`)
+  }
+
+  const handlePauseRecurring = async (invoice: Invoice) => {
+    if (!confirm(
+      `Herhalen stoppen voor ${invoice.number}?\n\n` +
+      `De factuur blijft bestaan, maar er worden geen nieuwe facturen meer uit gegenereerd.`
+    )) return
+    await supabase.from('invoices').update({
+      is_recurring: false,
+      recurrence_interval: null,
+      recurrence_next_run_at: null,
+    }).eq('id', invoice.id)
+    fetchInvoices()
   }
 
   const handleSplit = async (invoice: Invoice) => {
@@ -428,11 +584,17 @@ export default function Invoices() {
     })
   }
 
-  // Split into sections
-  const openInvoices = sortInvoices(filtered.filter(i => i.status === 'draft' || i.status === 'sent'))
-  const allPaidInvoices = filtered.filter(i => i.status === 'paid')
+  // Split into sections — templates (is_recurring) horen alléén in de derde sectie.
+  const openInvoices = sortInvoices(filtered.filter(i => !i.is_recurring && (i.status === 'draft' || i.status === 'sent')))
+  const allPaidInvoices = filtered.filter(i => !i.is_recurring && i.status === 'paid')
   const paidInvoicesFiltered = sortInvoices(allPaidInvoices.filter(i => new Date(invoiceDateOf(i)).getFullYear() === paidYear))
-  const recurringInvoices: Invoice[] = []
+  const recurringInvoices = filtered
+    .filter(i => i.is_recurring)
+    .sort((a, b) => {
+      const at = a.recurrence_next_run_at ? new Date(a.recurrence_next_run_at).getTime() : 0
+      const bt = b.recurrence_next_run_at ? new Date(b.recurrence_next_run_at).getTime() : 0
+      return at - bt
+    })
 
   // Get unique years from paid invoices
   const paidYears = [...new Set(allPaidInvoices.map(i => new Date(invoiceDateOf(i)).getFullYear()))].sort((a, b) => b - a)
@@ -645,13 +807,22 @@ export default function Invoices() {
               <h2 className="text-lg font-semibold text-gray-900">Terugkerende facturen</h2>
               <span className="bg-blue-100 text-blue-700 text-xs font-medium px-2.5 py-0.5 rounded-full">{recurringInvoices.length}</span>
             </div>
-            <div className="px-5 py-8 text-center">
-              <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Repeat className="w-6 h-6 text-gray-300" />
+            {recurringInvoices.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Repeat className="w-6 h-6 text-gray-300" />
+                </div>
+                <p className="text-sm font-medium text-gray-700 mb-1">Geen terugkerende facturen</p>
+                <p className="text-xs text-gray-400">Maak een factuur aan en zet de schakelaar &quot;Terugkerend&quot; aan, of bewerk een bestaande factuur.</p>
               </div>
-              <p className="text-sm font-medium text-gray-700 mb-1">Binnenkort beschikbaar</p>
-              <p className="text-xs text-gray-400">Hier kun je straks terugkerende facturen instellen die automatisch worden aangemaakt.</p>
-            </div>
+            ) : (
+              <RecurringInvoiceTable
+                invoices={recurringInvoices}
+                onPause={handlePauseRecurring}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+              />
+            )}
           </section>
         </div>
       )}
