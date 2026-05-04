@@ -71,11 +71,17 @@ const recurrenceLabels: Record<RecurrenceInterval, string> = {
 
 // Berekent het eerstvolgende moment waarop een terugkerende factuur moet draaien.
 // Tijd is lokale "verzendtijd" (HH:MM); we slaan UTC op zodat pg_cron het correct vergelijkt.
-function computeNextRunAt(interval: RecurrenceInterval, sendTime: string, from: Date = new Date()): Date {
+//
+// Anker is de factuurdatum (YYYY-MM-DD) — dáár hoort de eerste run op te vallen.
+// Ligt dat moment al in het verleden? Dan schuiven we met het interval door tot
+// we boven 'now' zitten, zodat een vergeten factuur niet meteen retro-actief
+// een hele reeks aanmaakt.
+function computeNextRunAt(interval: RecurrenceInterval, sendTime: string, anchorDate: string): Date {
   const [hh, mm] = sendTime.split(':').map((n) => parseInt(n, 10))
-  const next = new Date(from)
+  const now = new Date()
+  const next = new Date(`${anchorDate}T00:00:00`)
   next.setHours(hh || 9, mm || 0, 0, 0)
-  if (next <= from) {
+  while (next <= now) {
     if (interval === 'daily') next.setDate(next.getDate() + 1)
     else if (interval === 'weekly') next.setDate(next.getDate() + 7)
     else if (interval === 'monthly') next.setMonth(next.getMonth() + 1)
@@ -361,18 +367,25 @@ export default function InvoiceBuilder() {
     setSaving(true)
     setSaved(false)
 
-    // Voor templates herberekenen we recurrence_next_run_at als interval of tijd is gewijzigd,
-    // of als het pas vanaf nu een template wordt. Anders behouden we de bestaande waarde
-    // (zodat de cron niet per ongeluk dubbel triggert).
+    // Plan voor recurrence_next_run_at:
+    //  - Nog nooit gedraaid (geen last_run): anker altijd op factuurdatum, zodat
+    //    de eerste run op de factuurdatum + verzendtijd valt. Werkt ook als het
+    //    sjabloon pas vanaf nu wordt aangezet op een bestaande factuur.
+    //  - Wel al gedraaid: bestaande next_run_at behouden, tenzij interval/tijd is
+    //    aangepast — dan vanaf vandaag opnieuw plannen om dubbele runs te voorkomen.
     let nextRunAt: string | null = null
     if (isRecurring) {
-      const [hh, mm] = recurrenceSendTime.split(':').map((n) => parseInt(n, 10))
-      const existingNext = recurrenceNextRunAt ? new Date(recurrenceNextRunAt) : null
-      const sameTime = existingNext && existingNext.getHours() === (hh || 9) && existingNext.getMinutes() === (mm || 0)
-      if (existingNext && sameTime) {
-        nextRunAt = recurrenceNextRunAt
+      if (!recurrenceLastRunAt) {
+        nextRunAt = computeNextRunAt(recurrenceInterval, recurrenceSendTime, invoiceDate).toISOString()
       } else {
-        nextRunAt = computeNextRunAt(recurrenceInterval, recurrenceSendTime).toISOString()
+        const [hh, mm] = recurrenceSendTime.split(':').map((n) => parseInt(n, 10))
+        const existingNext = recurrenceNextRunAt ? new Date(recurrenceNextRunAt) : null
+        const sameTime = existingNext && existingNext.getHours() === (hh || 9) && existingNext.getMinutes() === (mm || 0)
+        if (existingNext && sameTime) {
+          nextRunAt = recurrenceNextRunAt
+        } else {
+          nextRunAt = computeNextRunAt(recurrenceInterval, recurrenceSendTime, todayStr()).toISOString()
+        }
       }
     }
 
