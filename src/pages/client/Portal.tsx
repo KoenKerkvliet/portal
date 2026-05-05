@@ -4,7 +4,7 @@ import TicketSystem from './TicketSystem'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
-import { Sparkles, ArrowRight, Calendar, ExternalLink, CheckCircle } from 'lucide-react'
+import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 import PunchCardView from '../../components/PunchCardView'
 
@@ -99,7 +99,7 @@ function ButtonDesignPreviewLink({ element, className, type, defaultLabel, proje
 }
 
 // Render a single card element for the client view
-function CardElementView({ element, project, disabled, submittedFormIds }: { element: CardElement; project: Project; disabled?: boolean; submittedFormIds?: Set<string> }) {
+function CardElementView({ element, project, disabled }: { element: CardElement; project: Project; disabled?: boolean }) {
   switch (element.type) {
     case 'icon': {
       const IconComp = getIconComponent(element.data.name || 'star')
@@ -182,17 +182,6 @@ function CardElementView({ element, project, disabled, submittedFormIds }: { ele
       }`
 
       if (action === 'form' && element.data.formId) {
-        // Al ingevuld? Toon voltooid-status i.p.v. de actieknop.
-        if (submittedFormIds?.has(element.data.formId)) {
-          return (
-            <div className="flex justify-center pt-2">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-50 text-green-700 border border-green-100 text-sm font-medium">
-                <CheckCircle className="w-4 h-4" />
-                Ingevuld
-              </div>
-            </div>
-          )
-        }
         return <ButtonFormLink element={element} className={btnClasses} />
       }
 
@@ -409,20 +398,32 @@ export default function ClientPortal() {
 
   const currentPhaseIndex = phases.indexOf(project.current_phase)
   const nextPhase = currentPhaseIndex < phases.length - 1 ? phases[currentPhaseIndex + 1] : null
-  // Een gefadete step automatisch actief maken als 'ie een knop bevat die naar een
-  // beschikbare quote/factuur/opdracht verwijst. Zo hoeft de admin de step niet ook
-  // nog handmatig zichtbaar te maken nadat het item op 'verzonden' is gezet.
+  // Twee runtime-overrides op de steps:
+  // 1. Gefadete step actief maken als 'ie een knop bevat die naar een beschikbaar item
+  //    (quote/invoice/assignment uit 'draft') verwijst.
+  // 2. Step als voltooid markeren als 'ie een formulier-knop bevat waarvan de
+  //    submission al verzonden is — zorgt dat het ✓-overlay verschijnt zonder te
+  //    hoeven wachten op de markStepCompleted-write in FormPage.
   const steps = phaseSteps.map((step) => {
-    if (!step.faded) return step
-    const hasReady = (step.elements || []).some((el) => {
-      if (el.type !== 'button') return false
-      const a = el.data.action
-      if (a === 'quote' && el.data.quoteId && readyItemIds.quotes.has(el.data.quoteId)) return true
-      if (a === 'invoice' && el.data.invoiceId && readyItemIds.invoices.has(el.data.invoiceId)) return true
-      if (a === 'assignment' && el.data.assignmentId && readyItemIds.assignments.has(el.data.assignmentId)) return true
-      return false
-    })
-    return hasReady ? { ...step, faded: false } : step
+    let next = step
+    if (next.faded) {
+      const hasReady = (next.elements || []).some((el) => {
+        if (el.type !== 'button') return false
+        const a = el.data.action
+        if (a === 'quote' && el.data.quoteId && readyItemIds.quotes.has(el.data.quoteId)) return true
+        if (a === 'invoice' && el.data.invoiceId && readyItemIds.invoices.has(el.data.invoiceId)) return true
+        if (a === 'assignment' && el.data.assignmentId && readyItemIds.assignments.has(el.data.assignmentId)) return true
+        return false
+      })
+      if (hasReady) next = { ...next, faded: false }
+    }
+    if (!next.completed) {
+      const hasSubmittedForm = (next.elements || []).some((el) =>
+        el.type === 'button' && el.data.action === 'form' && el.data.formId && submittedFormIds.has(el.data.formId)
+      )
+      if (hasSubmittedForm) next = { ...next, completed: true }
+    }
+    return next
   })
   const isOnderhoud = project.current_phase === 'onderhoud'
   const isOplevering = project.current_phase === 'oplevering'
@@ -601,7 +602,7 @@ export default function ClientPortal() {
                               {buttonElements.length > 0 && (
                                 <div className="mt-auto pt-4 space-y-2">
                                   {buttonElements.map((element) => (
-                                    <CardElementView key={element.id} element={element} project={project} disabled={step.faded} submittedFormIds={submittedFormIds} />
+                                    <CardElementView key={element.id} element={element} project={project} disabled={step.faded} />
                                   ))}
                                 </div>
                               )}
