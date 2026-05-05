@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
           full_name: fullName,
           role: 'client',
         },
-        redirectTo: 'https://koenkerkvliet.github.io/portal/bevestig',
+        redirectTo: 'https://portal.designpixels.nl/bevestig',
       },
     })
 
