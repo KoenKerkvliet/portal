@@ -146,7 +146,7 @@ export default function Quotes() {
                 </select>
                 {quote.status === 'accepted' && (
                   <button
-                    onClick={() => navigate(`/admin/facturen/nieuw?from_quote=${quote.id}`)}
+                    onClick={() => navigate(`/admin/facturen/nieuw?from_quote=${quote.id}${quote.is_test ? '&test=1' : ''}`)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg text-xs font-medium transition-colors"
                     title="Maak factuur van deze offerte"
                   >
