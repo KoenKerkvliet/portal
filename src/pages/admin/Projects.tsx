@@ -1572,19 +1572,47 @@ export default function Projects() {
                     {(domainCardTab[project.id] || 'algemeen') === 'algemeen' && (
                       <div className="px-5 sm:px-6 py-4">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="space-y-1">
-                            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Website</p>
-                            {project.url && (
-                              <div className="flex items-center gap-1.5">
-                                <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:text-primary-600 transition-colors truncate">
-                                  {project.url.replace(/^https?:\/\//, '')}
-                                </a>
-                                <ExternalLink className="w-3 h-3 text-primary/50 flex-shrink-0" />
-                              </div>
-                            )}
-                            <InlineEdit value={project.url || ''} onSave={(url) => updateProject(project.id, { url: url || null })} type="url"
-                              placeholder={project.url ? 'Wijzig URL' : 'URL toevoegen'} icon={Pencil} displayValue={project.url ? '' : 'URL toevoegen'} />
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Website</p>
+                              {project.url && (
+                                <div className="flex items-center gap-1.5">
+                                  <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                  <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:text-primary-600 transition-colors truncate">
+                                    {project.url.replace(/^https?:\/\//, '')}
+                                  </a>
+                                  <ExternalLink className="w-3 h-3 text-primary/50 flex-shrink-0" />
+                                </div>
+                              )}
+                              <InlineEdit value={project.url || ''} onSave={(url) => updateProject(project.id, { url: url || null })} type="url"
+                                placeholder={project.url ? 'Wijzig URL' : 'URL toevoegen'} icon={Pencil} displayValue={project.url ? '' : 'URL toevoegen'} />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Bestanden delen</p>
+                              {project.file_sharing_url && (
+                                <div className="flex items-center gap-1.5">
+                                  <Upload className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                  <a href={project.file_sharing_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:text-primary-600 transition-colors truncate">
+                                    {project.file_sharing_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                                  </a>
+                                  <ExternalLink className="w-3 h-3 text-primary/50 flex-shrink-0" />
+                                </div>
+                              )}
+                              <InlineEdit
+                                value={project.file_sharing_url || ''}
+                                onSave={(url) => {
+                                  let finalUrl = url?.trim() || null
+                                  if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+                                    finalUrl = `https://${finalUrl}`
+                                  }
+                                  updateProject(project.id, { file_sharing_url: finalUrl })
+                                }}
+                                type="url"
+                                placeholder={project.file_sharing_url ? 'Wijzig URL' : 'URL toevoegen'}
+                                icon={Pencil}
+                                displayValue={project.file_sharing_url ? '' : 'URL toevoegen'}
+                              />
+                            </div>
                           </div>
                           <div className="space-y-1.5 sm:col-span-2">
                             <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>
@@ -1962,7 +1990,6 @@ export default function Projects() {
                       <div className="px-5 sm:px-6 py-4 space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {renderUrlFields(project, [
-                            { label: 'Bestanden delen', value: project.file_sharing_url, field: 'file_sharing_url', icon: Upload },
                             { label: 'Stagingsite', value: project.staging_url, field: 'staging_url', icon: Globe },
                           ], updateProject)}
                         </div>
