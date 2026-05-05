@@ -18,10 +18,16 @@ interface DomainOption {
   url: string | null
 }
 
+interface ClientDomain {
+  id: string
+  name: string
+}
+
 export default function Clients() {
   const [clients, setClients] = useState<Client[]>([])
   const [newUsers, setNewUsers] = useState<NewUser[]>([])
   const [domains, setDomains] = useState<DomainOption[]>([])
+  const [clientDomains, setClientDomains] = useState<Record<string, ClientDomain[]>>({})
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
@@ -34,18 +40,28 @@ export default function Clients() {
   const [newDomain, setNewDomain] = useState({ name: '', url: '' })
 
   const fetchData = async () => {
-    const [{ data: clientData }, { data: profileData }, { data: domainData }] = await Promise.all([
+    const [{ data: clientData }, { data: profileData }, { data: domainData }, { data: pcData }] = await Promise.all([
       supabase.from('clients').select('*').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, email, full_name, created_at').eq('role', 'client'),
       supabase.from('projects').select('id, name, url').order('name'),
+      supabase.from('project_clients').select('client_id, project:projects(id, name)'),
     ])
 
     const linkedProfileIds = (clientData || []).map(c => c.profile_id).filter(Boolean)
     const unlinkedProfiles = (profileData || []).filter(p => !linkedProfileIds.includes(p.id))
 
+    // Domeinen per klant verzamelen op basis van project_clients
+    const domainsByClient: Record<string, ClientDomain[]> = {}
+    for (const row of (pcData || []) as Array<{ client_id: string; project: { id: string; name: string } | null }>) {
+      if (!row.project) continue
+      if (!domainsByClient[row.client_id]) domainsByClient[row.client_id] = []
+      domainsByClient[row.client_id].push({ id: row.project.id, name: row.project.name })
+    }
+
     setClients(clientData || [])
     setNewUsers(unlinkedProfiles)
     setDomains(domainData || [])
+    setClientDomains(domainsByClient)
     setLoading(false)
   }
 
@@ -157,6 +173,54 @@ export default function Clients() {
     }
 
     resetForm()
+    fetchData()
+  }
+
+  const handleUnlinkDomain = async (clientId: string, projectId: string, projectName: string) => {
+    const ok = confirm(
+      `Klant ontkoppelen van domein "${projectName}"?\n\n` +
+      `Het domein zelf blijft bestaan. Alleen de koppeling tussen deze klant en het domein wordt verwijderd.`
+    )
+    if (!ok) return
+
+    // 1. Verwijder de project_clients-rij
+    const { error: pcErr } = await supabase
+      .from('project_clients')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('client_id', clientId)
+    if (pcErr) {
+      alert('Ontkoppelen mislukt: ' + pcErr.message)
+      return
+    }
+
+    // 2. Als deze klant de primary was (projects.client_id), kies een vervanger of zet naar NULL
+    const { data: project } = await supabase
+      .from('projects')
+      .select('client_id')
+      .eq('id', projectId)
+      .single()
+
+    if (project?.client_id === clientId) {
+      const { data: remaining } = await supabase
+        .from('project_clients')
+        .select('client_id')
+        .eq('project_id', projectId)
+        .limit(1)
+      const newPrimary = remaining?.[0]?.client_id || null
+      const { error: updErr } = await supabase
+        .from('projects')
+        .update({ client_id: newPrimary })
+        .eq('id', projectId)
+      if (updErr) {
+        alert(
+          'Klant ontkoppeld, maar de primary-koppeling op het domein kon niet leeg gemaakt worden. ' +
+          'Mogelijk moet de SQL-migratie fix-client-cascade.sql nog gedraaid worden.\n\n' +
+          updErr.message
+        )
+      }
+    }
+
     fetchData()
   }
 
@@ -613,6 +677,31 @@ export default function Clients() {
                       </div>
                     )}
                   </div>
+
+                  {/* Gekoppelde domeinen */}
+                  {(clientDomains[client.id] || []).length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Domeinen</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(clientDomains[client.id] || []).map((d) => (
+                          <span
+                            key={d.id}
+                            className="inline-flex items-center gap-1.5 bg-primary/5 text-primary text-xs px-2 py-1 rounded-md"
+                          >
+                            <FolderKanban className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate max-w-[140px]">{d.name}</span>
+                            <button
+                              onClick={() => handleUnlinkDomain(client.id, d.id, d.name)}
+                              className="text-primary/40 hover:text-red-500 transition-colors flex-shrink-0"
+                              title="Ontkoppelen (domein blijft bestaan)"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Card Footer */}
