@@ -487,6 +487,15 @@ export default function Projects() {
     }
     if (invoiceId && invoiceId !== oldLinks.invoice_id) {
       createNotification(projectId, 'invoice', 'Nieuwe factuur beschikbaar', 'Er is een factuur voor je klaargezet.')
+      // Branded mail naar de klant via EmailIt — non-blocking, fouten loggen we alleen.
+      try {
+        const { data, error } = await supabase.functions.invoke('send-invoice-email', { body: { invoice_id: invoiceId } })
+        if (error || (data && !data.success)) {
+          console.error('[IntakeLinks] send-invoice-email failed:', error || data?.error)
+        }
+      } catch (e) {
+        console.error('[IntakeLinks] send-invoice-email exception:', e)
+      }
     }
     if (assignmentId && assignmentId !== oldLinks.assignment_id) {
       const a = (projectAssignments[projectId] || []).find(a => a.id === assignmentId)
