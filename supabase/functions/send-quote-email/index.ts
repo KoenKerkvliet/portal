@@ -111,7 +111,6 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;"><strong>${q.number}</strong> — ${amountFormatted}</p>
 <p style="margin:0 0 24px;">Bekijk en accordeer de offerte via je portaal:</p>
 <p style="margin:0 0 24px;"><a href="${quoteUrl}" style="color:#6b46c1;">${quoteUrl}</a></p>
-<p style="margin:0 0 16px;color:#666;font-size:14px;">Inloggen is nodig — als je nog geen account hebt, registreer je dan eerst via het portaal.</p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
@@ -125,8 +124,6 @@ ${q.number} — ${amountFormatted}
 
 Bekijk en accordeer de offerte via je portaal:
 ${quoteUrl}
-
-Inloggen is nodig — als je nog geen account hebt, registreer je dan eerst via het portaal.
 
 Met vriendelijke groet,
 DesignPixels`
