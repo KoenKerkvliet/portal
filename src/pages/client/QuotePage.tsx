@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import type { Quote, QuoteItem, InvoiceSettings } from '../../types'
 import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle } from 'lucide-react'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
@@ -121,6 +122,7 @@ function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: s
 export default function QuotePage() {
   const { quoteId } = useParams()
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const [quote, setQuote] = useState<Quote | null>(null)
   const [settings, setSettings] = useState<InvoiceSettings | null>(null)
   const [projectName, setProjectName] = useState('')
@@ -130,6 +132,14 @@ export default function QuotePage() {
 
   // Acceptance state
   const [acceptName, setAcceptName] = useState('')
+
+  // Naam pre-vullen vanuit het ingelogde account zodra profile geladen is —
+  // alleen als veld nog leeg is, zo overschrijven we niks dat de klant typt.
+  useEffect(() => {
+    if (profile?.full_name) {
+      setAcceptName((prev) => prev || profile.full_name || '')
+    }
+  }, [profile])
   const [acceptSignature, setAcceptSignature] = useState('')
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [acceptRemarks, setAcceptRemarks] = useState('')

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import type { Assignment } from '../../types'
 import { ArrowLeft, Loader2, ClipboardCheck, Download, Check, PenLine, XCircle } from 'lucide-react'
 import DOMPurify from 'dompurify'
@@ -102,12 +103,21 @@ function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: s
 export default function ClientAssignmentPage() {
   const { assignmentId } = useParams()
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const [assignment, setAssignment] = useState<Assignment | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
 
   // Acceptance state
   const [acceptName, setAcceptName] = useState('')
+
+  // Naam pre-vullen vanuit het ingelogde account zodra profile geladen is —
+  // alleen als veld nog leeg is, zo overschrijven we niks dat de klant typt.
+  useEffect(() => {
+    if (profile?.full_name) {
+      setAcceptName((prev) => prev || profile.full_name || '')
+    }
+  }, [profile])
   const [acceptSignature, setAcceptSignature] = useState('')
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [acceptRemarks, setAcceptRemarks] = useState('')
