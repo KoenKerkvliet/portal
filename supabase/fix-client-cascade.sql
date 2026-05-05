@@ -42,3 +42,14 @@ alter table public.quotes
 alter table public.quotes
   add constraint quotes_client_id_fkey
   foreign key (client_id) references public.clients(id) on delete set null;
+
+-- 4) assignments.client_id: opdracht-historie blijft bewaard
+alter table public.assignments
+  alter column client_id drop not null;
+
+alter table public.assignments
+  drop constraint assignments_client_id_fkey;
+
+alter table public.assignments
+  add constraint assignments_client_id_fkey
+  foreign key (client_id) references public.clients(id) on delete set null;
