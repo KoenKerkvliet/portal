@@ -40,11 +40,11 @@ export default function Login() {
     setLoading(true)
 
     if (mode === 'forgot') {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/wachtwoord-reset`,
+      const { data, error: fnError } = await supabase.functions.invoke('send-password-reset-email', {
+        body: { email },
       })
-      if (resetError) {
-        setError('Versturen mislukt. Controleer het e-mailadres en probeer opnieuw.')
+      if (fnError || (data && !data.success)) {
+        setError('Versturen mislukt. Probeer het opnieuw.')
         setLoading(false)
         return
       }
