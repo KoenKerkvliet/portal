@@ -606,8 +606,23 @@ export default function Projects() {
         if (hasNewImage && updatedApprovals[approvalType]?.status === 'declined') {
           updatedApprovals[approvalType] = { status: 'new_version' } as never
           createNotification(projectId, 'card_update', `Nieuwe versie: ${fieldToLabel[field]}`, `Er is een nieuwe versie van het design "${fieldToLabel[field]}" beschikbaar op basis van je feedback.`, `/design/${approvalType}/${projectId}`)
+          // Branded mail naar de klant via EmailIt — non-blocking, fouten loggen we alleen.
+          void supabase.functions.invoke('send-design-ready-email', {
+            body: { project_id: projectId, design_type: approvalType, is_new_version: true },
+          }).then(({ data, error }) => {
+            if (error || (data && !data.success)) {
+              console.error('[Design] send-design-ready-email failed:', error || data?.error)
+            }
+          }).catch(e => console.error('[Design] send-design-ready-email exception:', e))
         } else if (hasNewImage && !hadOldImage && imageChanged) {
           createNotification(projectId, 'card_update', `Design beschikbaar: ${fieldToLabel[field]}`, `Het design "${fieldToLabel[field]}" staat klaar voor je beoordeling.`, `/design/${approvalType}/${projectId}`)
+          void supabase.functions.invoke('send-design-ready-email', {
+            body: { project_id: projectId, design_type: approvalType, is_new_version: false },
+          }).then(({ data, error }) => {
+            if (error || (data && !data.success)) {
+              console.error('[Design] send-design-ready-email failed:', error || data?.error)
+            }
+          }).catch(e => console.error('[Design] send-design-ready-email exception:', e))
         }
       }
 
