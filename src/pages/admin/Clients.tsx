@@ -129,6 +129,25 @@ export default function Clients() {
     fetchData()
   }
 
+  const handleDeleteNewUser = async (user: NewUser) => {
+    const ok = confirm(
+      `Account van ${user.full_name || user.email} definitief verwijderen?\n\n` +
+      `Dit verwijdert de gebruiker volledig uit de database. ` +
+      `Het e-mailadres ${user.email} kan daarna opnieuw gebruikt worden voor registratie.\n\n` +
+      `Deze actie kan niet ongedaan gemaakt worden.`
+    )
+    if (!ok) return
+
+    const { data, error } = await supabase.functions.invoke('delete-user', {
+      body: { user_id: user.id },
+    })
+    if (error || !data?.success) {
+      alert('Verwijderen mislukt: ' + (data?.error || error?.message || 'onbekende fout'))
+      return
+    }
+    fetchData()
+  }
+
   const handleLinkUser = (user: NewUser) => {
     setLinkingUser(user)
     setFormData({
@@ -258,13 +277,22 @@ export default function Clients() {
                   </div>
                   <p className="text-xs text-amber-600 mt-2">{timeSince(user.created_at)}</p>
                 </div>
-                <button
-                  onClick={() => handleLinkUser(user)}
-                  className="flex-shrink-0 flex items-center gap-1.5 bg-primary hover:bg-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Koppelen
-                </button>
+                <div className="flex-shrink-0 flex items-center gap-1">
+                  <button
+                    onClick={() => handleLinkUser(user)}
+                    className="flex items-center gap-1.5 bg-primary hover:bg-primary-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Koppelen
+                  </button>
+                  <button
+                    onClick={() => handleDeleteNewUser(user)}
+                    className="p-2 text-amber-700 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Definitief verwijderen"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
