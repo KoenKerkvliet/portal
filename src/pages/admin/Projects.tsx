@@ -585,7 +585,15 @@ export default function Projects() {
     }
 
     {
-      const customData = instance.custom_data || { content: '', steps: [] }
+      // Vers ophalen om te voorkomen dat we approvals van de klant overschrijven
+      // (geen realtime listener, lokale state kan stale zijn t.o.v. wat de klant
+      // intussen in de portal heeft goedgekeurd of afgekeurd).
+      const { data: freshPhase } = await supabase
+        .from('project_phases')
+        .select('custom_data')
+        .eq('id', instance.id)
+        .single()
+      const customData = freshPhase?.custom_data || instance.custom_data || { content: '', steps: [] }
 
       // Reset declined approvals when new image is saved for that field
       const existingApprovals = (customData.design_approvals || {}) as Record<string, { status?: string }>
