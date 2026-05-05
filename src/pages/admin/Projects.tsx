@@ -23,12 +23,12 @@ const phaseColors: Record<ProjectPhase, string> = {
   onderhoud: 'bg-emerald-100 text-emerald-700',
 }
 
-const phaseTabColors: Record<ProjectPhase, { active: string; inactive: string }> = {
-  intake: { active: 'border-blue-500 text-blue-700', inactive: 'text-gray-400 hover:text-blue-600' },
-  design: { active: 'border-purple-500 text-purple-700', inactive: 'text-gray-400 hover:text-purple-600' },
-  development: { active: 'border-yellow-500 text-yellow-700', inactive: 'text-gray-400 hover:text-yellow-600' },
-  oplevering: { active: 'border-green-500 text-green-700', inactive: 'text-gray-400 hover:text-green-600' },
-  onderhoud: { active: 'border-emerald-500 text-emerald-700', inactive: 'text-gray-400 hover:text-emerald-600' },
+const phaseTabColors: Record<ProjectPhase, { active: string; inactive: string; currentPhase: string }> = {
+  intake: { active: 'border-blue-500 text-blue-700', inactive: 'text-gray-400 hover:text-blue-600', currentPhase: 'bg-blue-50 text-blue-700' },
+  design: { active: 'border-purple-500 text-purple-700', inactive: 'text-gray-400 hover:text-purple-600', currentPhase: 'bg-purple-50 text-purple-700' },
+  development: { active: 'border-yellow-500 text-yellow-700', inactive: 'text-gray-400 hover:text-yellow-600', currentPhase: 'bg-yellow-50 text-yellow-700' },
+  oplevering: { active: 'border-green-500 text-green-700', inactive: 'text-gray-400 hover:text-green-600', currentPhase: 'bg-green-50 text-green-700' },
+  onderhoud: { active: 'border-emerald-500 text-emerald-700', inactive: 'text-gray-400 hover:text-emerald-600', currentPhase: 'bg-emerald-50 text-emerald-700' },
 }
 
 interface FormData {
@@ -263,6 +263,13 @@ export default function Projects() {
   const handlePhaseChange = (project: Project, newPhase: ProjectPhase) => {
     setPhaseDropdownId(null)
     if (newPhase === project.current_phase) return
+    // Beveiligingscheck: zonder bestandsdeling-URL kun je niet verder.
+    // Springt naar Algemeen-tab zodat de admin meteen ziet waar 't moet.
+    if (!project.file_sharing_url?.trim()) {
+      setDomainCardTab(prev => ({ ...prev, [project.id]: 'algemeen' }))
+      alert('Vul eerst de URL voor bestandsdeling in op het tabblad Algemeen — die is nodig voor je het project verder kunt brengen.')
+      return
+    }
     setPhaseChangeModal({ project, newPhase, silent: false })
   }
 
@@ -1553,13 +1560,17 @@ export default function Projects() {
                     {phases.map((phase) => {
                       const activeTab = domainCardTab[project.id] || 'algemeen'
                       const colors = phaseTabColors[phase]
+                      const isActiveTab = activeTab === phase
+                      const isCurrentPhase = phase === project.current_phase
                       return (
                         <button key={phase}
                           onClick={() => setDomainCardTab(prev => ({ ...prev, [project.id]: phase }))}
                           className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors whitespace-nowrap ${
-                            activeTab === phase
+                            isActiveTab
                               ? colors.active
-                              : `border-transparent ${colors.inactive}`
+                              : isCurrentPhase
+                                ? `border-transparent ${colors.currentPhase}`
+                                : `border-transparent ${colors.inactive}`
                           }`}
                         >
                           {phaseLabels[phase]}
