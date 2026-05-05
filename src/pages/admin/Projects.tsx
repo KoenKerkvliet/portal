@@ -449,9 +449,12 @@ export default function Projects() {
 
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
-      // Auto-set linked quote to 'sent' if draft
+      // Auto-set linked quote/invoice to 'sent' if draft (koppelen impliceert verzenden)
       if (quoteId) {
         await supabase.from('quotes').update({ status: 'sent' }).eq('id', quoteId).eq('status', 'draft')
+      }
+      if (invoiceId) {
+        await supabase.from('invoices').update({ status: 'sent' }).eq('id', invoiceId).eq('status', 'draft')
       }
 
       await fetchPhaseInstances()
@@ -746,19 +749,26 @@ export default function Projects() {
       }).eq('id', instance.id)
     }
 
-    // Auto-set linked quotes to 'sent' status
+    // Auto-set linked quotes/invoices to 'sent' status
     const quoteIds: string[] = []
+    const invoiceIds: string[] = []
     for (const step of editingInstance.steps) {
       if (step.elements) {
         for (const el of step.elements) {
           if (el.type === 'button' && el.data.action === 'quote' && el.data.quoteId) {
             quoteIds.push(el.data.quoteId)
           }
+          if (el.type === 'button' && el.data.action === 'invoice' && el.data.invoiceId) {
+            invoiceIds.push(el.data.invoiceId)
+          }
         }
       }
     }
     if (quoteIds.length > 0) {
       await supabase.from('quotes').update({ status: 'sent' }).in('id', quoteIds).eq('status', 'draft')
+    }
+    if (invoiceIds.length > 0) {
+      await supabase.from('invoices').update({ status: 'sent' }).in('id', invoiceIds).eq('status', 'draft')
     }
 
     await fetchPhaseInstances()
