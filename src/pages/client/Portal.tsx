@@ -257,6 +257,9 @@ export default function ClientPortal() {
     invoices: new Set(),
     assignments: new Set(),
   })
+  // IDs van facturen die op 'paid' staan. Triggeren het ✓-overlay op de bijbehorende
+  // factuur-kaart, zodat klant ziet dat de betaling verwerkt is.
+  const [paidInvoiceIds, setPaidInvoiceIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -290,15 +293,17 @@ export default function ClientPortal() {
         const [{ data: subs }, { data: projQuotes }, { data: projInvoices }, { data: projAssignments }] = await Promise.all([
           supabase.from('form_submissions').select('form_id').eq('project_id', projectData.id).not('submitted_at', 'is', null),
           supabase.from('quotes').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
-          supabase.from('invoices').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
+          supabase.from('invoices').select('id, status').eq('project_id', projectData.id).neq('status', 'draft'),
           supabase.from('assignments').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
         ])
         setSubmittedFormIds(new Set((subs || []).map((s) => s.form_id as string)))
+        const invoiceRows = (projInvoices || []) as Array<{ id: string; status: string }>
         setReadyItemIds({
           quotes: new Set((projQuotes || []).map((q) => q.id as string)),
-          invoices: new Set((projInvoices || []).map((i) => i.id as string)),
+          invoices: new Set(invoiceRows.map((i) => i.id)),
           assignments: new Set((projAssignments || []).map((a) => a.id as string)),
         })
+        setPaidInvoiceIds(new Set(invoiceRows.filter((i) => i.status === 'paid').map((i) => i.id)))
 
         // First try to load domain-specific instance from project_phases
         const { data: phaseInstance } = await supabase
@@ -421,7 +426,10 @@ export default function ClientPortal() {
       const hasSubmittedForm = (next.elements || []).some((el) =>
         el.type === 'button' && el.data.action === 'form' && el.data.formId && submittedFormIds.has(el.data.formId)
       )
-      if (hasSubmittedForm) next = { ...next, completed: true }
+      const hasPaidInvoice = (next.elements || []).some((el) =>
+        el.type === 'button' && el.data.action === 'invoice' && el.data.invoiceId && paidInvoiceIds.has(el.data.invoiceId)
+      )
+      if (hasSubmittedForm || hasPaidInvoice) next = { ...next, completed: true }
     }
     return next
   })
