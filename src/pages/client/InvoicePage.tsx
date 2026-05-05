@@ -553,7 +553,7 @@ export default function InvoicePage() {
         {settings?.iban && invoice.status !== 'paid' && (
           <div className="px-8 py-4 bg-blue-50 border-t border-blue-100">
             <p className="text-sm text-blue-700">
-              Gelieve het bedrag over te maken naar <span className="font-semibold">{settings.iban}</span> o.v.v. factuurnummer <span className="font-semibold">{invoice.number}</span>.
+              Gelieve het bedrag {invoice.due_date && (<>vóór <span className="font-semibold">{new Date(invoice.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</span> </>)}over te maken naar <span className="font-semibold">{settings.iban}</span> o.v.v. factuurnummer <span className="font-semibold">{invoice.number}</span>.
             </p>
           </div>
         )}
