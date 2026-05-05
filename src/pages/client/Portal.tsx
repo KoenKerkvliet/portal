@@ -259,6 +259,15 @@ export default function ClientPortal() {
   const [punchCards, setPunchCards] = useState<PunchCard[]>([])
   const [punchCardUses, setPunchCardUses] = useState<Record<string, PunchCardUse[]>>({})
   const [submittedFormIds, setSubmittedFormIds] = useState<Set<string>>(new Set())
+  // IDs van quotes/invoices/assignments die voor de klant beschikbaar zijn (status >= 'sent').
+  // Gebruikt om kaarten met een gekoppelde knop automatisch actief te maken zodra de
+  // admin het bijbehorende item op 'verzonden' zet — ongeacht of de step in het
+  // template gefadet is.
+  const [readyItemIds, setReadyItemIds] = useState<{ quotes: Set<string>; invoices: Set<string>; assignments: Set<string> }>({
+    quotes: new Set(),
+    invoices: new Set(),
+    assignments: new Set(),
+  })
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -288,12 +297,19 @@ export default function ClientPortal() {
         setProject(projectData)
 
         // Welke formulieren zijn al ingediend op dit project?
-        const { data: subs } = await supabase
-          .from('form_submissions')
-          .select('form_id')
-          .eq('project_id', projectData.id)
-          .not('submitted_at', 'is', null)
+        // En welke quotes/invoices/assignments zijn al uit 'draft' (dus zichtbaar gemaakt)?
+        const [{ data: subs }, { data: projQuotes }, { data: projInvoices }, { data: projAssignments }] = await Promise.all([
+          supabase.from('form_submissions').select('form_id').eq('project_id', projectData.id).not('submitted_at', 'is', null),
+          supabase.from('quotes').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
+          supabase.from('invoices').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
+          supabase.from('assignments').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
+        ])
         setSubmittedFormIds(new Set((subs || []).map((s) => s.form_id as string)))
+        setReadyItemIds({
+          quotes: new Set((projQuotes || []).map((q) => q.id as string)),
+          invoices: new Set((projInvoices || []).map((i) => i.id as string)),
+          assignments: new Set((projAssignments || []).map((a) => a.id as string)),
+        })
 
         // First try to load domain-specific instance from project_phases
         const { data: phaseInstance } = await supabase
@@ -393,7 +409,21 @@ export default function ClientPortal() {
 
   const currentPhaseIndex = phases.indexOf(project.current_phase)
   const nextPhase = currentPhaseIndex < phases.length - 1 ? phases[currentPhaseIndex + 1] : null
-  const steps = phaseSteps
+  // Een gefadete step automatisch actief maken als 'ie een knop bevat die naar een
+  // beschikbare quote/factuur/opdracht verwijst. Zo hoeft de admin de step niet ook
+  // nog handmatig zichtbaar te maken nadat het item op 'verzonden' is gezet.
+  const steps = phaseSteps.map((step) => {
+    if (!step.faded) return step
+    const hasReady = (step.elements || []).some((el) => {
+      if (el.type !== 'button') return false
+      const a = el.data.action
+      if (a === 'quote' && el.data.quoteId && readyItemIds.quotes.has(el.data.quoteId)) return true
+      if (a === 'invoice' && el.data.invoiceId && readyItemIds.invoices.has(el.data.invoiceId)) return true
+      if (a === 'assignment' && el.data.assignmentId && readyItemIds.assignments.has(el.data.assignmentId)) return true
+      return false
+    })
+    return hasReady ? { ...step, faded: false } : step
+  })
   const isOnderhoud = project.current_phase === 'onderhoud'
   const isOplevering = project.current_phase === 'oplevering'
 
