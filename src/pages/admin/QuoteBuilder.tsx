@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { generateTestNumber } from '../../lib/testNumbering'
 import type { Product, QuoteItem, YearFormat, InvoiceSettings } from '../../types'
 import {
   ArrowLeft,
@@ -139,7 +140,8 @@ export default function QuoteBuilder() {
       // Auto-generate number
       if (!editId) {
         if (isTest) {
-          setNumber('TEST-001')
+          const testNums = (quotesRes.data || []).map((q) => q.number)
+          setNumber(generateTestNumber(testNums))
         } else if (settingsRes.data) {
           const nums = (quotesRes.data || []).map((q) => q.number)
           setNumber(generateQuoteNumber(

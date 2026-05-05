@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { generateTestNumber } from '../../lib/testNumbering'
 import type { Product, QuoteItem, InvoiceStatus, YearFormat, InvoiceSettings, RecurrenceInterval } from '../../types'
 import {
   ArrowLeft,
@@ -19,6 +20,7 @@ import {
   Search,
   ChevronDown,
   Repeat,
+  Percent,
   Mail,
   MapPin,
   User,
@@ -132,6 +134,12 @@ export default function InvoiceBuilder() {
   const [recurrenceNextRunAt, setRecurrenceNextRunAt] = useState<string | null>(null)
   const [recurrenceLastRunAt, setRecurrenceLastRunAt] = useState<string | null>(null)
 
+  // Aanbetaling — bij save splitst de factuur in een aanbetalingsfactuur
+  // (die het toegewezen nummer behoudt) + een restfactuur (TMP-nummer).
+  // Alleen beschikbaar bij nieuwe facturen (niet bij edit).
+  const [isDeposit, setIsDeposit] = useState(false)
+  const [depositPercent, setDepositPercent] = useState(30)
+
   // UI
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -190,7 +198,8 @@ export default function InvoiceBuilder() {
       // Auto-generate number
       if (!editId) {
         if (isTest) {
-          setNumber(`TEST-${Date.now().toString().slice(-6)}`)
+          const testNums = (invoicesRes.data || []).map((i) => i.number)
+          setNumber(generateTestNumber(testNums))
         } else if (settingsRes.data) {
           const nums = (invoicesRes.data || []).map((i) => i.number)
           setNumber(generateInvoiceNumber(
@@ -414,6 +423,84 @@ export default function InvoiceBuilder() {
 
     if (editId) {
       await supabase.from('invoices').update(payload).eq('id', editId)
+    } else if (isDeposit) {
+      // Splitsen: deze factuur wordt de aanbetaling (behoudt het toegewezen nummer),
+      // plus een restfactuur met TMP-nummer.
+      const remainderPercent = 100 - depositPercent
+      const baseAfterDiscount = subtotal * (1 - discountPercent / 100)
+      const depositSubtotal = Math.round(baseAfterDiscount * (depositPercent / 100) * 100) / 100
+      const remainderSubtotal = Math.round((baseAfterDiscount - depositSubtotal) * 100) / 100
+      const depositTotal = Math.round(depositSubtotal * (1 + btwPercent / 100) * 100) / 100
+      const remainderTotal = Math.round(remainderSubtotal * (1 + btwPercent / 100) * 100) / 100
+
+      const depositItem: QuoteItem = {
+        id: crypto.randomUUID(),
+        type: 'product',
+        name: `Aanbetaling ${depositPercent}%`,
+        description: `Aanbetaling van ${depositPercent}% op opdracht (factuur ${number}).`,
+        quantity: 1,
+        unit: 'stuk',
+        price: depositSubtotal,
+      }
+      const remainderItem: QuoteItem = {
+        id: crypto.randomUUID(),
+        type: 'product',
+        name: `Restant ${remainderPercent}%`,
+        description: `Restant van ${remainderPercent}% na aanbetaling op opdracht (origineel: ${number}).`,
+        quantity: 1,
+        unit: 'stuk',
+        price: remainderSubtotal,
+      }
+
+      // TMP-nummer berekenen op basis van bestaande facturen met has_temp_number.
+      const { data: existingInvs } = await supabase
+        .from('invoices')
+        .select('number, has_temp_number')
+      let maxTemp = 0
+      for (const inv of existingInvs || []) {
+        if (!inv.has_temp_number) continue
+        const m = (inv.number as string).match(/^TMP-(\d+)$/)
+        if (m) {
+          const n = parseInt(m[1], 10)
+          if (!isNaN(n) && n > maxTemp) maxTemp = n
+        }
+      }
+      const tempNum = `TMP-${maxTemp + 1}`
+
+      // Aanbetalingsfactuur insert (behoudt nummer)
+      const { data: deposit, error: depErr } = await supabase.from('invoices').insert({
+        ...payload,
+        items: [depositItem],
+        subtotal: depositSubtotal,
+        amount: depositTotal,
+        discount_percent: 0,
+        is_deposit_invoice: true,
+        deposit_percentage: depositPercent,
+      }).select('id').single()
+      if (depErr) {
+        alert('Aanbetalingsfactuur aanmaken mislukt: ' + depErr.message)
+        setSaving(false)
+        return
+      }
+
+      // Restfactuur insert (TMP-nummer)
+      const { error: remErr } = await supabase.from('invoices').insert({
+        ...payload,
+        number: tempNum,
+        items: [remainderItem],
+        subtotal: remainderSubtotal,
+        amount: remainderTotal,
+        discount_percent: 0,
+        is_remainder_invoice: true,
+        has_temp_number: true,
+        deposit_percentage: depositPercent,
+        parent_invoice_id: deposit?.id || null,
+      })
+      if (remErr) {
+        alert('Restfactuur aanmaken mislukt: ' + remErr.message + '\n\nDe aanbetalingsfactuur is wel aangemaakt.')
+        setSaving(false)
+        return
+      }
     } else {
       await supabase.from('invoices').insert(payload)
     }
@@ -631,6 +718,62 @@ export default function InvoiceBuilder() {
         </div>
       </section>
 
+      {/* Aanbetaling — alleen bij nieuwe facturen */}
+      {!editId && (
+        <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Percent className="w-4 h-4 text-amber-500" />
+              <h2 className="text-base font-semibold text-gray-900">Aanbetaling</h2>
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <span className="text-sm text-gray-600">Aanbetalingsfactuur</span>
+              <input
+                type="checkbox"
+                checked={isDeposit}
+                onChange={(e) => {
+                  setIsDeposit(e.target.checked)
+                  if (e.target.checked) setIsRecurring(false)
+                }}
+                className="sr-only peer"
+              />
+              <div className="relative w-10 h-6 bg-gray-200 peer-checked:bg-primary rounded-full transition-colors">
+                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isDeposit ? 'translate-x-4' : ''}`} />
+              </div>
+            </label>
+          </div>
+          {isDeposit ? (
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Aanbetalingspercentage</label>
+                  <div className="relative">
+                    <Percent className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={depositPercent}
+                      onChange={(e) => setDepositPercent(Math.min(99, Math.max(1, parseInt(e.target.value, 10) || 30)))}
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                <p className="text-xs text-amber-800">
+                  Bij opslaan wordt deze factuur opgesplitst: een <strong>aanbetalingsfactuur ({depositPercent}%)</strong> met het bovenstaande factuurnummer, en een <strong>restfactuur ({100 - depositPercent}%)</strong> met een tijdelijk nummer (TMP-X) dat je later kunt definiëren wanneer het project wordt afgerond.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-400">Eenmalige factuur voor het volledige bedrag. Zet de schakelaar aan om er een aanbetaling + restfactuur van te maken.</p>
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Herhaling */}
       <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -643,7 +786,10 @@ export default function InvoiceBuilder() {
             <input
               type="checkbox"
               checked={isRecurring}
-              onChange={(e) => setIsRecurring(e.target.checked)}
+              onChange={(e) => {
+                setIsRecurring(e.target.checked)
+                if (e.target.checked) setIsDeposit(false)
+              }}
               className="sr-only peer"
             />
             <div className="relative w-10 h-6 bg-gray-200 peer-checked:bg-primary rounded-full transition-colors">
