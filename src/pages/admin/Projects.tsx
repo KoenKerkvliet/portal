@@ -1700,7 +1700,7 @@ export default function Projects() {
                                       className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                                     >
                                       <option value="">Geen factuur</option>
-                                      {(invoices || []).map((inv) => (
+                                      {(invoices || []).filter((inv) => !inv.is_remainder_invoice).map((inv) => (
                                         <option key={inv.id} value={inv.id}>
                                           {inv.number} — €{inv.amount.toFixed(2)}
                                         </option>
