@@ -48,38 +48,35 @@ Deno.serve(async (req) => {
     // This avoids GitHub Pages SPA routing issues with query parameters.
     const verifyUrl = linkData.properties.action_link
 
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      </head>
-      <body style="margin:0;padding:0;background-color:#f8f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-        <div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05);">
-          <div style="background:linear-gradient(135deg,#9e86ff,#7c3aed);padding:32px;text-align:center;">
-            <h1 style="color:white;margin:0;font-size:22px;font-weight:700;">DesignPixels</h1>
-          </div>
-          <div style="padding:32px;">
-            <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">Welkom, ${fullName}!</h2>
-            <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 24px;">
-              Bedankt voor je registratie. Klik op de knop hieronder om je e-mailadres te bevestigen en toegang te krijgen tot je portaal.
-            </p>
-            <a href="${verifyUrl}" style="display:inline-block;background:linear-gradient(135deg,#9e86ff,#7c3aed);color:white;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:600;font-size:14px;">
-              E-mail bevestigen
-            </a>
-            <p style="color:#9ca3af;font-size:12px;line-height:1.5;margin:24px 0 0;">
-              Werkt de knop niet? Kopieer dan deze link:<br>
-              <a href="${verifyUrl}" style="color:#9e86ff;word-break:break-all;">${verifyUrl}</a>
-            </p>
-          </div>
-          <div style="padding:16px 32px;background:#f9fafb;text-align:center;">
-            <p style="color:#9ca3af;font-size:11px;margin:0;">&copy; ${new Date().getFullYear()} DesignPixels</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `
+    const html = `<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bevestig je e-mailadres</title>
+</head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#222;font-size:15px;line-height:1.55;">
+<div style="max-width:560px;margin:0 auto;padding:32px 24px;">
+<p style="margin:0 0 24px;font-size:14px;color:#888;">DesignPixels</p>
+<p style="margin:0 0 16px;">Hoi ${fullName},</p>
+<p style="margin:0 0 16px;">Welkom bij DesignPixels. Bevestig je e-mailadres via onderstaande link om toegang te krijgen tot je portaal:</p>
+<p style="margin:0 0 24px;"><a href="${verifyUrl}" style="color:#6b46c1;">${verifyUrl}</a></p>
+<p style="margin:0 0 16px;color:#666;font-size:14px;">Heb je je niet aangemeld? Negeer deze mail.</p>
+<p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
+</div>
+</body>
+</html>`
+
+    const text = `Hoi ${fullName},
+
+Welkom bij DesignPixels. Bevestig je e-mailadres via onderstaande link om toegang te krijgen tot je portaal:
+
+${verifyUrl}
+
+Heb je je niet aangemeld? Negeer deze mail.
+
+Met vriendelijke groet,
+DesignPixels`
 
     const emailResponse = await fetch('https://api.emailit.com/v2/emails', {
       method: 'POST',
@@ -90,8 +87,9 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: EMAILIT_FROM,
         to: email,
-        subject: 'Bevestig je e-mailadres — DesignPixels',
+        subject: 'Bevestig je e-mailadres',
         html,
+        text,
       }),
     })
 
