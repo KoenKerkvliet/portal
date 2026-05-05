@@ -189,6 +189,7 @@ export default function Projects() {
   const [filterPhase, setFilterPhase] = useState<ProjectPhase | 'all'>('all')
   const [filterClient, setFilterClient] = useState('all')
   const [filterLetter, setFilterLetter] = useState<string>('all')
+  const [phaseChangeModal, setPhaseChangeModal] = useState<{ project: Project; newPhase: ProjectPhase; silent: boolean } | null>(null)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const [phaseDropdownId, setPhaseDropdownId] = useState<string | null>(null)
   const [clientDropdownId, setClientDropdownId] = useState<string | null>(null)
@@ -259,12 +260,29 @@ export default function Projects() {
     }
   }
 
-  const handlePhaseChange = async (project: Project, newPhase: ProjectPhase) => {
+  const handlePhaseChange = (project: Project, newPhase: ProjectPhase) => {
     setPhaseDropdownId(null)
     if (newPhase === project.current_phase) return
-    const confirmed = confirm(`Fase van "${project.name}" wijzigen van ${phaseLabels[project.current_phase]} naar ${phaseLabels[newPhase]}?`)
-    if (!confirmed) return
-    updateProject(project.id, { current_phase: newPhase })
+    setPhaseChangeModal({ project, newPhase, silent: false })
+  }
+
+  const confirmPhaseChange = async () => {
+    if (!phaseChangeModal) return
+    const { project, newPhase, silent } = phaseChangeModal
+    setPhaseChangeModal(null)
+    await updateProject(project.id, { current_phase: newPhase })
+    if (!silent) {
+      try {
+        const { data, error } = await supabase.functions.invoke('send-phase-change-email', {
+          body: { project_id: project.id, new_phase: newPhase },
+        })
+        if (error || (data && !data.success)) {
+          console.error('[PhaseChange] send-phase-change-email failed:', error || data?.error)
+        }
+      } catch (e) {
+        console.error('[PhaseChange] send-phase-change-email exception:', e)
+      }
+    }
   }
 
   const fetchProjectClients = async (projectIds?: string[]) => {
@@ -1043,6 +1061,54 @@ export default function Projects() {
           </span>
         )}
       </div>
+
+      {/* Phase change modal */}
+      {phaseChangeModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Fase wijzigen</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-700">
+                Fase van <strong>{phaseChangeModal.project.name}</strong> wijzigen van{' '}
+                <strong>{phaseLabels[phaseChangeModal.project.current_phase]}</strong> naar{' '}
+                <strong>{phaseLabels[phaseChangeModal.newPhase]}</strong>?
+              </p>
+              <div className={`rounded-lg px-3 py-2 text-xs ${phaseChangeModal.silent ? 'bg-gray-50 text-gray-500' : 'bg-blue-50 text-blue-700'}`}>
+                {phaseChangeModal.silent
+                  ? 'Klant wordt NIET via mail geïnformeerd.'
+                  : 'Klant ontvangt automatisch een mail over de nieuwe fase.'}
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={phaseChangeModal.silent}
+                  onChange={(e) => setPhaseChangeModal({ ...phaseChangeModal, silent: e.target.checked })}
+                  className="w-4 h-4 rounded text-primary focus:ring-primary/30"
+                />
+                Stil bijwerken — geen mail naar klant
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 p-6 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setPhaseChangeModal(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Annuleren
+              </button>
+              <button
+                type="button"
+                onClick={confirmPhaseChange}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-600 rounded-lg transition-colors"
+              >
+                Wijzig fase
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create modal */}
       {showForm && (
