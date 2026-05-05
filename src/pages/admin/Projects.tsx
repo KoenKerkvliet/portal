@@ -425,32 +425,26 @@ export default function Projects() {
       // Update linked IDs in custom_data
       const updatedData = { ...customData, linked_quote_id: quoteId || undefined, linked_invoice_id: invoiceId || undefined, linked_assignment_id: assignmentId || undefined }
 
-      // Auto-propagate to button elements in intake steps
-      // Also check for faded steps that have linked content
-      const warnings: string[] = []
+      // Auto-propagate IDs naar knoppen, en unfade de bijbehorende stap automatisch:
+      // door iets te koppelen geeft de admin impliciet aan dat de klant het mag zien.
       if (updatedData.steps) {
         for (const step of updatedData.steps) {
-          if (step.elements) {
-            for (const el of step.elements) {
-              if (el.type === 'button' && el.data.action === 'quote' && quoteId) {
-                el.data.quoteId = quoteId
-                if (step.faded) warnings.push(`Stap "${step.title || 'Naamloos'}" bevat een offerte-knop maar is niet zichtbaar voor de klant.`)
-              }
-              if (el.type === 'button' && el.data.action === 'invoice' && invoiceId) {
-                el.data.invoiceId = invoiceId
-              }
-              if (el.type === 'button' && el.data.action === 'assignment' && assignmentId) {
-                el.data.assignmentId = assignmentId
-                if (step.faded) warnings.push(`Stap "${step.title || 'Naamloos'}" bevat een opdracht-knop maar is niet zichtbaar voor de klant.`)
-              }
+          if (!step.elements) continue
+          for (const el of step.elements) {
+            if (el.type === 'button' && el.data.action === 'quote' && quoteId) {
+              el.data.quoteId = quoteId
+              if (step.faded) step.faded = false
+            }
+            if (el.type === 'button' && el.data.action === 'invoice' && invoiceId) {
+              el.data.invoiceId = invoiceId
+              if (step.faded) step.faded = false
+            }
+            if (el.type === 'button' && el.data.action === 'assignment' && assignmentId) {
+              el.data.assignmentId = assignmentId
+              if (step.faded) step.faded = false
             }
           }
         }
-      }
-
-      // Show warnings if any steps with linked buttons are faded
-      if (warnings.length > 0) {
-        alert('⚠️ Let op!\n\n' + warnings.join('\n\n') + '\n\nMaak deze stappen zichtbaar zodat de klant ze kan zien.')
       }
 
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
@@ -725,20 +719,22 @@ export default function Projects() {
       dataToSave.linked_invoice_id = links.invoice_id || undefined
       dataToSave.linked_assignment_id = links.assignment_id || undefined
 
-      // Auto-propagate linked quote/invoice/assignment to buttons
+      // Auto-propagate linked quote/invoice/assignment to buttons + unfade die stappen.
       const steps = dataToSave.steps as PhaseStep[]
       for (const step of steps) {
-        if (step.elements) {
-          for (const el of step.elements) {
-            if (el.type === 'button' && el.data.action === 'quote' && links.quote_id) {
-              el.data.quoteId = links.quote_id
-            }
-            if (el.type === 'button' && el.data.action === 'invoice' && links.invoice_id) {
-              el.data.invoiceId = links.invoice_id
-            }
-            if (el.type === 'button' && el.data.action === 'assignment' && links.assignment_id) {
-              el.data.assignmentId = links.assignment_id
-            }
+        if (!step.elements) continue
+        for (const el of step.elements) {
+          if (el.type === 'button' && el.data.action === 'quote' && links.quote_id) {
+            el.data.quoteId = links.quote_id
+            if (step.faded) step.faded = false
+          }
+          if (el.type === 'button' && el.data.action === 'invoice' && links.invoice_id) {
+            el.data.invoiceId = links.invoice_id
+            if (step.faded) step.faded = false
+          }
+          if (el.type === 'button' && el.data.action === 'assignment' && links.assignment_id) {
+            el.data.assignmentId = links.assignment_id
+            if (step.faded) step.faded = false
           }
         }
       }
