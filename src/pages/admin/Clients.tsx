@@ -114,15 +114,46 @@ export default function Clients() {
 
     // 2. Link or create domain
     if (domainMode === 'existing' && selectedDomainId) {
-      await supabase.from('projects').update({ client_id: clientRecord.id }).eq('id', selectedDomainId)
+      // Voeg de klant toe aan project_clients (de "echte" bron voor de domeinkaart).
+      // Alleen als 'ie er nog niet in zit. De primary projects.client_id alleen
+      // overschrijven als er nog geen andere klant gekoppeld was.
+      const { data: existingPCs } = await supabase
+        .from('project_clients')
+        .select('client_id')
+        .eq('project_id', selectedDomainId)
+      const alreadyLinked = (existingPCs || []).some((pc) => pc.client_id === clientRecord.id)
+      const isFirst = !existingPCs || existingPCs.length === 0
+      if (!alreadyLinked) {
+        await supabase.from('project_clients').insert({
+          project_id: selectedDomainId,
+          client_id: clientRecord.id,
+          notify_invoices: isFirst,
+          notify_quotes: isFirst,
+          notify_portal: isFirst,
+        })
+      }
+      if (isFirst) {
+        await supabase.from('projects').update({ client_id: clientRecord.id }).eq('id', selectedDomainId)
+      }
     } else if (domainMode === 'new' && newDomain.name) {
-      await supabase.from('projects').insert({
+      const { data: newProject } = await supabase.from('projects').insert({
         name: newDomain.name,
         url: newDomain.url || null,
         client_id: clientRecord.id,
         current_phase: 'intake',
         status: 'active',
-      })
+      }).select('id').single()
+      // Ook in project_clients zetten zodat de domeinkaart 'm meteen toont
+      // (in plaats van te wachten op de lazy-migration in Projects.tsx).
+      if (newProject) {
+        await supabase.from('project_clients').insert({
+          project_id: newProject.id,
+          client_id: clientRecord.id,
+          notify_invoices: true,
+          notify_quotes: true,
+          notify_portal: true,
+        })
+      }
     }
 
     resetForm()
