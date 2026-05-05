@@ -471,9 +471,18 @@ export default function Projects() {
     const oldLinks = intakeLinks[projectId] || { quote_id: '', invoice_id: '', assignment_id: '' }
     console.log('[IntakeLinks] old:', oldLinks, 'new quote:', quoteId, 'new invoice:', invoiceId, 'new assignment:', assignmentId)
     if (quoteId && quoteId !== oldLinks.quote_id) {
-      console.log('[IntakeLinks] Quote changed, creating notification...')
+      console.log('[IntakeLinks] Quote changed, creating notification + sending email...')
       const q = (projectQuotes[projectId] || []).find(q => q.id === quoteId)
       createNotification(projectId, 'quote', 'Nieuwe offerte beschikbaar', q ? `Offerte ${q.number} staat voor je klaar.` : 'Er is een offerte voor je klaargezet.', `/offerte/${quoteId}`)
+      // Branded mail naar de klant via EmailIt — non-blocking, fouten loggen we alleen.
+      try {
+        const { data, error } = await supabase.functions.invoke('send-quote-email', { body: { quote_id: quoteId } })
+        if (error || (data && !data.success)) {
+          console.error('[IntakeLinks] send-quote-email failed:', error || data?.error)
+        }
+      } catch (e) {
+        console.error('[IntakeLinks] send-quote-email exception:', e)
+      }
     }
     if (invoiceId && invoiceId !== oldLinks.invoice_id) {
       createNotification(projectId, 'invoice', 'Nieuwe factuur beschikbaar', 'Er is een factuur voor je klaargezet.')
