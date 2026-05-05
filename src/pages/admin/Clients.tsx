@@ -50,9 +50,12 @@ export default function Clients() {
     const linkedProfileIds = (clientData || []).map(c => c.profile_id).filter(Boolean)
     const unlinkedProfiles = (profileData || []).filter(p => !linkedProfileIds.includes(p.id))
 
-    // Domeinen per klant verzamelen op basis van project_clients
+    // Domeinen per klant verzamelen op basis van project_clients.
+    // Supabase typeert de joined `project` als array; runtime is het een single object
+    // (many-to-one via FK). We casten via unknown om de strikte type-check te omzeilen.
+    type PCRow = { client_id: string; project: { id: string; name: string } | null }
     const domainsByClient: Record<string, ClientDomain[]> = {}
-    for (const row of (pcData || []) as Array<{ client_id: string; project: { id: string; name: string } | null }>) {
+    for (const row of ((pcData || []) as unknown as PCRow[])) {
       if (!row.project) continue
       if (!domainsByClient[row.client_id]) domainsByClient[row.client_id] = []
       domainsByClient[row.client_id].push({ id: row.project.id, name: row.project.name })
