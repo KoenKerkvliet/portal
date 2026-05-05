@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { applyDefaultTemplates } from '../../lib/applyDefaultTemplates'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
 import { Plus, FolderKanban, Trash2, X, Globe, ExternalLink, ChevronDown, Calendar, Users, Pencil, Layers, Save, RotateCcw, Clock, FileText, FileCheck, Bell, UserPlus, CheckCircle, Eye, EyeOff, ClipboardCheck, AlertTriangle, Palette, Upload, MessageSquare, Ticket, Key, Copy, Settings, Search, Filter, Archive, ArchiveRestore } from 'lucide-react'
 import CardElementsEditor from '../../components/CardElementEditor'
@@ -640,14 +641,19 @@ export default function Projects() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    await supabase.from('projects').insert({
+    const { data: newProject } = await supabase.from('projects').insert({
       name: formData.name,
       url: formData.url || null,
       client_id: formData.client_id || null,
       current_phase: formData.current_phase,
       due_date: formData.due_date || null,
       status: 'active',
-    })
+    }).select('id').single()
+    // Voor elke fase met exact één template: meteen koppelen, zodat admin direct
+    // offertes/opdrachten/facturen kan toewijzen zonder eerst handmatig te kiezen.
+    if (newProject?.id) {
+      await applyDefaultTemplates(newProject.id)
+    }
     closeForm()
     fetchProjects()
   }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { applyDefaultTemplates } from '../../lib/applyDefaultTemplates'
 import type { Client } from '../../types'
 import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore } from 'lucide-react'
 
@@ -172,6 +173,10 @@ export default function Clients() {
           notify_quotes: true,
           notify_portal: true,
         })
+        // Faseen met exact één template meteen koppelen — voorkomt dat de admin
+        // eerst handmatig per fase een template moet kiezen voor een ze offertes
+        // etc. kan toewijzen.
+        await applyDefaultTemplates(newProject.id)
       }
     }
 
