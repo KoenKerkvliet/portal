@@ -1660,6 +1660,26 @@ export default function Projects() {
                             <div className="space-y-3">
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
+                                  <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Opdracht</label>
+                                  <div className="flex items-center gap-2">
+                                    <ClipboardCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                    <select
+                                      value={links.assignment_id}
+                                      onChange={(e) => {
+                                        const newLinks = { ...links, assignment_id: e.target.value }
+                                        setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
+                                        saveIntakeLinks(project.id, links.quote_id, links.invoice_id, e.target.value)
+                                      }}
+                                      className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                                    >
+                                      <option value="">Geen opdracht</option>
+                                      {(assignments || []).map((a) => (
+                                        <option key={a.id} value={a.id}>{a.title}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <div>
                                   <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Offerte</label>
                                   <div className="flex items-center gap-2">
                                     <FileCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -1677,26 +1697,6 @@ export default function Projects() {
                                         <option key={q.id} value={q.id}>
                                           {q.number} — €{((q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)).toFixed(2)}
                                         </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Opdracht</label>
-                                  <div className="flex items-center gap-2">
-                                    <ClipboardCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                    <select
-                                      value={links.assignment_id}
-                                      onChange={(e) => {
-                                        const newLinks = { ...links, assignment_id: e.target.value }
-                                        setIntakeLinks(prev => ({ ...prev, [project.id]: newLinks }))
-                                        saveIntakeLinks(project.id, links.quote_id, links.invoice_id, e.target.value)
-                                      }}
-                                      className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                                    >
-                                      <option value="">Geen opdracht</option>
-                                      {(assignments || []).map((a) => (
-                                        <option key={a.id} value={a.id}>{a.title}</option>
                                       ))}
                                     </select>
                                   </div>
