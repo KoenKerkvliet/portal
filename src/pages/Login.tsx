@@ -154,9 +154,12 @@ export default function Login() {
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">Account aangemaakt!</h2>
-            <p className="text-gray-500 text-sm leading-relaxed mb-6">
+            <p className="text-gray-500 text-sm leading-relaxed mb-3">
               We hebben een bevestigingsmail gestuurd naar <strong className="text-gray-700">{email}</strong>.
               Klik op de link in de e-mail om je account te activeren.
+            </p>
+            <p className="text-amber-700 bg-amber-50 border border-amber-100 text-xs leading-relaxed px-3 py-2 rounded-lg mb-6">
+              Geen mail gevonden? Check ook even je <strong>spam-</strong> of <strong>ongewenste-mail</strong>-map.
             </p>
             <button
               onClick={() => { setRegistered(false); switchMode('login') }}
