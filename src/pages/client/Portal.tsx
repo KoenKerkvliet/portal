@@ -4,7 +4,7 @@ import TicketSystem from './TicketSystem'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
-import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
+import { Sparkles, ArrowRight, Calendar, ExternalLink, CheckCircle } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 import PunchCardView from '../../components/PunchCardView'
 
@@ -99,7 +99,7 @@ function ButtonDesignPreviewLink({ element, className, type, defaultLabel, proje
 }
 
 // Render a single card element for the client view
-function CardElementView({ element, project, disabled }: { element: CardElement; project: Project; disabled?: boolean }) {
+function CardElementView({ element, project, disabled, submittedFormIds }: { element: CardElement; project: Project; disabled?: boolean; submittedFormIds?: Set<string> }) {
   switch (element.type) {
     case 'icon': {
       const IconComp = getIconComponent(element.data.name || 'star')
@@ -182,6 +182,17 @@ function CardElementView({ element, project, disabled }: { element: CardElement;
       }`
 
       if (action === 'form' && element.data.formId) {
+        // Al ingevuld? Toon voltooid-status i.p.v. de actieknop.
+        if (submittedFormIds?.has(element.data.formId)) {
+          return (
+            <div className="flex justify-center pt-2">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-green-50 text-green-700 border border-green-100 text-sm font-medium">
+                <CheckCircle className="w-4 h-4" />
+                Ingevuld
+              </div>
+            </div>
+          )
+        }
         return <ButtonFormLink element={element} className={btnClasses} />
       }
 
@@ -247,6 +258,7 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(true)
   const [punchCards, setPunchCards] = useState<PunchCard[]>([])
   const [punchCardUses, setPunchCardUses] = useState<Record<string, PunchCardUse[]>>({})
+  const [submittedFormIds, setSubmittedFormIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -274,6 +286,14 @@ export default function ClientPortal() {
 
       if (projectData) {
         setProject(projectData)
+
+        // Welke formulieren zijn al ingediend op dit project?
+        const { data: subs } = await supabase
+          .from('form_submissions')
+          .select('form_id')
+          .eq('project_id', projectData.id)
+          .not('submitted_at', 'is', null)
+        setSubmittedFormIds(new Set((subs || []).map((s) => s.form_id as string)))
 
         // First try to load domain-specific instance from project_phases
         const { data: phaseInstance } = await supabase
@@ -551,7 +571,7 @@ export default function ClientPortal() {
                               {buttonElements.length > 0 && (
                                 <div className="mt-auto pt-4 space-y-2">
                                   {buttonElements.map((element) => (
-                                    <CardElementView key={element.id} element={element} project={project} disabled={step.faded} />
+                                    <CardElementView key={element.id} element={element} project={project} disabled={step.faded} submittedFormIds={submittedFormIds} />
                                   ))}
                                 </div>
                               )}
