@@ -14,6 +14,12 @@ import {
   type QuoteItemInput,
   type YearFormat,
 } from './quoteLogic.js'
+import {
+  normalizeFormSteps,
+  normalizePhaseSteps,
+  type FormStepInput,
+  type PhaseStepInput,
+} from './jsonbHelpers.js'
 
 const server = new McpServer({
   name: 'klantportaal',
@@ -409,6 +415,326 @@ server.registerTool(
       .single()
     if (upErr) return err(upErr.message)
     return json({ ...updated, totals, kor_applied: !!isr?.kor_enabled })
+  },
+)
+
+// ============================================================
+// FORMS
+// ============================================================
+
+const formFieldSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(['heading', 'text', 'textarea', 'email', 'phone', 'select', 'checkbox', 'radio', 'date', 'number']),
+  label: z.string().default(''),
+  placeholder: z.string().optional(),
+  required: z.boolean().optional(),
+  options: z
+    .array(z.object({ id: z.string().optional(), label: z.string() }))
+    .optional(),
+})
+
+const formStepSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().default('Stap'),
+  fields: z.array(formFieldSchema).default([]),
+})
+
+server.registerTool(
+  'list_forms',
+  {
+    title: 'Lijst formulieren',
+    description: 'Geeft alle formulieren terug met titel, beschrijving en aantal stappen/velden (zonder de volledige JSON).',
+    inputSchema: {},
+  },
+  async () => {
+    const sb = getSupabase()
+    const { data, error } = await sb
+      .from('forms')
+      .select('id, title, description, steps, created_at')
+      .order('created_at', { ascending: false })
+    if (error) return err(error.message)
+    const summary = (data ?? []).map((f: any) => ({
+      id: f.id,
+      title: f.title,
+      description: f.description,
+      created_at: f.created_at,
+      step_count: (f.steps ?? []).length,
+      field_count: (f.steps ?? []).reduce((s: number, st: any) => s + (st.fields?.length ?? 0), 0),
+    }))
+    return json(summary)
+  },
+)
+
+server.registerTool(
+  'get_form',
+  {
+    title: 'Haal formulier op',
+    description: 'Volledige formulier-JSON inclusief stappen, velden en opties. Gebruik dit voor een edit-flow: get → aanpassen → update_form.',
+    inputSchema: { id: z.string().uuid() },
+  },
+  async ({ id }) => {
+    const sb = getSupabase()
+    const { data, error } = await sb.from('forms').select('*').eq('id', id).single()
+    if (error) return err(error.message)
+    return json(data)
+  },
+)
+
+server.registerTool(
+  'create_form',
+  {
+    title: 'Maak nieuw formulier',
+    description: 'Maakt een nieuw formulier aan. Velden zonder id krijgen automatisch een nieuwe UUID.',
+    inputSchema: {
+      title: z.string().min(1),
+      description: z.string().default(''),
+      steps: z.array(formStepSchema).default([]),
+    },
+  },
+  async ({ title, description, steps }) => {
+    const sb = getSupabase()
+    const payload = {
+      title,
+      description,
+      steps: normalizeFormSteps(steps as FormStepInput[]),
+    }
+    const { data, error } = await sb.from('forms').insert(payload).select('id, title').single()
+    if (error) return err(error.message)
+    return json({ id: data.id, title: data.title, created: true })
+  },
+)
+
+server.registerTool(
+  'update_form',
+  {
+    title: 'Werk formulier bij',
+    description:
+      'Werkt een bestaand formulier bij. Velden die je meegeeft met hun bestaande id behouden hun id (zodat eerdere submissions consistent blijven). Geef alleen de velden mee die je wilt veranderen — wat je weglaat blijft zoals het was.',
+    inputSchema: {
+      id: z.string().uuid(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      steps: z.array(formStepSchema).optional().describe('Vervangt steps volledig. Doe eerst get_form als je incrementeel wilt aanpassen.'),
+    },
+  },
+  async ({ id, title, description, steps }) => {
+    const sb = getSupabase()
+    const patch: Record<string, unknown> = {}
+    if (title !== undefined) patch.title = title
+    if (description !== undefined) patch.description = description
+    if (steps !== undefined) patch.steps = normalizeFormSteps(steps as FormStepInput[])
+    if (Object.keys(patch).length === 0) return err('Geef minimaal één veld om bij te werken.')
+    const { data, error } = await sb
+      .from('forms')
+      .update(patch)
+      .eq('id', id)
+      .select('id, title, description')
+      .single()
+    if (error) return err(error.message)
+    return json({ ...data, updated: Object.keys(patch) })
+  },
+)
+
+server.registerTool(
+  'duplicate_form',
+  {
+    title: 'Dupliceer formulier',
+    description: 'Maakt een kopie van een formulier ("(kopie)" achter de naam). Handig om veilig te experimenteren.',
+    inputSchema: { id: z.string().uuid(), new_title: z.string().optional() },
+  },
+  async ({ id, new_title }) => {
+    const sb = getSupabase()
+    const { data: src, error: getErr } = await sb.from('forms').select('*').eq('id', id).single()
+    if (getErr || !src) return err(`Formulier niet gevonden: ${getErr?.message ?? id}`)
+    const payload = {
+      title: new_title ?? `${src.title} (kopie)`,
+      description: src.description,
+      steps: normalizeFormSteps(
+        // forceer nieuwe id's voor de kopie zodat submissions niet kruisen
+        (src.steps ?? []).map((st: any) => ({
+          ...st,
+          id: undefined,
+          fields: (st.fields ?? []).map((f: any) => ({
+            ...f,
+            id: undefined,
+            options: f.options?.map((o: any) => ({ ...o, id: undefined })),
+          })),
+        })) as FormStepInput[],
+      ),
+    }
+    const { data, error } = await sb.from('forms').insert(payload).select('id, title').single()
+    if (error) return err(error.message)
+    return json({ id: data.id, title: data.title, duplicated_from: id })
+  },
+)
+
+// ============================================================
+// PHASE TEMPLATES
+// ============================================================
+
+const cardElementSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(['text', 'icon', 'dynamic', 'link', 'button']),
+  data: z.record(z.string()),
+})
+
+const phaseStepSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().default(''),
+  description: z.string().default(''),
+  completed: z.boolean().default(false),
+  faded: z.boolean().optional(),
+  elements: z.array(cardElementSchema).optional(),
+})
+
+const phaseEnum = z.enum(['intake', 'design', 'development', 'oplevering', 'onderhoud'])
+
+server.registerTool(
+  'list_templates',
+  {
+    title: 'Lijst fase-templates',
+    description: 'Geeft alle fase-templates terug. Filter op fase als je gericht zoekt.',
+    inputSchema: {
+      phase: phaseEnum.optional(),
+    },
+  },
+  async ({ phase }) => {
+    const sb = getSupabase()
+    let q = sb
+      .from('phase_templates')
+      .select('id, phase, title, description, content, steps, created_at')
+      .order('phase')
+      .order('created_at', { ascending: false })
+    if (phase) q = q.eq('phase', phase)
+    const { data, error } = await q
+    if (error) return err(error.message)
+    const summary = (data ?? []).map((t: any) => ({
+      id: t.id,
+      phase: t.phase,
+      title: t.title,
+      description: t.description,
+      step_count: (t.steps ?? []).length,
+      created_at: t.created_at,
+    }))
+    return json(summary)
+  },
+)
+
+server.registerTool(
+  'get_template',
+  {
+    title: 'Haal fase-template op',
+    description: 'Volledige template-JSON inclusief stappen en card-elementen.',
+    inputSchema: { id: z.string().uuid() },
+  },
+  async ({ id }) => {
+    const sb = getSupabase()
+    const { data, error } = await sb.from('phase_templates').select('*').eq('id', id).single()
+    if (error) return err(error.message)
+    return json(data)
+  },
+)
+
+server.registerTool(
+  'create_template',
+  {
+    title: 'Maak nieuw fase-template',
+    description: 'Maakt een fase-template aan. show_file_footer en show_feedback_footer zijn optioneel.',
+    inputSchema: {
+      phase: phaseEnum,
+      title: z.string().min(1),
+      description: z.string().default(''),
+      content: z.string().default(''),
+      steps: z.array(phaseStepSchema).default([]),
+      show_file_footer: z.boolean().optional(),
+      show_feedback_footer: z.boolean().optional(),
+    },
+  },
+  async ({ phase, title, description, content, steps, show_file_footer, show_feedback_footer }) => {
+    const sb = getSupabase()
+    const payload: Record<string, unknown> = {
+      phase,
+      title,
+      description,
+      content,
+      steps: normalizePhaseSteps(steps as PhaseStepInput[]),
+    }
+    if (show_file_footer !== undefined) payload.show_file_footer = show_file_footer
+    if (show_feedback_footer !== undefined) payload.show_feedback_footer = show_feedback_footer
+    const { data, error } = await sb.from('phase_templates').insert(payload).select('id, phase, title').single()
+    if (error) return err(error.message)
+    return json({ ...data, created: true })
+  },
+)
+
+server.registerTool(
+  'update_template',
+  {
+    title: 'Werk fase-template bij',
+    description:
+      'Werkt een bestaand fase-template bij. Geef alleen de velden mee die je wilt veranderen. Steps worden volledig vervangen wanneer meegegeven — doe eerst get_template als je incrementeel wilt aanpassen.',
+    inputSchema: {
+      id: z.string().uuid(),
+      phase: phaseEnum.optional(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      content: z.string().optional(),
+      steps: z.array(phaseStepSchema).optional(),
+      show_file_footer: z.boolean().optional(),
+      show_feedback_footer: z.boolean().optional(),
+    },
+  },
+  async ({ id, phase, title, description, content, steps, show_file_footer, show_feedback_footer }) => {
+    const sb = getSupabase()
+    const patch: Record<string, unknown> = {}
+    if (phase !== undefined) patch.phase = phase
+    if (title !== undefined) patch.title = title
+    if (description !== undefined) patch.description = description
+    if (content !== undefined) patch.content = content
+    if (steps !== undefined) patch.steps = normalizePhaseSteps(steps as PhaseStepInput[])
+    if (show_file_footer !== undefined) patch.show_file_footer = show_file_footer
+    if (show_feedback_footer !== undefined) patch.show_feedback_footer = show_feedback_footer
+    if (Object.keys(patch).length === 0) return err('Geef minimaal één veld om bij te werken.')
+    const { data, error } = await sb
+      .from('phase_templates')
+      .update(patch)
+      .eq('id', id)
+      .select('id, phase, title')
+      .single()
+    if (error) return err(error.message)
+    return json({ ...data, updated: Object.keys(patch) })
+  },
+)
+
+server.registerTool(
+  'duplicate_template',
+  {
+    title: 'Dupliceer fase-template',
+    description: 'Maakt een kopie van een fase-template met nieuwe id\'s voor stappen en elementen.',
+    inputSchema: { id: z.string().uuid(), new_title: z.string().optional() },
+  },
+  async ({ id, new_title }) => {
+    const sb = getSupabase()
+    const { data: src, error: getErr } = await sb.from('phase_templates').select('*').eq('id', id).single()
+    if (getErr || !src) return err(`Template niet gevonden: ${getErr?.message ?? id}`)
+    const payload: Record<string, unknown> = {
+      phase: src.phase,
+      title: new_title ?? `${src.title} (kopie)`,
+      description: src.description,
+      content: src.content ?? '',
+      steps: normalizePhaseSteps(
+        (src.steps ?? []).map((st: any) => ({
+          ...st,
+          id: undefined,
+          elements: (st.elements ?? []).map((e: any) => ({ ...e, id: undefined })),
+        })) as PhaseStepInput[],
+      ),
+    }
+    if (src.show_file_footer !== undefined) payload.show_file_footer = src.show_file_footer
+    if (src.show_feedback_footer !== undefined) payload.show_feedback_footer = src.show_feedback_footer
+    const { data, error } = await sb.from('phase_templates').insert(payload).select('id, title').single()
+    if (error) return err(error.message)
+    return json({ id: data.id, title: data.title, duplicated_from: id })
   },
 )
 
