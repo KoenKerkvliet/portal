@@ -13,6 +13,10 @@ dist-ssr
 *.local
 .env
 
+# MCP-server build output (de bron staat wel in git, de build niet)
+mcp-server/dist
+mcp-server/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
