@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import { Search, BookOpen } from 'lucide-react'
 import TicketSystem from './TicketSystem'
@@ -13,17 +14,13 @@ export default function SupportPage() {
   useEffect(() => {
     const fetch = async () => {
       if (!profile) return
-      const { data: client } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('profile_id', profile.id)
-        .single()
-      if (!client) { setLoading(false); return }
+      const { projectIds } = await getClientAndProjectIds(profile.id)
+      if (projectIds.length === 0) { setLoading(false); return }
 
       const { data: project } = await supabase
         .from('projects')
         .select('id, name')
-        .eq('client_id', client.id)
+        .in('id', projectIds)
         .eq('status', 'active')
         .limit(1)
         .single()

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Form, FormSubmission } from '../../types'
 import { ChevronLeft, ChevronRight, Check, Loader2, ArrowLeft, Pencil } from 'lucide-react'
@@ -22,19 +23,14 @@ export default function FormPage() {
   const fetchData = useCallback(async () => {
     if (!profile || !formId) return
 
-    // Find the client's project
-    const { data: client } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('profile_id', profile.id)
-      .single()
-
-    if (!client) { setLoading(false); return }
+    // Find the client's project (via project_clients of projects.client_id)
+    const { projectIds } = await getClientAndProjectIds(profile.id)
+    if (projectIds.length === 0) { setLoading(false); return }
 
     const { data: project } = await supabase
       .from('projects')
       .select('id')
-      .eq('client_id', client.id)
+      .in('id', projectIds)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)

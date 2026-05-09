@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import { ArrowLeft, Check, Clock, Shield, Zap, Eye, CreditCard, Loader2, CheckCircle } from 'lucide-react'
 
@@ -91,16 +92,12 @@ export default function PunchCardShop() {
   useEffect(() => {
     const fetchProject = async () => {
       if (!profile) return
-      const { data: client } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('profile_id', profile.id)
-        .single()
-      if (!client) return
+      const { projectIds } = await getClientAndProjectIds(profile.id)
+      if (projectIds.length === 0) return
       const { data: project } = await supabase
         .from('projects')
         .select('id, name, url')
-        .eq('client_id', client.id)
+        .in('id', projectIds)
         .eq('status', 'active')
         .limit(1)
         .single()

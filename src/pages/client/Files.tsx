@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Form, FormSubmission, Quote, Invoice } from '../../types'
 import { FileText, Download, Pencil, Clock, Check, Loader2, FolderOpen, FileCheck, XCircle, Palette, Home, Phone, Receipt } from 'lucide-react'
@@ -24,18 +25,14 @@ export default function ClientFiles() {
   const fetchData = useCallback(async () => {
     if (!profile) return
 
-    const { data: client } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('profile_id', profile.id)
-      .single()
-
-    if (!client) { setLoading(false); return }
+    const { clientId, projectIds } = await getClientAndProjectIds(profile.id)
+    if (!clientId || projectIds.length === 0) { setLoading(false); return }
+    const client = { id: clientId }
 
     const { data: project } = await supabase
       .from('projects')
       .select('id, name')
-      .eq('client_id', client.id)
+      .in('id', projectIds)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import TicketSystem from './TicketSystem'
 import { supabase } from '../../lib/supabase'
+import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
 import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
@@ -265,13 +266,8 @@ export default function ClientPortal() {
     const fetchProject = async () => {
       if (!profile) return
 
-      const { data: client } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('profile_id', profile.id)
-        .single()
-
-      if (!client) {
+      const { projectIds } = await getClientAndProjectIds(profile.id)
+      if (projectIds.length === 0) {
         setLoading(false)
         return
       }
@@ -279,7 +275,7 @@ export default function ClientPortal() {
       const { data: projectData } = await supabase
         .from('projects')
         .select('*, client:clients(id, name, email)')
-        .eq('client_id', client.id)
+        .in('id', projectIds)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
