@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { applyDefaultTemplates } from '../../lib/applyDefaultTemplates'
 import type { Client } from '../../types'
-import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore } from 'lucide-react'
+import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore, KeyRound } from 'lucide-react'
 
 const MAX_EXTRA_EMAILS = 2
 
@@ -33,6 +33,7 @@ export default function Clients() {
   const [showForm, setShowForm] = useState(false)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
   const [linkingUser, setLinkingUser] = useState<NewUser | null>(null)
+  const [invitingId, setInvitingId] = useState<string | null>(null)
   const [domainMode, setDomainMode] = useState<'existing' | 'new'>('existing')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' })
@@ -264,6 +265,29 @@ export default function Clients() {
     setSelectedDomainId('')
     setNewDomain({ name: '', url: '' })
     setShowForm(true)
+  }
+
+  const handleInvite = async (client: Client) => {
+    if (!client.email) {
+      alert('Deze klant heeft geen e-mailadres. Voeg er eerst eentje toe via "Bewerken".')
+      return
+    }
+    const ok = confirm(
+      `Stuur ${client.name} een uitnodiging voor het portaal?\n\n` +
+      `Er wordt een account aangemaakt op ${client.email} en de klant krijgt een mail met een link om een wachtwoord te kiezen.`
+    )
+    if (!ok) return
+
+    setInvitingId(client.id)
+    const { data, error } = await supabase.functions.invoke('invite-client', {
+      body: { client_id: client.id },
+    })
+    setInvitingId(null)
+    if (error || !data?.success) {
+      alert('Uitnodiging versturen mislukt: ' + (data?.error || error?.message || 'onbekende fout'))
+      return
+    }
+    fetchData()
   }
 
   const handleDelete = async (id: string) => {
@@ -653,10 +677,20 @@ export default function Clients() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {client.profile_id && (
+                      {client.profile_id ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                           Portaal
                         </span>
+                      ) : viewMode === 'active' && (
+                        <button
+                          onClick={() => handleInvite(client)}
+                          disabled={invitingId === client.id}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                          title="Stuur deze klant een uitnodiging om het portaal te gebruiken"
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          {invitingId === client.id ? 'Bezig...' : 'Geef toegang'}
+                        </button>
                       )}
                     </div>
                   </div>
