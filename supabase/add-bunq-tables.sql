@@ -100,15 +100,18 @@ CREATE POLICY "Admins can manage bank_transactions"
   );
 
 -- =============================================================================
--- Optioneel: uurlijkse cron via pg_cron (vereist extension 'pg_cron' + 'pg_net')
+-- Uurlijkse cron via pg_cron (vereist extension 'pg_cron' + 'pg_net')
 -- =============================================================================
 -- 1. Activeer beide extensies in Supabase (Database → Extensions): pg_cron, pg_net.
 -- 2. Vul hieronder de URL en de Edge Function 'service-role' Authorization in.
 -- 3. Voer dit gedeelte apart uit zodra de Edge Function deployed is.
 --
+-- Productie: schedule '15 * * * *' (elk uur op :15, vermijdt overlap met
+-- process-recurring-invoices op :05). Vergelijkbare opzet als die job.
+--
 -- SELECT cron.schedule(
 --   'bunq-hourly-sync',
---   '0 * * * *',  -- elk heel uur
+--   '15 * * * *',  -- elk uur op :15
 --   $$
 --   SELECT net.http_post(
 --     url := 'https://<PROJECT-REF>.supabase.co/functions/v1/bunq-sync',
