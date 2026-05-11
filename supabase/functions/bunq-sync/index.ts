@@ -356,6 +356,7 @@ type OpenInvoice = {
   number: string
   amount: number
   client_name: string | null
+  status: 'sent' | 'draft'
 }
 
 async function matchInvoices(db: ReturnType<typeof createClient>): Promise<number> {
@@ -371,11 +372,15 @@ async function matchInvoices(db: ReturnType<typeof createClient>): Promise<numbe
   }
   if (!txs || txs.length === 0) return 0
 
-  // 2. Haal alle open facturen op (status 'sent', niet test).
+  // 2. Haal alle open facturen op (status 'sent' of 'draft', niet test).
+  // Draft-facturen doen ook mee: als een klant het factuurnummer al kent
+  // (bv. via een handmatige PDF) en betaalt vóór verzending, moet de match
+  // alsnog werken. Risico op verkeerde toekenning blijft klein omdat we
+  // exact-bedrag + factuurnummer-in-omschrijving eisen.
   const { data: invoices, error: invErr } = await db
     .from('invoices')
-    .select('id, number, amount, client_name')
-    .eq('status', 'sent')
+    .select('id, number, amount, client_name, status')
+    .in('status', ['sent', 'draft'])
     .eq('is_test', false)
   if (invErr) {
     console.error('matchInvoices: kon facturen niet laden:', invErr.message)
@@ -405,7 +410,7 @@ async function matchInvoices(db: ReturnType<typeof createClient>): Promise<numbe
       .from('invoices')
       .update({ status: 'paid' })
       .eq('id', inv.id)
-      .eq('status', 'sent') // race-conditie: alleen als nog steeds 'sent'
+      .in('status', ['sent', 'draft']) // race-conditie: alleen als nog open
     if (invUpdErr) {
       console.error(`matchInvoices: update factuur ${inv.number} mislukt:`, invUpdErr.message)
       continue
