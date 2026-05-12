@@ -1,0 +1,23 @@
+# Supabase project config — gebruikt door `supabase functions deploy` in
+# .github/workflows/deploy-functions.yml. Zonder deze overrides reset elke
+# deploy de gateway `verify_jwt` setting naar de CLI-default (true), wat een
+# 401 op gateway-niveau geeft voor functions die hun eigen auth doen.
+
+[functions.api-punch-cards]
+# Externe sites (DP Toolbox strippen-widget) authenticeren via x-api-key header
+# tegen projects.api_key. Geen Supabase JWT in spel.
+verify_jwt = false
+
+[functions.stripe-webhook]
+# Stripe verstuurt webhook-events met een stripe-signature HMAC, niet met
+# een Supabase JWT. Verify_jwt=true zou alle webhooks 401-en op de gateway.
+verify_jwt = false
+
+[functions.send-verification-email]
+# Aangeroepen door de aanmeldflow (anonieme bezoeker zonder JWT). Eigen auth-
+# logica zit in de function (Admin API + EmailIt).
+verify_jwt = false
+
+[functions.send-password-reset-email]
+# Aangeroepen door "wachtwoord vergeten"-flow (anonieme bezoeker zonder JWT).
+verify_jwt = false
