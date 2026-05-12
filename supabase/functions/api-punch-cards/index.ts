@@ -62,11 +62,16 @@ Deno.serve(async (req) => {
       JSON.stringify({
         project: project.name,
         domain: project.url,
+        // Engelse veldnamen — wat DP Toolbox dashboard-widget consumeert
+        strips_total: totaal,
+        strips_used: gebruikt,
+        strips_remaining: resterend,
+        minutes_remaining: totalMinutes,
+        active_cards: activeCardCount,
+        // Nederlandse aliases — backwards-compat voor eventuele oudere consumers
         totaal,
         gebruikt,
         resterend,
-        minutes_remaining: totalMinutes,
-        active_cards: activeCardCount,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
