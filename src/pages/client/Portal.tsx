@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
-import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
+import { Sparkles, ArrowRight, Calendar, ExternalLink, CreditCard, ShoppingCart } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 import PunchCardView from '../../components/PunchCardView'
 
@@ -459,14 +459,15 @@ export default function ClientPortal() {
         </section>
 
         {/* Strippenkaarten */}
-        {punchCards.length > 0 && (() => {
+        {(() => {
           const activeCards = punchCards.filter(c => c.status === 'active')
           const usedUpCards = punchCards.filter(c => c.status === 'used_up')
+          const hasActive = activeCards.length > 0
           return (
             <section className="bg-white">
               <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
-                {activeCards.length > 0 && (
-                  <div className="mb-12">
+                {hasActive && (
+                  <div className={usedUpCards.length > 0 ? 'mb-12' : ''}>
                     <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Actieve Strippenkaarten</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
                       {activeCards.map(card => (
@@ -475,6 +476,30 @@ export default function ClientPortal() {
                     </div>
                   </div>
                 )}
+
+                {!hasActive && (
+                  <div className={`max-w-xl mx-auto text-center ${usedUpCards.length > 0 ? 'mb-12' : ''}`}>
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-10 py-10 sm:py-12">
+                      <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-5">
+                        <CreditCard className="w-7 h-7 text-primary" />
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
+                        Geen actieve strippenkaart
+                      </h3>
+                      <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                        Je hebt op dit moment geen actieve strippenkaart. Hierdoor kunnen wij geen onderhoud, updates of aanpassingen uitvoeren. Koop een nieuwe strippenkaart om weer gebruik te maken van onze ondersteuning.
+                      </p>
+                      <Link
+                        to="/strippenkaart"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white rounded-xl text-sm font-medium transition-colors"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        Strippenkaart kopen
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
                 {usedUpCards.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Opgebruikte Strippenkaarten</h3>
