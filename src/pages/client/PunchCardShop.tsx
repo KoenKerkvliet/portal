@@ -173,7 +173,9 @@ export default function PunchCardShop() {
 
         {/* Pricing cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          {plans.map((plan) => (
+          {plans
+            .filter((plan) => plan !== TEST_PLAN || (profile?.email || '').toLowerCase().includes('koenkerkvliet'))
+            .map((plan) => (
             <div
               key={plan.name}
               className={`relative rounded-2xl overflow-hidden transition-shadow ${
