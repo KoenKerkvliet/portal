@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;">Hoi ${fullName},</p>
 <p style="margin:0 0 16px;">Je portaal staat voor je klaar. Kies via onderstaande link een wachtwoord, daarna kun je direct inloggen op je klantportaal:</p>
 <p style="margin:0 0 24px;"><a href="${setupUrl}" style="color:#6b46c1;">${setupUrl}</a></p>
+<p style="margin:0 0 16px;">Log straks in met het e-mailadres waarop je deze mail hebt ontvangen (<strong>${email}</strong>) — daarmee is je account aan je klantgegevens gekoppeld.</p>
 <p style="margin:0 0 16px;color:#666;font-size:14px;">De link blijft ${INVITE_EXPIRY_DAYS} dagen geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.</p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
@@ -186,6 +187,8 @@ Deno.serve(async (req) => {
 Je portaal staat voor je klaar. Kies via onderstaande link een wachtwoord, daarna kun je direct inloggen op je klantportaal:
 
 ${setupUrl}
+
+Log straks in met het e-mailadres waarop je deze mail hebt ontvangen (${email}) — daarmee is je account aan je klantgegevens gekoppeld.
 
 De link blijft ${INVITE_EXPIRY_DAYS} dagen geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.
 
