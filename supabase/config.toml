@@ -21,3 +21,8 @@ verify_jwt = false
 [functions.send-password-reset-email]
 # Aangeroepen door "wachtwoord vergeten"-flow (anonieme bezoeker zonder JWT).
 verify_jwt = false
+
+[functions.complete-invite]
+# Aangeroepen door /account-instellen (klant nog niet ingelogd). Auth zit in het
+# invite-token zelf (32-byte random + expiry + used_at in client_invites).
+verify_jwt = false

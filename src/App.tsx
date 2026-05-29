@@ -38,6 +38,7 @@ import PunchCardShop from './pages/client/PunchCardShop'
 import ClientSupport from './pages/client/Support'
 import Verify from './pages/Verify'
 import ResetPassword from './pages/ResetPassword'
+import AccountInstellen from './pages/AccountInstellen'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -61,6 +62,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/bevestig" element={<Verify />} />
       <Route path="/wachtwoord-reset" element={<ResetPassword />} />
+      <Route path="/account-instellen" element={<AccountInstellen />} />
 
       {/* Admin routes */}
       <Route path="/admin" element={

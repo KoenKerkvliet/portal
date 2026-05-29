@@ -1,12 +1,31 @@
 // Geeft een handmatig aangemaakte klant portaaltoegang: maakt een auth-user aan,
-// koppelt clients.profile_id, en stuurt een welkomstmail met een wachtwoord-instel-link
-// (recovery-flow → /wachtwoord-reset).
+// koppelt clients.profile_id, en stuurt een welkomstmail met een wachtwoord-instel-link.
+//
+// I.p.v. een Supabase recovery-link (max 1 uur geldig) gebruiken we een eigen invite-token
+// dat INVITE_EXPIRY_DAYS geldig blijft. De klant landt op /account-instellen?token=… en kiest
+// daar een wachtwoord; de complete-invite function valideert het token en zet het wachtwoord.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Hoe lang de wachtwoord-instel-link geldig blijft. Bewuste trade-off: een lang geldige
+// setup-link is iets minder veilig, maar voorkomt dat klanten de link binnen een uur moeten
+// gebruiken. Pas dit getal aan om de geldigheidsduur te wijzigen.
+const INVITE_EXPIRY_DAYS = 30
+
+function toBase64Url(bytes: Uint8Array): string {
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 Deno.serve(async (req) => {
@@ -121,17 +140,27 @@ Deno.serve(async (req) => {
       throw new Error(`Klant koppelen mislukt: ${updErr.message}`)
     }
 
-    // Genereer een recovery-link → klant landt op /wachtwoord-reset om wachtwoord te kiezen.
-    const { data: linkData, error: linkErr } = await adminClient.auth.admin.generateLink({
-      type: 'recovery',
+    // Genereer een eigen invite-token (los van Supabase' recovery-token, dat max 1 uur leeft)
+    // en sla de hash op. De klant gebruikt het op /account-instellen om een wachtwoord te kiezen.
+    const rawToken = toBase64Url(crypto.getRandomValues(new Uint8Array(32)))
+    const tokenHash = await sha256Hex(rawToken)
+    const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString()
+
+    const { error: inviteErr } = await adminClient.from('client_invites').insert({
+      token_hash: tokenHash,
+      client_id: client_id,
+      profile_id: created.user.id,
       email,
-      options: { redirectTo: 'https://portal.designpixels.nl/wachtwoord-reset' },
+      expires_at: expiresAt,
     })
-    if (linkErr || !linkData?.properties?.action_link) {
-      throw new Error(`Wachtwoord-link genereren mislukt: ${linkErr?.message || 'geen link'}`)
+    if (inviteErr) {
+      // Rollback: user + koppeling ongedaan maken zodat 'Geef toegang' opnieuw te proberen is.
+      await adminClient.from('clients').update({ profile_id: null }).eq('id', client_id)
+      await adminClient.auth.admin.deleteUser(created.user.id)
+      throw new Error(`Invite-token opslaan mislukt: ${inviteErr.message}`)
     }
 
-    const setupUrl = linkData.properties.action_link
+    const setupUrl = `https://portal.designpixels.nl/account-instellen?token=${rawToken}`
 
     const html = `<!DOCTYPE html>
 <html lang="nl">
@@ -146,7 +175,7 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;">Hoi ${fullName},</p>
 <p style="margin:0 0 16px;">Je portaal staat voor je klaar. Kies via onderstaande link een wachtwoord, daarna kun je direct inloggen op je klantportaal:</p>
 <p style="margin:0 0 24px;"><a href="${setupUrl}" style="color:#6b46c1;">${setupUrl}</a></p>
-<p style="margin:0 0 16px;color:#666;font-size:14px;">De link blijft 1 uur geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.</p>
+<p style="margin:0 0 16px;color:#666;font-size:14px;">De link blijft ${INVITE_EXPIRY_DAYS} dagen geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.</p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
@@ -158,7 +187,7 @@ Je portaal staat voor je klaar. Kies via onderstaande link een wachtwoord, daarn
 
 ${setupUrl}
 
-De link blijft 1 uur geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.
+De link blijft ${INVITE_EXPIRY_DAYS} dagen geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.
 
 Met vriendelijke groet,
 DesignPixels`
