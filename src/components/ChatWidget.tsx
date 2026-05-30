@@ -50,7 +50,7 @@ function generatePocReply(
         content:
           `Je hebt op dit moment nog ${ctx.remainingStrips} ${ctx.remainingStrips === 1 ? 'strip' : 'strippen'} ` +
           `op je actieve strippenkaart. Elke strip staat voor 5 minuten service. ` +
-          `Wil je er meer? Dan kun je heel eenvoudig een nieuwe strippenkaart aanschaffen.`,
+          `Wil je er meer? Dan kun je eenvoudig een nieuwe strippenkaart aanschaffen.`,
         cta: { label: 'Strippenkaart kopen', to: '/strippenkaart' },
       }
     }
@@ -58,8 +58,8 @@ function generatePocReply(
       role: 'assistant',
       content:
         `Je hebt op dit moment geen actieve strippenkaart, dus je strippensaldo is 0. ` +
-        `Zonder strippen kunnen wij helaas geen onderhoud of aanpassingen uitvoeren. ` +
-        `Je kunt eenvoudig een nieuwe strippenkaart aanschaffen om weer gebruik te maken van onze ondersteuning.`,
+        `Zonder strippen kan ik helaas geen onderhoud of aanpassingen uitvoeren. ` +
+        `Je kunt eenvoudig een nieuwe strippenkaart aanschaffen om weer gebruik te maken van mijn ondersteuning.`,
       cta: { label: 'Strippenkaart kopen', to: '/strippenkaart' },
     }
   }
@@ -69,8 +69,8 @@ function generatePocReply(
     return {
       role: 'assistant',
       content:
-        `Dat regelen we graag voor je! Voor een concrete aanvraag of een melding ` +
-        `maak je het beste een ticket aan. Zo kan ons team er gericht mee aan de slag ` +
+        `Dat regel ik graag voor je! Voor een concrete aanvraag of een melding ` +
+        `maak je het beste een ticket aan. Zo kan ik er gericht mee aan de slag ` +
         `en houd je zelf overzicht over de status.`,
       cta: { label: 'Ga naar tickets', to: '/support' },
     }
@@ -81,7 +81,7 @@ function generatePocReply(
     return {
       role: 'assistant',
       content:
-        `In de onderhoudsfase zorgen wij dat je website up-to-date en veilig blijft. ` +
+        `In de onderhoudsfase zorg ik dat je website up-to-date en veilig blijft. ` +
         `Denk aan updates, kleine aanpassingen en support. Je betaalt met strippen: ` +
         `elke strip is 5 minuten service, die je inzet wanneer het jou uitkomt. ` +
         `Heb je een specifieke vraag over je website "${ctx.projectName}"? Stel hem gerust.`,
@@ -121,7 +121,7 @@ function generatePocReply(
     role: 'assistant',
     content:
       `Dat weet ik even niet zeker, en ik wil je geen onjuist antwoord geven. ` +
-      `Maak hiervoor het beste een ticket aan, dan pakt een collega het persoonlijk voor je op.`,
+      `Maak hiervoor het beste een ticket aan, dan pak ik het persoonlijk voor je op.`,
     cta: { label: 'Maak een ticket aan', to: '/support' },
   }
 }
