@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MessageCircle, X, Send, Sparkles } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 /**
- * ChatWidget — proof-of-concept assistent voor de onderhoudsfase.
+ * ChatWidget — context-bewuste assistent voor de onderhoudsfase.
  *
- * LET OP: dit is nog een PROOF OF CONCEPT. De antwoorden komen uit lokale
- * dummy-logica (`generatePocReply`), er is NOG GEEN taalmodel gekoppeld.
+ * De antwoorden komen van Claude via de Supabase Edge Function `chat`. Die
+ * functie bepaalt server-side (veilig, met service role) de context van de
+ * klant — strippensaldo, project en open tickets — en stuurt die mee aan het
+ * model. De browser stuurt alleen de gespreksgeschiedenis.
  *
- * Zodra de Anthropic API-key beschikbaar is, vervangen we `generatePocReply`
- * door een aanroep naar een Supabase Edge Function (`chat`). Zie de TODO in
- * `sendMessage()` hieronder — alleen dat stukje hoeft te veranderen, de hele
- * UI en de context-props blijven hetzelfde.
- *
- * De context-props (klantnaam, project, strippensaldo) tonen nu al hoe de bot
- * "context-bewust" wordt: straks geven we exact deze gegevens mee aan het model.
+ * Valt de aanroep om wat voor reden dan ook weg, dan vangen we dat netjes op
+ * met lokale dummy-logica (`generatePocReply`) zodat de klant nooit met een
+ * lege chat blijft zitten.
  */
 
 interface ChatMessage {
@@ -127,6 +126,24 @@ function generatePocReply(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Parse het antwoord van het model: haal eventuele [[CTA:label|/pad]]-markers
+// eruit en zet ze om in een knop onder het bericht.
+// ---------------------------------------------------------------------------
+function parseReply(raw: string): ChatMessage {
+  const ctaRegex = /\[\[CTA:([^|\]]+)\|([^\]]+)\]\]/
+  const match = raw.match(ctaRegex)
+  const content = raw.replace(/\[\[CTA:[^\]]+\]\]/g, '').trim()
+  if (match) {
+    return {
+      role: 'assistant',
+      content,
+      cta: { label: match[1].trim(), to: match[2].trim() },
+    }
+  }
+  return { role: 'assistant', content }
+}
+
 export default function ChatWidget(props: ChatWidgetProps) {
   const { clientName } = props
   const [open, setOpen] = useState(false)
@@ -165,23 +182,30 @@ export default function ChatWidget(props: ChatWidgetProps) {
     const trimmed = input.trim()
     if (!trimmed || thinking) return
 
-    setMessages((prev) => [...prev, { role: 'user', content: trimmed }])
+    const nextMessages: ChatMessage[] = [...messages, { role: 'user', content: trimmed }]
+    setMessages(nextMessages)
     setInput('')
     setThinking(true)
 
-    // -----------------------------------------------------------------------
-    // TODO (na aanleveren Anthropic API-key):
-    // Vervang dit blok door een fetch naar de Supabase Edge Function `chat`,
-    // die de gesprekgeschiedenis + context-props doorstuurt naar Claude en het
-    // antwoord (bij voorkeur streaming) teruggeeft. De rest van dit component
-    // hoeft niet te veranderen.
-    // -----------------------------------------------------------------------
-    const reply = generatePocReply(trimmed, props)
-    // Kleine kunstmatige vertraging zodat het natuurlijk aanvoelt.
-    await new Promise((r) => setTimeout(r, 600))
-
-    setMessages((prev) => [...prev, reply])
-    setThinking(false)
+    try {
+      // Stuur alleen de gespreksgeschiedenis mee; de server bepaalt de context
+      // (strippensaldo, project, tickets) veilig op basis van het JWT.
+      const { data, error } = await supabase.functions.invoke('chat', {
+        body: {
+          messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+        },
+      })
+      if (error) throw error
+      const replyText = (data?.reply || '').trim()
+      if (!replyText) throw new Error('Leeg antwoord')
+      setMessages((prev) => [...prev, parseReply(replyText)])
+    } catch (err) {
+      console.error('Chat error:', err)
+      // Nette terugval op lokale logica zodat de klant nooit zonder antwoord zit.
+      setMessages((prev) => [...prev, generatePocReply(trimmed, props)])
+    } finally {
+      setThinking(false)
+    }
   }
 
   return (
@@ -265,10 +289,10 @@ export default function ChatWidget(props: ChatWidgetProps) {
             <div ref={endRef} />
           </div>
 
-          {/* POC-melding */}
-          <div className="px-4 py-1.5 bg-amber-50 border-t border-amber-100">
-            <p className="text-[10px] text-amber-700 text-center">
-              Proof of concept — voorbeeldantwoorden, nog geen live AI
+          {/* Disclaimer */}
+          <div className="px-4 py-1.5 bg-gray-50 border-t border-gray-100">
+            <p className="text-[10px] text-gray-400 text-center">
+              AI-assistent — kan af en toe iets missen. Bij twijfel maak je een ticket aan.
             </p>
           </div>
 
