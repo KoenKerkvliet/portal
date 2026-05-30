@@ -87,6 +87,25 @@ Deno.serve(async (req) => {
       throw new Error('ANTHROPIC_API_KEY not configured')
     }
 
+    // Beheerbare kennis/instructies uit het admin-dashboard.
+    const { data: settings } = await admin
+      .from('assistant_settings')
+      .select('enabled, knowledge')
+      .limit(1)
+      .single()
+
+    // Assistent uitgeschakeld door de beheerder? Geef een nette melding terug.
+    if (settings && settings.enabled === false) {
+      return new Response(
+        JSON.stringify({
+          reply:
+            'De chat-assistent is op dit moment uitgeschakeld. Maak gerust een ticket aan, dan helpen we je persoonlijk verder.\n[[CTA:Ga naar support|/support]]',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+    const extraKnowledge = (settings?.knowledge || '').trim()
+
     const { data: client } = await admin
       .from('clients')
       .select('id, name')
@@ -195,7 +214,17 @@ ${ticketLines}`
         model: ANTHROPIC_MODEL,
         max_tokens: 1024,
         system: [
+          // Vaste basisinstructies (gecached).
           { type: 'text', text: instructions, cache_control: { type: 'ephemeral' } },
+          // Door de beheerder ingestelde kennis/FAQ (bewerkbaar in het admin-dashboard).
+          ...(extraKnowledge
+            ? [{
+                type: 'text',
+                text:
+                  `Aanvullende kennis en richtlijnen (ingesteld door DesignPixels — volg deze nauwkeurig en laat ze voorgaan bij twijfel):\n\n${extraKnowledge}`,
+              }]
+            : []),
+          // Dynamische klantcontext (verandert per gesprek).
           { type: 'text', text: context },
         ],
         messages: cleaned,

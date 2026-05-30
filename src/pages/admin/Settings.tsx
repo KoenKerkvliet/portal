@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import type { InvoiceSettings, QuoteSettings, YearFormat } from '../../types'
-import { Save, Loader2, Check, User, FileText, FileCheck, Building2, CreditCard, Hash } from 'lucide-react'
+import { Save, Loader2, Check, User, FileText, FileCheck, Building2, CreditCard, Hash, Sparkles } from 'lucide-react'
 
 const currentYear = new Date().getFullYear()
 
@@ -17,13 +17,30 @@ function formatNextYearPreview(prefix: string, yearFormat: YearFormat, startNumb
   return `${prefix}${yearStr}${startNumber}`
 }
 
-type Tab = 'profiel' | 'facturen' | 'offertes'
+type Tab = 'profiel' | 'facturen' | 'offertes' | 'assistent'
 
 const tabs: { id: Tab; label: string; icon: typeof User }[] = [
   { id: 'profiel', label: 'Profiel', icon: User },
   { id: 'facturen', label: 'Facturen', icon: FileText },
   { id: 'offertes', label: 'Offertes', icon: FileCheck },
+  { id: 'assistent', label: 'Assistent', icon: Sparkles },
 ]
+
+const KNOWLEDGE_PLACEHOLDER = `Voorbeeld — vul aan met jullie eigen info:
+
+VEELGESTELDE VRAGEN
+- "Hoe lang duurt een kleine aanpassing?" → Meestal 1 tot 3 strippen, afhankelijk van complexiteit.
+- "Werken jullie in het weekend?" → We werken op werkdagen tussen 9:00 en 17:00.
+- "Hoe snel reageren jullie op een ticket?" → Doorgaans binnen 1 werkdag.
+
+WAT VALT WEL ONDER ONDERHOUD
+- Tekst- en afbeeldingswijzigingen, plugin-updates, kleine stijlaanpassingen, bugfixes.
+
+WAT VALT NIET ONDER ONDERHOUD
+- Een compleet nieuwe website of webshop, of grote nieuwe functionaliteit. Verwijs hiervoor naar support voor een offerte.
+
+TOON
+- Spreek klanten aan met je/jij en blijf altijd vriendelijk en behulpzaam.`
 
 const defaultInvoiceSettings: Omit<InvoiceSettings, 'id' | 'created_at' | 'updated_at'> = {
   company_name: '',
@@ -70,6 +87,14 @@ export default function AdminSettings() {
   const [quoteSaving, setQuoteSaving] = useState(false)
   const [quoteSaved, setQuoteSaved] = useState(false)
 
+  // Assistent settings state
+  const [assistantId, setAssistantId] = useState<string | null>(null)
+  const [assistantEnabled, setAssistantEnabled] = useState(true)
+  const [assistantKnowledge, setAssistantKnowledge] = useState('')
+  const [assistantLoading, setAssistantLoading] = useState(true)
+  const [assistantSaving, setAssistantSaving] = useState(false)
+  const [assistantSaved, setAssistantSaved] = useState(false)
+
   // Load invoice settings
   useEffect(() => {
     const fetch = async () => {
@@ -114,7 +139,41 @@ export default function AdminSettings() {
     fetch()
   }, [])
 
+  // Load assistant settings
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await supabase.from('assistant_settings').select('*').limit(1).single()
+      if (data) {
+        setAssistantId(data.id)
+        setAssistantEnabled(data.enabled ?? true)
+        setAssistantKnowledge(data.knowledge || '')
+      }
+      setAssistantLoading(false)
+    }
+    fetch()
+  }, [])
+
   // Save handlers
+  const handleAssistantSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAssistantSaving(true)
+    setAssistantSaved(false)
+    const payload = {
+      enabled: assistantEnabled,
+      knowledge: assistantKnowledge,
+      updated_at: new Date().toISOString(),
+    }
+    if (assistantId) {
+      await supabase.from('assistant_settings').update(payload).eq('id', assistantId)
+    } else {
+      const { data } = await supabase.from('assistant_settings').insert(payload).select().single()
+      if (data) setAssistantId(data.id)
+    }
+    setAssistantSaving(false)
+    setAssistantSaved(true)
+    setTimeout(() => setAssistantSaved(false), 3000)
+  }
+
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setProfileSaving(true)
@@ -437,6 +496,90 @@ export default function AdminSettings() {
                   {quoteSaved ? 'Opgeslagen' : 'Opslaan'}
                 </button>
                 {quoteSaved && <span className="text-sm text-green-600 font-medium">Instellingen opgeslagen!</span>}
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Assistent tab */}
+      {activeTab === 'assistent' && (
+        <div className="max-w-3xl">
+          {assistantLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <form onSubmit={handleAssistantSave} className="space-y-8">
+              {/* Uitleg */}
+              <div className="bg-primary/5 border border-primary/15 rounded-2xl p-5 flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-gray-600 leading-relaxed">
+                  <p className="font-semibold text-gray-800 mb-1">Wat de chat-assistent weet</p>
+                  <p>
+                    De assistent verschijnt bij klanten tijdens de onderhoudsfase. Hij kent automatisch
+                    het strippensaldo, het project en de open tickets van de klant. Hieronder geef je
+                    extra kennis en richtlijnen mee — denk aan veelgestelde vragen, wat wel/niet onder
+                    onderhoud valt en de gewenste toon. Wijzigingen zijn direct actief, zonder dat er iets
+                    opnieuw uitgerold hoeft te worden.
+                  </p>
+                </div>
+              </div>
+
+              {/* Aan/uit */}
+              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-start gap-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                    <input
+                      type="checkbox"
+                      id="assistant_enabled"
+                      checked={assistantEnabled}
+                      onChange={(e) => { setAssistantEnabled(e.target.checked); setAssistantSaved(false) }}
+                      className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30 mt-0.5"
+                    />
+                    <div>
+                      <label htmlFor="assistant_enabled" className="text-sm font-medium text-gray-800 cursor-pointer">
+                        Chat-assistent inschakelen
+                      </label>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Staat dit uit, dan krijgen klanten een nette melding met de uitnodiging een ticket aan te maken.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Kennis */}
+              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <Sparkles className="w-5 h-5 text-gray-400" />
+                  <h2 className="text-sm font-semibold text-gray-700">Kennis &amp; richtlijnen</h2>
+                </div>
+                <div className="p-6 space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Wat moet de assistent weten en hoe moet hij antwoorden?
+                  </label>
+                  <textarea
+                    value={assistantKnowledge}
+                    onChange={(e) => { setAssistantKnowledge(e.target.value); setAssistantSaved(false) }}
+                    rows={16}
+                    placeholder={KNOWLEDGE_PLACEHOLDER}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all leading-relaxed font-mono"
+                  />
+                  <p className="text-xs text-gray-400">
+                    Tip: schrijf in gewone taal, met korte koppen en bulletpoints. Hoe concreter je voorbeelden,
+                    hoe beter de assistent erop antwoordt. Voor dingen die hier niet in staan zegt hij eerlijk
+                    dat hij het niet zeker weet en verwijst hij naar een ticket.
+                  </p>
+                </div>
+              </section>
+
+              <div className="flex items-center gap-3">
+                <button type="submit" disabled={assistantSaving} className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50">
+                  {assistantSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : assistantSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                  {assistantSaved ? 'Opgeslagen' : 'Opslaan'}
+                </button>
+                {assistantSaved && <span className="text-sm text-green-600 font-medium">Assistent-kennis opgeslagen!</span>}
               </div>
             </form>
           )}
