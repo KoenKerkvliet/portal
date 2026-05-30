@@ -91,6 +91,8 @@ export default function AdminSettings() {
   const [assistantId, setAssistantId] = useState<string | null>(null)
   const [assistantEnabled, setAssistantEnabled] = useState(true)
   const [assistantKnowledge, setAssistantKnowledge] = useState('')
+  const [digestEnabled, setDigestEnabled] = useState(false)
+  const [digestEmail, setDigestEmail] = useState('')
   const [assistantLoading, setAssistantLoading] = useState(true)
   const [assistantSaving, setAssistantSaving] = useState(false)
   const [assistantSaved, setAssistantSaved] = useState(false)
@@ -147,6 +149,8 @@ export default function AdminSettings() {
         setAssistantId(data.id)
         setAssistantEnabled(data.enabled ?? true)
         setAssistantKnowledge(data.knowledge || '')
+        setDigestEnabled(data.digest_enabled ?? false)
+        setDigestEmail(data.digest_email || '')
       }
       setAssistantLoading(false)
     }
@@ -161,6 +165,8 @@ export default function AdminSettings() {
     const payload = {
       enabled: assistantEnabled,
       knowledge: assistantKnowledge,
+      digest_enabled: digestEnabled,
+      digest_email: digestEmail.trim(),
       updated_at: new Date().toISOString(),
     }
     if (assistantId) {
@@ -571,6 +577,48 @@ export default function AdminSettings() {
                     hoe beter de assistent erop antwoordt. Voor dingen die hier niet in staan zegt hij eerlijk
                     dat hij het niet zeker weet en verwijst hij naar een ticket.
                   </p>
+                </div>
+              </section>
+
+              {/* Wekelijkse samenvatting */}
+              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gray-50">
+                  <Sparkles className="w-5 h-5 text-gray-400" />
+                  <h2 className="text-sm font-semibold text-gray-700">Wekelijkse samenvatting per mail</h2>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-start gap-3 bg-gray-50 border border-gray-100 rounded-xl p-4">
+                    <input
+                      type="checkbox"
+                      id="digest_enabled"
+                      checked={digestEnabled}
+                      onChange={(e) => { setDigestEnabled(e.target.checked); setAssistantSaved(false) }}
+                      className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30 mt-0.5"
+                    />
+                    <div>
+                      <label htmlFor="digest_enabled" className="text-sm font-medium text-gray-800 cursor-pointer">
+                        Wekelijkse samenvatting ontvangen
+                      </label>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Eén keer per week (maandagochtend) ontvang je een mail met de meestgestelde vragen
+                        en de vragen die de assistent niet kon beantwoorden — handig om je kennisbank aan te vullen.
+                      </p>
+                    </div>
+                  </div>
+                  {digestEnabled && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        E-mailadres voor de samenvatting
+                      </label>
+                      <input
+                        type="email"
+                        value={digestEmail}
+                        onChange={(e) => { setDigestEmail(e.target.value); setAssistantSaved(false) }}
+                        placeholder="jij@designpixels.nl"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
+                      />
+                    </div>
+                  )}
                 </div>
               </section>
 

@@ -156,6 +156,9 @@ export default function ChatWidget(props: ChatWidgetProps) {
   const [thinking, setThinking] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Eén sessie-ID per chatsessie, zodat de server alle berichten aan hetzelfde
+  // gesprek kan koppelen voor de logging in het admin-dashboard.
+  const conversationIdRef = useRef<string>(crypto.randomUUID())
 
   // Welkomstbericht bij eerste keer openen
   useEffect(() => {
@@ -196,6 +199,7 @@ export default function ChatWidget(props: ChatWidgetProps) {
       // (strippensaldo, project, tickets) veilig op basis van het JWT.
       const { data, error } = await supabase.functions.invoke('chat', {
         body: {
+          conversationId: conversationIdRef.current,
           messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
         },
       })

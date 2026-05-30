@@ -23,6 +23,16 @@ interface ChatTurn {
   content: string
 }
 
+// Verwijdert de verborgen [[UNRESOLVED]]-markering uit een antwoord en geeft
+// terug of de markering aanwezig was. De markering wordt nooit aan de klant
+// getoond; hij dient alleen om in het dashboard "weet ik niet"-momenten te
+// kunnen uitlichten.
+function extractUnresolved(raw: string): { text: string; unresolved: boolean } {
+  const unresolved = /\[\[UNRESOLVED\]\]/i.test(raw)
+  const text = raw.replace(/\[\[UNRESOLVED\]\]/gi, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+  return { text, unresolved }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -57,6 +67,12 @@ Deno.serve(async (req) => {
     // --- 2. Lees de gespreksgeschiedenis uit de body -----------------------
     const body = await req.json().catch(() => ({}))
     const history: ChatTurn[] = Array.isArray(body.messages) ? body.messages : []
+    // Client-side gegenereerde sessie-ID (crypto.randomUUID). Wordt gebruikt om
+    // berichten aan hetzelfde gesprek te koppelen voor de logging.
+    const conversationId: string | null =
+      typeof body.conversationId === 'string' && /^[0-9a-f-]{36}$/i.test(body.conversationId)
+        ? body.conversationId
+        : null
     const cleaned = history
       .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
       .slice(-12) // hou het gesprek behapbaar
@@ -190,6 +206,8 @@ Doorverwijzen (zet zo'n verwijzing op een eigen regel, exact in dit formaat zoda
 
 Gouden regel: weet je iets niet zeker, of vraagt de klant om een concrete aanpassing/melding? Geef dan eerlijk aan dat je het niet zeker weet en verwijs naar een ticket. Verzin nooit antwoorden of toezeggingen. Voor inhoudelijke beslissingen, prijsafspraken buiten de standaardpakketten, of technische uitvoering: altijd doorverwijzen naar support.
 
+Verborgen markering (intern gebruik): kon je de vraag van de klant NIET inhoudelijk beantwoorden — omdat je het antwoord niet weet, het buiten je kennis valt, of je naar een ticket moest doorverwijzen omdat je niet kon helpen — voeg dan op een eigen regel aan het EINDE van je antwoord exact [[UNRESOLVED]] toe. Doe dit NIET als je de vraag wél goed hebt beantwoord. Deze markering wordt automatisch verwijderd en is nooit zichtbaar voor de klant; hij helpt DesignPixels alleen om te zien welke vragen nog beter beantwoord kunnen worden.
+
 Houd antwoorden kort (max ~4 zinnen) tenzij de klant om uitleg vraagt.`
 
     const ticketLines = openTickets.length > 0
@@ -240,11 +258,54 @@ ${ticketLines}`
     }
 
     const data = await anthropicResp.json()
-    const reply = (data.content || [])
+    const rawReply = (data.content || [])
       .filter((b: { type: string }) => b.type === 'text')
       .map((b: { text: string }) => b.text)
       .join('\n')
       .trim()
+
+    // Verwijder de verborgen UNRESOLVED-markering; onthoud of hij aanwezig was.
+    const { text: reply, unresolved } = extractUnresolved(rawReply)
+
+    // --- 6. Log het gesprek (fire-and-forget) ------------------------------
+    // Mag de chat NOOIT laten falen, dus alles in een eigen try/catch en we
+    // wachten het netjes af maar negeren fouten.
+    if (conversationId) {
+      try {
+        const lastUser = cleaned[cleaned.length - 1]
+        const now = new Date().toISOString()
+
+        // Upsert het gesprek (idempotent op de client-side UUID).
+        await admin.from('chat_conversations').upsert({
+          id: conversationId,
+          client_id: client?.id ?? null,
+          profile_id: user.id,
+          client_name: client?.name || clientFirstName,
+          project_name: projectName || '',
+          last_message_at: now,
+        }, { onConflict: 'id', ignoreDuplicates: false })
+
+        // Voeg de laatste user-vraag + het assistent-antwoord toe.
+        await admin.from('chat_messages').insert([
+          { conversation_id: conversationId, role: 'user', content: lastUser.content, is_unresolved: false },
+          { conversation_id: conversationId, role: 'assistant', content: reply, is_unresolved: unresolved },
+        ])
+
+        // Werk de tellers/vlaggen op het gesprek bij.
+        const { count } = await admin
+          .from('chat_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('conversation_id', conversationId)
+        const updatePayload: Record<string, unknown> = {
+          message_count: count ?? 0,
+          last_message_at: now,
+        }
+        if (unresolved) updatePayload.has_unresolved = true
+        await admin.from('chat_conversations').update(updatePayload).eq('id', conversationId)
+      } catch (logErr) {
+        console.error('Kon gesprek niet loggen:', logErr)
+      }
+    }
 
     return new Response(JSON.stringify({ reply }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

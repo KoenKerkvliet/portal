@@ -17,6 +17,7 @@ import {
   Package,
   ClipboardCheck,
   MessageSquare,
+  MessageCircle,
   Wrench,
   Wallet,
 } from 'lucide-react'
@@ -43,6 +44,7 @@ const contentItems = [
 
 const supportItems = [
   { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
+  { to: '/admin/chatgesprekken', icon: MessageCircle, label: 'Chatgesprekken' },
   { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud' },
 ]
 

@@ -30,6 +30,7 @@ import ClientInvoicePage from './pages/client/InvoicePage'
 import ClientStyleguidePage from './pages/client/StyleguidePage'
 import ContentPages from './pages/admin/ContentPages'
 import Tickets from './pages/admin/Tickets'
+import ChatLogs from './pages/admin/ChatLogs'
 import Onderhoud from './pages/admin/Onderhoud'
 import OnderhoudTimer from './pages/admin/OnderhoudTimer'
 import Financien from './pages/admin/Financien'
@@ -88,6 +89,7 @@ function AppRoutes() {
         <Route path="formulieren" element={<Forms />} />
         <Route path="contentpaginas" element={<ContentPages />} />
         <Route path="tickets" element={<Tickets />} />
+        <Route path="chatgesprekken" element={<ChatLogs />} />
         <Route path="onderhoud" element={<Onderhoud />} />
         <Route path="onderhoud/:projectId/timer" element={<OnderhoudTimer />} />
         <Route path="instellingen" element={<AdminSettings />} />
