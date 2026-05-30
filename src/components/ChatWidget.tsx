@@ -133,7 +133,11 @@ function generatePocReply(
 function parseReply(raw: string): ChatMessage {
   const ctaRegex = /\[\[CTA:([^|\]]+)\|([^\]]+)\]\]/
   const match = raw.match(ctaRegex)
-  const content = raw.replace(/\[\[CTA:[^\]]+\]\]/g, '').trim()
+  const content = raw
+    .replace(/\[\[CTA:[^\]]+\]\]/g, '') // verwijder de CTA-marker(s)
+    .replace(/[ \t]+\n/g, '\n')          // trailing spaties per regel weg
+    .replace(/\n{3,}/g, '\n\n')          // meerdere lege regels -> max één
+    .trim()
   if (match) {
     return {
       role: 'assistant',
