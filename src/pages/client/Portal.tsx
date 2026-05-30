@@ -8,6 +8,7 @@ import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCar
 import { Sparkles, ArrowRight, Calendar, ExternalLink, CreditCard, ShoppingCart } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 import PunchCardView from '../../components/PunchCardView'
+import ChatWidget from '../../components/ChatWidget'
 
 const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
 
@@ -694,6 +695,16 @@ export default function ClientPortal() {
             </div>
           </section>
         ) : null}
+
+        {/* Chat-assistent — alleen zichtbaar in de onderhoudsfase (proof of concept) */}
+        <ChatWidget
+          clientName={(profile?.full_name || 'daar').split(' ')[0]}
+          projectName={project.name}
+          remainingStrips={punchCards
+            .filter((c) => c.status === 'active')
+            .reduce((sum, c) => sum + (c.total_punches - c.used_punches), 0)}
+          hasActiveCard={punchCards.some((c) => c.status === 'active')}
+        />
       </>)}
 
     </div>
