@@ -15,19 +15,19 @@ interface PricingPlan {
   priceId: string
 }
 
-// TEST PLAN — verwijder na Stripe test
-const TEST_PLAN: PricingPlan = {
-  name: 'Test',
-  minutes: 60,
-  strips: 12,
-  price: 1,
-  popular: false,
-  description: 'Stripe test — verwijder na testen',
-  priceId: 'price_1SM8InLuTqlntkE3rAp3JVqr',
-}
+// TEST PLAN (€1) — uitgeschakeld, bewaard voor eventueel hergebruik.
+// Zet dit object terug in de `plans`-array hieronder om het weer te tonen.
+// const TEST_PLAN: PricingPlan = {
+//   name: 'Test',
+//   minutes: 60,
+//   strips: 12,
+//   price: 1,
+//   popular: false,
+//   description: 'Stripe test — verwijder na testen',
+//   priceId: 'price_1SM8InLuTqlntkE3rAp3JVqr',
+// }
 
 const plans: PricingPlan[] = [
-  TEST_PLAN,
   {
     name: '60 minuten',
     minutes: 60,
@@ -174,7 +174,6 @@ export default function PunchCardShop() {
         {/* Pricing cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
           {plans
-            .filter((plan) => plan !== TEST_PLAN || (profile?.email || '').toLowerCase().includes('koenkerkvliet'))
             .map((plan) => (
             <div
               key={plan.name}
