@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles, MessageSquare, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { ClientNotification } from '../types'
+import ChatWidget from '../components/ChatWidget'
 
 const notificationIcons: Record<string, typeof FileCheck> = {
   quote: FileCheck,
@@ -36,6 +37,10 @@ export default function ClientLayout() {
   const menuRef = useRef<HTMLDivElement>(null)
   const [notifications, setNotifications] = useState<ClientNotification[]>([])
   const [isOnderhoud, setIsOnderhoud] = useState(false)
+  // Context voor de chat-assistent (alleen in onderhoudsfase)
+  const [projectName, setProjectName] = useState('')
+  const [remainingStrips, setRemainingStrips] = useState(0)
+  const [hasActiveCard, setHasActiveCard] = useState(false)
   const stackedIdsRef = useRef<Record<string, string[]>>({})
 
   const handleSignOut = async () => {
@@ -57,12 +62,27 @@ export default function ClientLayout() {
     // Check if project is in onderhoud phase
     const { data: projectData } = await supabase
       .from('projects')
-      .select('id, current_phase')
+      .select('id, name, current_phase')
       .eq('client_id', client.id)
       .eq('status', 'active')
       .limit(1)
       .single()
-    setIsOnderhoud(projectData?.current_phase === 'onderhoud')
+    const onderhoud = projectData?.current_phase === 'onderhoud'
+    setIsOnderhoud(onderhoud)
+
+    // Context voor de chat-assistent ophalen zodra het project in onderhoud is
+    if (onderhoud && projectData) {
+      setProjectName(projectData.name || '')
+      const { data: cards } = await supabase
+        .from('punch_cards')
+        .select('total_punches, used_punches, status')
+        .eq('project_id', projectData.id)
+      const activeCards = (cards || []).filter((c) => c.status === 'active')
+      setHasActiveCard(activeCards.length > 0)
+      setRemainingStrips(
+        activeCards.reduce((sum, c) => sum + (c.total_punches - c.used_punches), 0),
+      )
+    }
 
     const { data } = await supabase
       .from('client_notifications')
@@ -295,6 +315,16 @@ export default function ClientLayout() {
       <main>
         <Outlet />
       </main>
+
+      {/* Chat-assistent — overal in het portaal zichtbaar tijdens de onderhoudsfase (proof of concept) */}
+      {isOnderhoud && (
+        <ChatWidget
+          clientName={(profile?.full_name || 'daar').split(' ')[0]}
+          projectName={projectName}
+          remainingStrips={remainingStrips}
+          hasActiveCard={hasActiveCard}
+        />
+      )}
     </div>
   )
 }
