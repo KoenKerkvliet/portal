@@ -144,7 +144,7 @@ async function sendClientEmail(opts: {
 <div style="max-width:560px;margin:0 auto;padding:32px 24px;">
 <p style="margin:0 0 24px;font-size:14px;color:#888;">DesignPixels</p>
 <p style="margin:0 0 16px;">Hoi ${opts.recipientName},</p>
-<p style="margin:0 0 16px;">Voor je project <strong>${opts.projectName}</strong> staat een nieuwe factuur voor je klaar:</p>
+<p style="margin:0 0 16px;">Voor je domein <strong>${opts.projectName}</strong> staat een nieuwe factuur voor je klaar:</p>
 <p style="margin:0 0 16px;"><strong>${opts.number}</strong> — ${amountFormatted}${dueDateText ? `<br><span style="color:#666;font-size:14px;">Vervaldatum: ${dueDateText}</span>` : ''}</p>
 <p style="margin:0 0 24px;">Bekijk de factuur en betalingsgegevens via je portaal:</p>
 <p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="color:#6b46c1;">${invoiceUrl}</a></p>
@@ -155,7 +155,7 @@ async function sendClientEmail(opts: {
 
   const text = `Hoi ${opts.recipientName},
 
-Voor je project ${opts.projectName} staat een nieuwe factuur voor je klaar:
+Voor je domein ${opts.projectName} staat een nieuwe factuur voor je klaar:
 
 ${opts.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}
 
@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
 
         const recipientEmail = tpl.client?.email || tpl.client_email
         const recipientName = tpl.client?.name || tpl.client_name || 'klant'
-        const projectName = tpl.project?.name || 'je project'
+        const projectName = tpl.project?.name || 'je domein'
 
         // Klantmail + portaalnotificatie. Niet-fataal: lukt de mail niet, dan blijft
         // de factuur gewoon staan en loggen we de fout in de samenvatting.

@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
 
     const recipientEmail = inv.client?.email || inv.client_email
     const recipientName = inv.client?.name || inv.client_name || 'klant'
-    const projectName = inv.project?.name || 'je project'
+    const projectName = inv.project?.name || 'je domein'
 
     if (!recipientEmail) {
       throw new Error('Klant heeft geen e-mailadres — kan geen mail sturen')
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
 <div style="max-width:560px;margin:0 auto;padding:32px 24px;">
 <p style="margin:0 0 24px;font-size:14px;color:#888;">DesignPixels</p>
 <p style="margin:0 0 16px;">Hoi ${recipientName},</p>
-<p style="margin:0 0 16px;">Voor je project <strong>${projectName}</strong> staat een nieuwe factuur voor je klaar:</p>
+<p style="margin:0 0 16px;">Voor je domein <strong>${projectName}</strong> staat een nieuwe factuur voor je klaar:</p>
 <p style="margin:0 0 16px;"><strong>${inv.number}</strong> — ${amountFormatted}${dueDateText ? `<br><span style="color:#666;font-size:14px;">Vervaldatum: ${dueDateText}</span>` : ''}</p>
 <p style="margin:0 0 24px;">Bekijk de factuur en betalingsgegevens via je portaal:</p>
 <p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="color:#6b46c1;">${invoiceUrl}</a></p>
@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
 
     const text = `Hoi ${recipientName},
 
-Voor je project ${projectName} staat een nieuwe factuur voor je klaar:
+Voor je domein ${projectName} staat een nieuwe factuur voor je klaar:
 
 ${inv.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}
 
