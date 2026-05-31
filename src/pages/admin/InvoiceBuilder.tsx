@@ -46,6 +46,22 @@ function generateInvoiceNumber(
   return `${basePrefix}${maxNum + 1}`
 }
 
+// Terugkerende facturen zijn templates: ze mogen GEEN echt factuurnummer opslokken
+// (anders slaat de volgende echte factuur dat nummer over). Daarom krijgen ze een
+// los "RECURRING-NNN" nummer met has_temp_number=true, zodat ze buiten de reeks vallen
+// en niet zichtbaar zijn voor klanten.
+function generateRecurringNumber(existingNumbers: string[]): string {
+  const prefix = 'RECURRING-'
+  let maxNum = 0
+  for (const num of existingNumbers) {
+    if (num.startsWith(prefix)) {
+      const parsed = parseInt(num.slice(prefix.length), 10)
+      if (!isNaN(parsed) && parsed > maxNum) maxNum = parsed
+    }
+  }
+  return `${prefix}${String(maxNum + 1).padStart(3, '0')}`
+}
+
 function todayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
@@ -398,8 +414,33 @@ export default function InvoiceBuilder() {
       }
     }
 
+    // Nummer + has_temp_number bepalen op basis van het recurring-sjabloon.
+    // Een terugkerende factuur is een template en mag geen echt reeksnummer opslokken:
+    // het krijgt een los RECURRING-NNN nummer (has_temp_number=true), zodat de volgende
+    // echte factuur geen nummer overslaat en het sjabloon onzichtbaar blijft voor klanten.
+    // Wordt een bestaande factuur juist van terugkerend afgehaald, dan geven we hem
+    // alsnog een echt reeksnummer terug.
+    let finalNumber = number
+    let finalHasTempNumber = false
+    if (isRecurring) {
+      finalHasTempNumber = true
+      if (!number.startsWith('RECURRING-')) {
+        const { data: existing } = await supabase.from('invoices').select('number')
+        finalNumber = generateRecurringNumber((existing || []).map((i) => i.number as string))
+      }
+    } else if (number.startsWith('RECURRING-') && invoiceSettings) {
+      const { data: existing } = await supabase.from('invoices').select('number')
+      finalNumber = generateInvoiceNumber(
+        invoiceSettings.invoice_prefix,
+        invoiceSettings.year_format as YearFormat,
+        invoiceSettings.start_number,
+        (existing || []).map((i) => i.number as string)
+      )
+    }
+
     const payload = {
-      number,
+      number: finalNumber,
+      has_temp_number: finalHasTempNumber,
       project_id: projectId,
       client_id: clientId,
       amount: Math.round(total * 100) / 100,
@@ -841,7 +882,7 @@ export default function InvoiceBuilder() {
             )}
             <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
               <p className="text-xs text-blue-800">
-                Deze factuur dient als <strong>sjabloon</strong>. Elke periode wordt er automatisch een nieuwe factuur uit gegenereerd met een vers factuurnummer. Het sjabloon zelf blijft staan in &quot;Terugkerende facturen&quot;.
+                Deze factuur dient als <strong>sjabloon</strong>. Bij opslaan krijgt het een draft-nummer (<strong>RECURRING-XXX</strong>) zodat het g&eacute;&eacute;n echt factuurnummer opslokt en onzichtbaar blijft voor de klant. Elke periode wordt er automatisch een nieuwe factuur uit gegenereerd met een vers factuurnummer. Het sjabloon zelf blijft staan in &quot;Terugkerende facturen&quot;.
               </p>
             </div>
           </div>

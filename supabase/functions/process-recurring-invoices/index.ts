@@ -129,15 +129,18 @@ Deno.serve(async (req) => {
     // bij voor opeenvolgende inserts in dezelfde run.
     const [settingsRes, numsRes] = await Promise.all([
       db.from('invoice_settings').select('invoice_prefix, year_format, start_number').limit(1).single(),
-      db.from('invoices').select('number, is_test, has_temp_number'),
+      db.from('invoices').select('number, is_test, has_temp_number, is_recurring'),
     ])
 
     if (settingsRes.error || !settingsRes.data) {
       throw new Error('Factuurinstellingen niet gevonden')
     }
     const settings = settingsRes.data as InvoiceSettingsRow
+    // Alleen echte facturen tellen mee voor de nummerreeks. Sjablonen (is_recurring),
+    // testfacturen en facturen met een tijdelijk nummer vallen er expliciet buiten,
+    // zodat een terugkerend sjabloon nooit een reeksnummer opslokt.
     const realNumbers = (numsRes.data || [])
-      .filter((r) => !r.is_test && !r.has_temp_number)
+      .filter((r) => !r.is_test && !r.has_temp_number && !r.is_recurring)
       .map((r) => r.number as string)
 
     const generated: { template_id: string; new_invoice_id: string; number: string }[] = []
