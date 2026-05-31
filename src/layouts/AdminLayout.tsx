@@ -64,7 +64,7 @@ export default function AdminLayout() {
   const sidebarContent = (
     <>
       {/* Logo / Brand */}
-      <div className="p-5 sm:p-6 border-b border-white/10">
+      <div className="px-5 py-4 sm:px-6 border-b border-white/10">
         <h1 className="text-lg font-bold tracking-tight">
           <span className="text-primary-300">Design</span>Pixels
         </h1>
@@ -72,10 +72,10 @@ export default function AdminLayout() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 overflow-y-auto">
+      <nav className="flex-1 py-3 px-3 overflow-y-auto">
         {[mainItems, supportItems, financeItems, contentItems].map((group, gi) => (
-          <div key={gi} className={gi > 0 ? 'mt-3 pt-3 border-t border-white/10' : ''}>
-            <div className="space-y-1">
+          <div key={gi} className={gi > 0 ? 'mt-2 pt-2 border-t border-white/10' : ''}>
+            <div className="space-y-0.5">
               {group.map((item) => (
                 <NavLink
                   key={item.to}
@@ -83,7 +83,7 @@ export default function AdminLayout() {
                   end={'end' in item ? (item as { end?: boolean }).end : undefined}
                   onClick={closeSidebar}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
                         ? 'bg-sidebar-active text-white'
                         : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
