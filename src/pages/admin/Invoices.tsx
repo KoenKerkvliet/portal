@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceStatus, QuoteItem, RecurrenceInterval, YearFormat } from '../../types'
-import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload } from 'lucide-react'
+import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload, Send, Mail } from 'lucide-react'
 import InvoiceImportModal from '../../components/InvoiceImportModal'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
@@ -46,9 +46,10 @@ function nextTempNumber(invoices: Invoice[]): string {
   return `TMP-${max + 1}`
 }
 
-function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit, onSplit, onFinalize }: {
+function InvoiceRow({ invoice, onStatusChange, onSend, onDelete, onEdit, onSplit, onFinalize }: {
   invoice: Invoice
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
+  onSend: (invoice: Invoice) => void
   onDelete: (id: string) => void
   onEdit: (id: string) => void
   onSplit: (invoice: Invoice) => void
@@ -61,9 +62,11 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit, onSplit, onFina
 
   const canSplit = !invoice.is_deposit_invoice && !invoice.is_remainder_invoice && !invoice.has_temp_number && invoice.status !== 'paid'
   const canFinalize = invoice.is_remainder_invoice && invoice.has_temp_number
+  // Een tijdelijke restfactuur heeft nog geen definitief nummer — eerst "Definitief maken".
+  const canSend = invoice.status !== 'paid' && !invoice.has_temp_number
 
   // Estimate menu height based on visible items (each ~36px + 8px padding)
-  const menuItemCount = 3 + (canSplit ? 1 : 0) + (canFinalize ? 1 : 0)
+  const menuItemCount = 3 + (canSend ? 1 : 0) + (canSplit ? 1 : 0) + (canFinalize ? 1 : 0)
   const estimatedMenuHeight = menuItemCount * 36 + 8
 
   useEffect(() => {
@@ -147,6 +150,15 @@ function InvoiceRow({ invoice, onStatusChange, onDelete, onEdit, onSplit, onFina
             className="fixed bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-[9999] min-w-[180px]"
             style={{ top: menuPos.top, left: menuPos.left }}
           >
+            {canSend && (
+              <button
+                onClick={() => { setMenuOpen(false); onSend(invoice) }}
+                className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-primary hover:bg-primary/5 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+                Versturen
+              </button>
+            )}
             <button
               onClick={() => { setMenuOpen(false); window.open(`/factuur/${invoice.id}`, '_blank') }}
               className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -330,9 +342,10 @@ function RecurringInvoiceTable({ invoices, onPause, onDelete, onEdit }: {
   )
 }
 
-function InvoiceTable({ invoices, onStatusChange, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
+function InvoiceTable({ invoices, onStatusChange, onSend, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
   invoices: Invoice[]
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
+  onSend: (invoice: Invoice) => void
   onDelete: (id: string) => void
   onEdit: (id: string) => void
   onSplit: (invoice: Invoice) => void
@@ -355,7 +368,7 @@ function InvoiceTable({ invoices, onStatusChange, onDelete, onEdit, onSplit, onF
         </thead>
         <tbody>
           {invoices.map((invoice) => (
-            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} />
+            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onSend={onSend} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} />
           ))}
         </tbody>
       </table>
@@ -371,6 +384,8 @@ export default function Invoices() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [isTest, setIsTest] = useState(false)
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
+  const [sendTarget, setSendTarget] = useState<Invoice | null>(null)
+  const [sending, setSending] = useState(false)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -414,6 +429,44 @@ export default function Invoices() {
   const handleStatusChange = async (invoice: Invoice, status: InvoiceStatus) => {
     await supabase.from('invoices').update({ status }).eq('id', invoice.id)
     fetchInvoices()
+  }
+
+  // Verstuur de factuur naar de klant: mail + portaal-notificatie + status op 'verzonden'.
+  // De mail gaat bewust eerst; lukt die niet, dan blijft de status ongewijzigd zodat een
+  // factuur nooit op "Verzonden" staat terwijl de klant niets ontving.
+  const handleSend = async () => {
+    if (!sendTarget || sending) return
+    setSending(true)
+    try {
+      // 1) Branded mail naar de klant via EmailIt
+      const { data, error } = await supabase.functions.invoke('send-invoice-email', {
+        body: { invoice_id: sendTarget.id },
+      })
+      if (error || (data && !data.success)) {
+        throw new Error(error?.message || data?.error || 'E-mail versturen mislukt')
+      }
+      // 2) Status -> verzonden
+      const { error: statusErr } = await supabase.from('invoices').update({ status: 'sent' }).eq('id', sendTarget.id)
+      if (statusErr) throw statusErr
+      // 3) Portaal-notificatie (niet-blokkerend — fout loggen we alleen)
+      if (sendTarget.project_id && sendTarget.client_id) {
+        const { error: notifErr } = await supabase.from('client_notifications').insert({
+          project_id: sendTarget.project_id,
+          client_id: sendTarget.client_id,
+          type: 'invoice',
+          title: 'Nieuwe factuur beschikbaar',
+          message: `Er staat een nieuwe factuur (${sendTarget.number}) voor je klaar.`,
+          link_url: `/factuur/${sendTarget.id}`,
+        })
+        if (notifErr) console.error('Notificatie aanmaken mislukt:', notifErr)
+      }
+      setSendTarget(null)
+      fetchInvoices()
+    } catch (e) {
+      alert('Versturen mislukt: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setSending(false)
+    }
   }
 
   const handleEdit = (id: string) => {
@@ -694,6 +747,70 @@ export default function Invoices() {
         </>
       )}
 
+      {/* Verstuur-bevestiging */}
+      {sendTarget && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => { if (!sending) setSendTarget(null) }} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Factuur versturen</h2>
+                <button
+                  onClick={() => { if (!sending) setSendTarget(null) }}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4">
+                Je staat op het punt factuur{' '}
+                <span className="font-mono font-medium text-gray-900">{sendTarget.number}</span>{' '}
+                te versturen naar{' '}
+                <span className="font-medium text-gray-900">
+                  {(sendTarget.client as unknown as { name: string })?.name || sendTarget.client_name || 'de klant'}
+                </span>.
+              </p>
+
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Wat er gebeurt</p>
+                <ul className="space-y-2.5 text-sm text-gray-700">
+                  <li className="flex items-start gap-2.5">
+                    <Mail className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <span>De klant krijgt een <strong>e-mail</strong> met een link naar de factuur.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <Eye className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <span>De factuur wordt <strong>zichtbaar in het klantportaal</strong>, met een melding.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <span>De status gaat naar <strong>Verzonden</strong>.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSend}
+                  disabled={sending}
+                  className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors disabled:opacity-60"
+                >
+                  {sending ? <><Loader2 className="w-4 h-4 animate-spin" /> Versturen...</> : <><Send className="w-4 h-4" /> Akkoord, versturen</>}
+                </button>
+                <button
+                  onClick={() => setSendTarget(null)}
+                  disabled={sending}
+                  className="px-4 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-60"
+                >
+                  Annuleren
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Filter bar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 mb-6 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -769,7 +886,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen openstaande facturen</p>
               </div>
             ) : (
-              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="due" />
+              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onSend={setSendTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="due" />
             )}
           </section>
 
@@ -796,7 +913,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen betaalde facturen in {paidYear}</p>
               </div>
             ) : (
-              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="paid" />
+              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onSend={setSendTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="paid" />
             )}
           </section>
 
