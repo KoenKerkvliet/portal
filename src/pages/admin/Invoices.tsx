@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceStatus, QuoteItem, RecurrenceInterval, YearFormat } from '../../types'
-import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload, Send, Mail } from 'lucide-react'
+import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload, Send, Mail, BellRing } from 'lucide-react'
 import InvoiceImportModal from '../../components/InvoiceImportModal'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
@@ -46,10 +46,11 @@ function nextTempNumber(invoices: Invoice[]): string {
   return `TMP-${max + 1}`
 }
 
-function InvoiceRow({ invoice, onStatusChange, onSend, onDelete, onEdit, onSplit, onFinalize }: {
+function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize }: {
   invoice: Invoice
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onSend: (invoice: Invoice) => void
+  onRemind: (invoice: Invoice) => void
   onDelete: (id: string) => void
   onEdit: (id: string) => void
   onSplit: (invoice: Invoice) => void
@@ -64,9 +65,11 @@ function InvoiceRow({ invoice, onStatusChange, onSend, onDelete, onEdit, onSplit
   const canFinalize = invoice.is_remainder_invoice && invoice.has_temp_number
   // Een tijdelijke restfactuur heeft nog geen definitief nummer — eerst "Definitief maken".
   const canSend = invoice.status !== 'paid' && !invoice.has_temp_number
+  // Herinnering alleen voor échte, verzonden (nog niet betaalde) facturen.
+  const canRemind = invoice.status === 'sent' && !invoice.has_temp_number && !invoice.is_test
 
   // Estimate menu height based on visible items (each ~36px + 8px padding)
-  const menuItemCount = 3 + (canSend ? 1 : 0) + (canSplit ? 1 : 0) + (canFinalize ? 1 : 0)
+  const menuItemCount = 3 + (canSend ? 1 : 0) + (canRemind ? 1 : 0) + (canSplit ? 1 : 0) + (canFinalize ? 1 : 0)
   const estimatedMenuHeight = menuItemCount * 36 + 8
 
   useEffect(() => {
@@ -157,6 +160,15 @@ function InvoiceRow({ invoice, onStatusChange, onSend, onDelete, onEdit, onSplit
               >
                 <Send className="w-4 h-4" />
                 Versturen
+              </button>
+            )}
+            {canRemind && (
+              <button
+                onClick={() => { setMenuOpen(false); onRemind(invoice) }}
+                className="flex items-center gap-2 w-full px-3.5 py-2 text-sm text-amber-700 hover:bg-amber-50 transition-colors"
+              >
+                <BellRing className="w-4 h-4" />
+                Herinnering sturen
               </button>
             )}
             <button
@@ -342,10 +354,11 @@ function RecurringInvoiceTable({ invoices, onPause, onDelete, onEdit }: {
   )
 }
 
-function InvoiceTable({ invoices, onStatusChange, onSend, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
+function InvoiceTable({ invoices, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
   invoices: Invoice[]
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onSend: (invoice: Invoice) => void
+  onRemind: (invoice: Invoice) => void
   onDelete: (id: string) => void
   onEdit: (id: string) => void
   onSplit: (invoice: Invoice) => void
@@ -368,7 +381,7 @@ function InvoiceTable({ invoices, onStatusChange, onSend, onDelete, onEdit, onSp
         </thead>
         <tbody>
           {invoices.map((invoice) => (
-            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onSend={onSend} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} />
+            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onSend={onSend} onRemind={onRemind} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} />
           ))}
         </tbody>
       </table>
@@ -386,6 +399,8 @@ export default function Invoices() {
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
   const [sendTarget, setSendTarget] = useState<Invoice | null>(null)
   const [sending, setSending] = useState(false)
+  const [remindTarget, setRemindTarget] = useState<Invoice | null>(null)
+  const [reminding, setReminding] = useState(false)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -466,6 +481,28 @@ export default function Invoices() {
       alert('Versturen mislukt: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSending(false)
+    }
+  }
+
+  // Stuur de klant handmatig een vriendelijke betalingsherinnering. Bewust geen
+  // automatische actie: Koen klikt dit per factuur aan zodra hij zeker weet dat de
+  // betaling écht nog niet binnen is.
+  const handleRemind = async () => {
+    if (!remindTarget || reminding) return
+    setReminding(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('send-invoice-reminder', {
+        body: { invoice_id: remindTarget.id },
+      })
+      if (error || (data && !data.success)) {
+        throw new Error(error?.message || data?.error || 'Herinnering versturen mislukt')
+      }
+      setRemindTarget(null)
+      fetchInvoices()
+    } catch (e) {
+      alert('Herinnering versturen mislukt: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setReminding(false)
     }
   }
 
@@ -811,6 +848,66 @@ export default function Invoices() {
         </>
       )}
 
+      {/* Herinnering-bevestiging */}
+      {remindTarget && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => { if (!reminding) setRemindTarget(null) }} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Herinnering sturen</h2>
+                <button
+                  onClick={() => { if (!reminding) setRemindTarget(null) }}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4">
+                Je staat op het punt een <strong>vriendelijke betalingsherinnering</strong> te sturen voor factuur{' '}
+                <span className="font-mono font-medium text-gray-900">{remindTarget.number}</span>{' '}
+                naar{' '}
+                <span className="font-medium text-gray-900">
+                  {(remindTarget.client as unknown as { name: string })?.name || remindTarget.client_name || 'de klant'}
+                </span>.
+              </p>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-5">
+                <p className="text-xs font-medium text-amber-700 uppercase tracking-wider mb-3">Let op</p>
+                <ul className="space-y-2.5 text-sm text-amber-800">
+                  <li className="flex items-start gap-2.5">
+                    <BellRing className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>De klant krijgt een <strong>zachte herinnering</strong> dat de factuur nog openstaat.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <CheckCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <span>Controleer eerst je rekening: misschien is de betaling al binnen maar nog niet verwerkt.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleRemind}
+                  disabled={reminding}
+                  className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors disabled:opacity-60"
+                >
+                  {reminding ? <><Loader2 className="w-4 h-4 animate-spin" /> Versturen...</> : <><BellRing className="w-4 h-4" /> Akkoord, herinnering sturen</>}
+                </button>
+                <button
+                  onClick={() => setRemindTarget(null)}
+                  disabled={reminding}
+                  className="px-4 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-60"
+                >
+                  Annuleren
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Filter bar */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-4 py-3 mb-6 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -886,7 +983,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen openstaande facturen</p>
               </div>
             ) : (
-              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onSend={setSendTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="due" />
+              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onSend={setSendTarget} onRemind={setRemindTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="due" />
             )}
           </section>
 
@@ -913,7 +1010,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen betaalde facturen in {paidYear}</p>
               </div>
             ) : (
-              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onSend={setSendTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="paid" />
+              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onSend={setSendTarget} onRemind={setRemindTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="paid" />
             )}
           </section>
 
