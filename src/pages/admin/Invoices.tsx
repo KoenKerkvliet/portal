@@ -64,7 +64,7 @@ function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdi
   const canSplit = !invoice.is_deposit_invoice && !invoice.is_remainder_invoice && !invoice.has_temp_number && invoice.status !== 'paid'
   const canFinalize = invoice.is_remainder_invoice && invoice.has_temp_number
   // Een tijdelijke restfactuur heeft nog geen definitief nummer — eerst "Definitief maken".
-  const canSend = invoice.status !== 'paid' && !invoice.has_temp_number
+  const canSend = !invoice.has_temp_number
   // Herinnering alleen voor échte, verzonden (nog niet betaalde) facturen.
   const canRemind = invoice.status === 'sent' && !invoice.has_temp_number && !invoice.is_test
 
@@ -460,9 +460,11 @@ export default function Invoices() {
       if (error || (data && !data.success)) {
         throw new Error(error?.message || data?.error || 'E-mail versturen mislukt')
       }
-      // 2) Status -> verzonden
-      const { error: statusErr } = await supabase.from('invoices').update({ status: 'sent' }).eq('id', sendTarget.id)
-      if (statusErr) throw statusErr
+      // 2) Status -> verzonden (een reeds betaalde factuur blijft op 'betaald' staan)
+      if (sendTarget.status !== 'paid') {
+        const { error: statusErr } = await supabase.from('invoices').update({ status: 'sent' }).eq('id', sendTarget.id)
+        if (statusErr) throw statusErr
+      }
       // 3) Portaal-notificatie (niet-blokkerend — fout loggen we alleen)
       if (sendTarget.project_id && sendTarget.client_id) {
         const { error: notifErr } = await supabase.from('client_notifications').insert({
@@ -822,7 +824,11 @@ export default function Invoices() {
                   </li>
                   <li className="flex items-start gap-2.5">
                     <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>De status gaat naar <strong>Verzonden</strong>.</span>
+                    <span>
+                      {sendTarget.status === 'paid'
+                        ? <>De status blijft op <strong>Betaald</strong> staan.</>
+                        : <>De status gaat naar <strong>Verzonden</strong>.</>}
+                    </span>
                   </li>
                 </ul>
               </div>
