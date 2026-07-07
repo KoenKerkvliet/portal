@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { invoice_id } = await req.json()
+    const { invoice_id, pdf_base64 } = await req.json()
     if (!invoice_id || typeof invoice_id !== 'string') {
       return new Response(
         JSON.stringify({ success: false, error: 'invoice_id ontbreekt' }),
@@ -104,6 +104,9 @@ Deno.serve(async (req) => {
     const invoiceUrl = `${PORTAL_URL}/factuur/${invoice_id}`
     const amountFormatted = `€${inv.amount.toFixed(2).replace('.', ',')}`
     const dueDateText = formatDateNL(inv.due_date)
+    const hasAttachment = Boolean(pdf_base64 && typeof pdf_base64 === 'string')
+    const attachmentLineHtml = hasAttachment ? '<p style="margin:0 0 16px;">De factuur is als PDF bijgevoegd.</p>' : ''
+    const attachmentLineText = hasAttachment ? '\nDe factuur is als PDF bijgevoegd.\n' : ''
 
     const html = `<!DOCTYPE html>
 <html lang="nl">
@@ -118,6 +121,7 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;">Hoi ${recipientName},</p>
 <p style="margin:0 0 16px;">Voor je domein <strong>${projectName}</strong> staat een nieuwe factuur voor je klaar:</p>
 <p style="margin:0 0 16px;"><strong>${inv.number}</strong> — ${amountFormatted}${dueDateText ? `<br><span style="color:#666;font-size:14px;">Vervaldatum: ${dueDateText}</span>` : ''}</p>
+${attachmentLineHtml}
 <p style="margin:0 0 24px;">Bekijk de factuur en betalingsgegevens via je portaal:</p>
 <p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="color:#6b46c1;">${invoiceUrl}</a></p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
@@ -130,12 +134,30 @@ Deno.serve(async (req) => {
 Voor je domein ${projectName} staat een nieuwe factuur voor je klaar:
 
 ${inv.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}
-
+${attachmentLineText}
 Bekijk de factuur en betalingsgegevens via je portaal:
 ${invoiceUrl}
 
 Met vriendelijke groet,
 DesignPixels`
+
+    const emailBody: Record<string, unknown> = {
+      from: EMAILIT_FROM,
+      to: recipientEmail,
+      subject: `Nieuwe factuur voor ${projectName}`,
+      html,
+      text,
+    }
+
+    if (hasAttachment) {
+      emailBody.attachments = [
+        {
+          filename: `Factuur-${inv.number}.pdf`,
+          content: pdf_base64,
+          content_type: 'application/pdf',
+        },
+      ]
+    }
 
     const emailResponse = await fetch('https://api.emailit.com/v2/emails', {
       method: 'POST',
@@ -143,13 +165,7 @@ DesignPixels`
         'Authorization': `Bearer ${EMAILIT_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        from: EMAILIT_FROM,
-        to: recipientEmail,
-        subject: `Nieuwe factuur voor ${projectName}`,
-        html,
-        text,
-      }),
+      body: JSON.stringify(emailBody),
     })
 
     if (!emailResponse.ok) {

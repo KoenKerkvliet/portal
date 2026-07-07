@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceStatus, QuoteItem, RecurrenceInterval, YearFormat } from '../../types'
 import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload, Send, Mail, BellRing } from 'lucide-react'
 import InvoiceImportModal from '../../components/InvoiceImportModal'
+import { generateInvoicePdfDoc } from '../../lib/invoicePdf'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
@@ -453,9 +454,15 @@ export default function Invoices() {
     if (!sendTarget || sending) return
     setSending(true)
     try {
-      // 1) Branded mail naar de klant via EmailIt
+      // 0) PDF genereren (zelfde lay-out als de klant-download) om als bijlage mee te sturen
+      const { data: settings } = await supabase.from('invoice_settings').select('*').limit(1).single()
+      const clientNameFallback = sendTarget.client?.name || sendTarget.client_name || ''
+      const doc = await generateInvoicePdfDoc(sendTarget, settings, clientNameFallback)
+      const pdfBase64 = doc.output('datauristring').split(',').pop()
+
+      // 1) Branded mail naar de klant via EmailIt, met de factuur-PDF als bijlage
       const { data, error } = await supabase.functions.invoke('send-invoice-email', {
-        body: { invoice_id: sendTarget.id },
+        body: { invoice_id: sendTarget.id, pdf_base64: pdfBase64 },
       })
       if (error || (data && !data.success)) {
         throw new Error(error?.message || data?.error || 'E-mail versturen mislukt')
