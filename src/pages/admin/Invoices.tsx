@@ -428,6 +428,9 @@ export default function Invoices() {
   }
 
   const invoiceDateOf = (i: Invoice) => i.invoice_date || i.created_at
+  // Voor de betaalde-lijst sorteren we op de échte betaaldatum; facturen zonder
+  // paid_at (oud/handmatig) vallen terug op de factuurdatum zodat ze niet verdwalen.
+  const paidDateOf = (i: Invoice) => i.paid_at || i.invoice_date || i.created_at
 
   useEffect(() => {
     fetchInvoices()
@@ -676,11 +679,11 @@ export default function Invoices() {
   })
 
   // Sort
-  const sortInvoices = (list: Invoice[]) => {
+  const sortInvoices = (list: Invoice[], dateOf: (i: Invoice) => string = invoiceDateOf) => {
     return [...list].sort((a, b) => {
       let cmp = 0
       if (sortField === 'date') {
-        cmp = new Date(invoiceDateOf(a)).getTime() - new Date(invoiceDateOf(b)).getTime()
+        cmp = new Date(dateOf(a)).getTime() - new Date(dateOf(b)).getTime()
       } else {
         cmp = a.amount - b.amount
       }
@@ -691,7 +694,7 @@ export default function Invoices() {
   // Split into sections — templates (is_recurring) horen alléén in de derde sectie.
   const openInvoices = sortInvoices(filtered.filter(i => !i.is_recurring && (i.status === 'draft' || i.status === 'sent')))
   const allPaidInvoices = filtered.filter(i => !i.is_recurring && i.status === 'paid')
-  const paidInvoicesFiltered = sortInvoices(allPaidInvoices.filter(i => new Date(invoiceDateOf(i)).getFullYear() === paidYear))
+  const paidInvoicesFiltered = sortInvoices(allPaidInvoices.filter(i => new Date(invoiceDateOf(i)).getFullYear() === paidYear), paidDateOf)
   const recurringInvoices = filtered
     .filter(i => i.is_recurring)
     .sort((a, b) => {
