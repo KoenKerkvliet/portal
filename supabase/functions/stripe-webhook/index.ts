@@ -57,65 +57,75 @@ async function createInvoiceForPunchCardPurchase(
     .limit(1)
     .single()
 
-  const { data: existingInvoices } = await supabase
-    .from('invoices')
-    .select('number, is_test, has_temp_number, is_recurring')
-
-  const realNumbers = (existingInvoices || [])
-    .filter((inv) => !inv.is_test && !inv.has_temp_number && !inv.is_recurring)
-    .map((inv) => inv.number as string)
-
-  const number = generateInvoiceNumber(
-    settings?.invoice_prefix || 'INV',
-    settings?.year_format || 'YY',
-    settings?.start_number || 1,
-    realNumbers,
-  )
-
   const btwPercent = settings?.kor_enabled ? 0 : 21
   const subtotal = btwPercent > 0 ? Math.round((amountPaid / (1 + btwPercent / 100)) * 100) / 100 : amountPaid
   const today = new Date().toISOString().split('T')[0]
 
-  const { error: invoiceError } = await supabase.from('invoices').insert({
-    number,
-    project_id: projectId,
-    client_id: projectClient.client_id,
-    amount: amountPaid,
-    subtotal,
-    status: 'paid',
-    invoice_date: today,
-    due_date: today,
-    paid_at: new Date().toISOString(),
-    is_test: false,
-    has_temp_number: false,
-    is_recurring: false,
-    is_deposit_invoice: false,
-    is_remainder_invoice: false,
-    client_name: client?.name || '',
-    client_email: client?.email || '',
-    client_address: client?.company || '',
-    btw_percent: btwPercent,
-    discount_percent: 0,
-    notes: '',
-    items: [
-      {
-        id: crypto.randomUUID(),
-        type: 'product',
-        name: `Strippenkaart - ${totalPunches} strippen`,
-        description: `Strippenkaart met ${totalPunches} strippen, gekocht via het klantportaal.`,
-        quantity: 1,
-        unit: 'stuk',
-        price: subtotal,
-        is_recurring: false,
-      },
-    ],
-  })
+  // Factuurnummer bepalen + insert, met retry bij een botsing op de unieke
+  // index invoices_real_number_unique (bv. gelijktijdige generatie elders).
+  let invoiceError: { code?: string; message?: string } | null = null
+  let createdNumber = ''
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: existingInvoices } = await supabase
+      .from('invoices')
+      .select('number, is_test, has_temp_number, is_recurring')
+
+    const realNumbers = (existingInvoices || [])
+      .filter((inv) => !inv.is_test && !inv.has_temp_number && !inv.is_recurring)
+      .map((inv) => inv.number as string)
+
+    const number = generateInvoiceNumber(
+      settings?.invoice_prefix || 'INV',
+      settings?.year_format || 'YY',
+      settings?.start_number || 1,
+      realNumbers,
+    )
+    createdNumber = number
+
+    const { error } = await supabase.from('invoices').insert({
+      number,
+      project_id: projectId,
+      client_id: projectClient.client_id,
+      amount: amountPaid,
+      subtotal,
+      status: 'paid',
+      invoice_date: today,
+      due_date: today,
+      paid_at: new Date().toISOString(),
+      is_test: false,
+      has_temp_number: false,
+      is_recurring: false,
+      is_deposit_invoice: false,
+      is_remainder_invoice: false,
+      client_name: client?.name || '',
+      client_email: client?.email || '',
+      client_address: client?.company || '',
+      btw_percent: btwPercent,
+      discount_percent: 0,
+      notes: '',
+      items: [
+        {
+          id: crypto.randomUUID(),
+          type: 'product',
+          name: `Strippenkaart - ${totalPunches} strippen`,
+          description: `Strippenkaart met ${totalPunches} strippen, gekocht via het klantportaal.`,
+          quantity: 1,
+          unit: 'stuk',
+          price: subtotal,
+          is_recurring: false,
+        },
+      ],
+    })
+    invoiceError = error as typeof invoiceError
+    if (!error) break
+    if ((error as { code?: string }).code !== '23505') break
+  }
 
   if (invoiceError) {
     throw new Error(`Factuur aanmaken mislukt: ${invoiceError.message}`)
   }
 
-  console.log(`Factuur ${number} aangemaakt (betaald, €${amountPaid}) voor project ${projectId}`)
+  console.log(`Factuur ${createdNumber} aangemaakt (betaald, €${amountPaid}) voor project ${projectId}`)
 }
 
 // Stripe webhook signature verification
@@ -150,71 +160,113 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
+    // Handtekening-verificatie is VERPLICHT. Ontbreekt het secret, de header, of
+    // klopt de handtekening niet → weigeren. Er is geen pad waarin een
+    // ongeverifieerde body wordt verwerkt (anders kan iedereen die de URL kent
+    // gratis strippenkaarten en valse "betaalde" facturen aanmaken).
+    if (!STRIPE_WEBHOOK_SECRET) {
+      console.error('STRIPE_WEBHOOK_SECRET niet geconfigureerd')
+      return new Response('Webhook secret not configured', { status: 500 })
+    }
     const payload = await req.text()
     const sigHeader = req.headers.get('stripe-signature')
-
-    // Verify webhook signature if secret is configured
-    if (STRIPE_WEBHOOK_SECRET && sigHeader) {
-      const valid = await verifySignature(payload, sigHeader, STRIPE_WEBHOOK_SECRET)
-      if (!valid) {
-        console.error('Invalid webhook signature')
-        return new Response('Invalid signature', { status: 400 })
-      }
+    if (!sigHeader) {
+      return new Response('Missing signature', { status: 400 })
+    }
+    const valid = await verifySignature(payload, sigHeader, STRIPE_WEBHOOK_SECRET)
+    if (!valid) {
+      console.error('Invalid webhook signature')
+      return new Response('Invalid signature', { status: 400 })
     }
 
     const event = JSON.parse(payload)
 
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object
-      const projectId = session.metadata?.project_id
-      const totalPunches = parseInt(session.metadata?.total_punches || '12', 10)
-      const amountPaid = (session.amount_total || 0) / 100 // cents to euros
+    // Use service role to bypass RLS
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-      if (!projectId) {
-        console.error('No project_id in session metadata')
-        return new Response('Missing project_id', { status: 400 })
+    // Idempotentie: claim dit event-id. Stripe levert at-least-once; een tweede
+    // levering van hetzelfde event botst op de primary key en wordt overgeslagen.
+    if (event.id) {
+      const { error: claimErr } = await supabase
+        .from('processed_stripe_events')
+        .insert({ event_id: event.id })
+      if (claimErr) {
+        if ((claimErr as { code?: string }).code === '23505') {
+          return new Response(JSON.stringify({ received: true, duplicate: true }), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        console.error('Kon Stripe-event niet claimen:', claimErr.message)
+        return new Response('Claim failed', { status: 500 })
       }
+    }
 
-      // Use service role to bypass RLS
-      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    try {
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object
+        const projectId = session.metadata?.project_id
+        const totalPunches = parseInt(session.metadata?.total_punches || '12', 10)
+        const amountPaid = (session.amount_total || 0) / 100 // cents to euros
 
-      // Get the next card number for this project
-      const { data: existingCards } = await supabase
-        .from('punch_cards')
-        .select('number')
-        .eq('project_id', projectId)
-        .order('number', { ascending: false })
-        .limit(1)
+        if (!projectId) {
+          console.error('No project_id in session metadata')
+          // Niet-verwerkbaar event: 200 zodat Stripe niet blijft herproberen.
+          return new Response(JSON.stringify({ received: true, skipped: 'no project_id' }), {
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
 
-      const nextNumber = (existingCards?.[0]?.number || 0) + 1
+        // Kaartnummer bepalen + insert, met retry bij botsing op de unieke index
+        // punch_cards_project_number_unique.
+        let insertError: { code?: string; message?: string } | null = null
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const { data: existingCards } = await supabase
+            .from('punch_cards')
+            .select('number')
+            .eq('project_id', projectId)
+            .order('number', { ascending: false })
+            .limit(1)
+          const nextNumber = (existingCards?.[0]?.number || 0) + 1
+          const { error } = await supabase.from('punch_cards').insert({
+            project_id: projectId,
+            number: nextNumber,
+            total_punches: totalPunches,
+            used_punches: 0,
+            is_gift: false,
+            price: amountPaid,
+            status: 'active',
+            purchased_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+          })
+          insertError = error as typeof insertError
+          if (!error) break
+          if ((error as { code?: string }).code !== '23505') break
+        }
+        if (insertError) {
+          throw new Error(`punch card insert: ${insertError.message}`)
+        }
 
-      // Create the punch card
-      const { error: insertError } = await supabase.from('punch_cards').insert({
-        project_id: projectId,
-        number: nextNumber,
-        total_punches: totalPunches,
-        used_punches: 0,
-        is_gift: false,
-        price: amountPaid,
-        status: 'active',
-        purchased_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString(),
-      })
+        console.log(`Punch card created for project ${projectId} (${totalPunches} punches, €${amountPaid})`)
 
-      if (insertError) {
-        console.error('Error creating punch card:', insertError)
-        return new Response(JSON.stringify({ error: insertError.message }), { status: 500 })
+        // Factuur aanmaken. Fout hierin mag de webhook niet laten falen — de
+        // strippenkaart staat dan al goed, dat is het belangrijkste.
+        try {
+          await createInvoiceForPunchCardPurchase(supabase, projectId, totalPunches, amountPaid)
+        } catch (invoiceError) {
+          console.error('Factuur aanmaken voor strippenkaart-aankoop mislukt:', invoiceError)
+        }
       }
-
-      console.log(`Punch card #${nextNumber} created for project ${projectId} (${totalPunches} punches, €${amountPaid})`)
-
-      // Factuur aanmaken voor deze aankoop. Fout hierin mag de webhook niet laten
-      // falen — de strippenkaart zelf staat dan al goed, dat is het belangrijkste.
-      try {
-        await createInvoiceForPunchCardPurchase(supabase, projectId, totalPunches, amountPaid)
-      } catch (invoiceError) {
-        console.error('Factuur aanmaken voor strippenkaart-aankoop mislukt:', invoiceError)
+    } catch (workErr) {
+      // Werk mislukte ná de claim: claim terugdraaien zodat Stripe het bij een
+      // volgende levering opnieuw kan proberen.
+      if (event.id) {
+        await supabase.from('processed_stripe_events').delete().eq('event_id', event.id)
       }
+      console.error('Webhook-verwerking mislukt:', workErr)
+      return new Response(
+        JSON.stringify({ error: workErr instanceof Error ? workErr.message : String(workErr) }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } },
+      )
     }
 
     return new Response(JSON.stringify({ received: true }), {
