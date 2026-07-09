@@ -361,10 +361,14 @@ type OpenInvoice = {
 
 async function matchInvoices(db: ReturnType<typeof createClient>): Promise<number> {
   // 1. Haal alle ongekoppelde inkomende transacties op (positief bedrag).
+  // Sluit transacties uit die al aan een uitgave hangen of handmatig zijn
+  // gecategoriseerd (bv. privé-storting) — die horen geen factuur te matchen.
   const { data: txs, error: txErr } = await db
     .from('bank_transactions')
     .select('id, amount, description, counterparty_name, booked_at')
     .is('invoice_id', null)
+    .is('expense_id', null)
+    .is('category', null)
     .gt('amount', 0)
   if (txErr) {
     console.error('matchInvoices: kon transacties niet laden:', txErr.message)
@@ -394,10 +398,12 @@ async function matchInvoices(db: ReturnType<typeof createClient>): Promise<numbe
     const candidates = (invoices as OpenInvoice[]).filter((inv) => {
       // Bedrag exact gelijk (centafronding-marge).
       if (Math.abs(Number(inv.amount) - Number(tx.amount)) > 0.005) return false
-      // Factuurnummer voorkomen in omschrijving (case-insensitive).
+      // Factuurnummer moet als heel woord in de omschrijving staan
+      // (case-insensitive). Token-match i.p.v. substring, zodat '2415' niet
+      // matcht binnen '62415', een datum of een IBAN-fragment.
       if (!inv.number) return false
-      const desc = (tx.description || '').toLowerCase()
-      return desc.includes(inv.number.toLowerCase())
+      const tokens = (tx.description || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+      return tokens.includes(inv.number.toLowerCase())
     })
 
     // Alleen bij precies één match auto-koppelen — bij dubbele match overslaan
@@ -407,13 +413,19 @@ async function matchInvoices(db: ReturnType<typeof createClient>): Promise<numbe
 
     // Update factuur → paid. paid_at krijgt de ECHTE betaaldatum uit de
     // banktransactie (booked_at), niet de factuur- of vervaldatum.
-    const { error: invUpdErr } = await db
+    const { data: updatedRows, error: invUpdErr } = await db
       .from('invoices')
       .update({ status: 'paid', paid_at: tx.booked_at })
       .eq('id', inv.id)
       .in('status', ['sent', 'draft']) // race-conditie: alleen als nog open
+      .select('id')
     if (invUpdErr) {
       console.error(`matchInvoices: update factuur ${inv.number} mislukt:`, invUpdErr.message)
+      continue
+    }
+    // Raakte 0 rijen? Dan zette een gelijktijdige run 'm net al op betaald —
+    // niet nogmaals koppelen of mailen (voorkomt dubbele "betaald"-notificatie).
+    if (!updatedRows || updatedRows.length !== 1) {
       continue
     }
 
@@ -525,8 +537,49 @@ async function sendInvoicePaidEmail(opts: {
 
 // ---- HTTP entrypoint ---------------------------------------------------------
 
+// Rol uit de (door de gateway al geverifieerde) JWT lezen.
+function jwtRole(req: Request): string | null {
+  const auth = req.headers.get('Authorization')
+  if (!auth?.startsWith('Bearer ')) return null
+  const parts = auth.slice(7).split('.')
+  if (parts.length !== 3) return null
+  try {
+    return JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))).role ?? null
+  } catch { return null }
+}
+
+// Toegestaan: pg_cron (service_role) óf een geverifieerde admin (de "Verversen"-
+// knop in het portaal). Anon/klant wordt geweigerd.
+async function isAllowed(req: Request): Promise<boolean> {
+  const role = jwtRole(req)
+  if (role === 'service_role') return true
+  if (role !== 'authenticated') return false
+  const token = (req.headers.get('Authorization') || '').slice(7)
+  try {
+    const authClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } },
+    )
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) return false
+    const svc = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const { data: prof } = await svc.from('profiles').select('role').eq('id', user.id).single()
+    return prof?.role === 'admin'
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
+  if (!(await isAllowed(req))) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Forbidden' }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
 
   try {
     const result = await runSync()

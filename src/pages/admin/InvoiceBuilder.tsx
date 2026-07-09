@@ -246,7 +246,9 @@ export default function InvoiceBuilder() {
           }
           setItems(quote.items || [])
           setDiscountPercent(quote.discount_percent || 0)
-          setBtwPercent(quote.btw_percent ?? 21)
+          // Onder KOR nooit btw overnemen uit de offerte — anders telt er onzichtbaar
+          // btw in het totaal zonder btw-regel op de factuur.
+          setBtwPercent(settingsRes.data?.kor_enabled ? 0 : (quote.btw_percent ?? 21))
           setNotes(quote.notes || '')
         }
       }
@@ -445,6 +447,21 @@ export default function InvoiceBuilder() {
       )
     }
 
+    // Reeksnummer voor een gewone nieuwe factuur pas vlak vóór opslaan definitief
+    // maken (niet bij page-load), zodat het venster tussen openen en opslaan geen
+    // dubbel nummer oplevert. De unieke DB-index invoices_real_number_unique is
+    // het uiteindelijke vangnet; de insert hieronder probeert bij een botsing
+    // automatisch het volgende nummer.
+    if (!editId && !isRecurring && !isTestInvoice && invoiceSettings && !finalNumber.startsWith('RECURRING-')) {
+      const { data: existing } = await supabase.from('invoices').select('number')
+      finalNumber = generateInvoiceNumber(
+        invoiceSettings.invoice_prefix,
+        invoiceSettings.year_format as YearFormat,
+        invoiceSettings.start_number,
+        (existing || []).map((i) => i.number as string)
+      )
+    }
+
     const payload = {
       number: finalNumber,
       has_temp_number: finalHasTempNumber,
@@ -461,7 +478,8 @@ export default function InvoiceBuilder() {
       client_address: clientAddress,
       items,
       discount_percent: discountPercent,
-      btw_percent: btwPercent,
+      // Vangnet: een nieuwe factuur onder KOR krijgt altijd 0% btw.
+      btw_percent: (!editId && invoiceSettings?.kor_enabled) ? 0 : btwPercent,
       notes,
       is_recurring: isRecurring,
       recurrence_interval: isRecurring ? recurrenceInterval : null,
@@ -550,7 +568,24 @@ export default function InvoiceBuilder() {
         return
       }
     } else {
-      await supabase.from('invoices').insert(payload)
+      let { error } = await supabase.from('invoices').insert(payload)
+      // Bij een (zeldzame) nummerbotsing op de unieke index: vers nummer pakken
+      // en één keer opnieuw. Anders de fout tonen i.p.v. stil inslikken.
+      if (error && (error as { code?: string }).code === '23505' && invoiceSettings && !isTestInvoice) {
+        const { data: existing } = await supabase.from('invoices').select('number')
+        const retryNumber = generateInvoiceNumber(
+          invoiceSettings.invoice_prefix,
+          invoiceSettings.year_format as YearFormat,
+          invoiceSettings.start_number,
+          (existing || []).map((i) => i.number as string)
+        )
+        ;({ error } = await supabase.from('invoices').insert({ ...payload, number: retryNumber }))
+      }
+      if (error) {
+        alert('Factuur opslaan mislukt: ' + (error.message || 'onbekende fout'))
+        setSaving(false)
+        return
+      }
     }
 
     setSaving(false)

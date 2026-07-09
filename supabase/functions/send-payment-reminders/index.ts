@@ -20,7 +20,24 @@ function euro(n: number): string {
   return `€${n.toFixed(2).replace('.', ',')}`
 }
 
-Deno.serve(async () => {
+// Rol uit de (door de gateway al geverifieerde) JWT lezen.
+function jwtRole(req: Request): string | null {
+  const auth = req.headers.get('Authorization')
+  if (!auth?.startsWith('Bearer ')) return null
+  const parts = auth.slice(7).split('.')
+  if (parts.length !== 3) return null
+  try {
+    return JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))).role ?? null
+  } catch { return null }
+}
+
+Deno.serve(async (req) => {
+  // Alleen aanroepbaar door pg_cron (service_role) — geen publieke anon-key.
+  if (jwtRole(req) !== 'service_role') {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403, headers: { 'Content-Type': 'application/json' },
+    })
+  }
   try {
     const EMAILIT_API_KEY = Deno.env.get('EMAILIT_API_KEY')
     if (!EMAILIT_API_KEY) throw new Error('EMAILIT_API_KEY not configured')

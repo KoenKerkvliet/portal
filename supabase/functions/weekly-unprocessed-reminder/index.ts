@@ -18,6 +18,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Rol uit de (door de gateway al geverifieerde) JWT lezen.
+function jwtRole(req: Request): string | null {
+  const auth = req.headers.get('Authorization')
+  if (!auth?.startsWith('Bearer ')) return null
+  const parts = auth.slice(7).split('.')
+  if (parts.length !== 3) return null
+  try {
+    return JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))).role ?? null
+  } catch { return null }
+}
+
 type Tx = {
   id: string
   booked_at: string
@@ -240,6 +251,13 @@ function escapeHtml(s: string): string {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
+  // Alleen aanroepbaar door pg_cron (service_role) — geen publieke anon-key.
+  if (jwtRole(req) !== 'service_role') {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
 
   try {
     const apiKey = Deno.env.get('EMAILIT_API_KEY')

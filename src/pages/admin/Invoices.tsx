@@ -407,6 +407,9 @@ export default function Invoices() {
   const [sending, setSending] = useState(false)
   const [remindTarget, setRemindTarget] = useState<Invoice | null>(null)
   const [reminding, setReminding] = useState(false)
+  // Handmatig-betaald: modal die om de echte betaaldatum vraagt (zet paid_at).
+  const [paidTarget, setPaidTarget] = useState<Invoice | null>(null)
+  const [paidDate, setPaidDate] = useState('')
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -445,13 +448,48 @@ export default function Invoices() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Weet je zeker dat je deze factuur wilt verwijderen?')) return
+    const inv = invoices.find((i) => i.id === id)
+    // Een betaalde factuur mag fiscaal niet zomaar verdwijnen.
+    if (inv?.status === 'paid') {
+      alert('Deze factuur staat op betaald en kan niet verwijderd worden.\n\nZet hem eerst terug op "Concept"/"Verzonden" als het echt een fout was, of maak een creditnota.')
+      return
+    }
+    const extra = inv?.status === 'sent'
+      ? '\n\nLet op: deze factuur is al verzonden naar de klant.'
+      : ''
+    if (!confirm('Weet je zeker dat je deze factuur wilt verwijderen?' + extra)) return
     await supabase.from('invoices').delete().eq('id', id)
     fetchInvoices()
   }
 
   const handleStatusChange = async (invoice: Invoice, status: InvoiceStatus) => {
+    if (status === invoice.status) return
+    // Handmatig op 'betaald' zetten → eerst de echte betaaldatum vragen (paid_at).
+    if (status === 'paid') {
+      setPaidDate(new Date().toISOString().split('T')[0])
+      setPaidTarget(invoice)
+      return
+    }
+    // Een betaalde factuur terugzetten wist de betaalregistratie — even bevestigen.
+    if (invoice.status === 'paid') {
+      if (!confirm(`Deze factuur staat op betaald. Terugzetten naar "${statusLabels[status]}" wist de geregistreerde betaaldatum. Doorgaan?`)) {
+        fetchInvoices() // dropdown visueel terugzetten
+        return
+      }
+      await supabase.from('invoices').update({ status, paid_at: null }).eq('id', invoice.id)
+      fetchInvoices()
+      return
+    }
     await supabase.from('invoices').update({ status }).eq('id', invoice.id)
+    fetchInvoices()
+  }
+
+  // Bevestig handmatige betaling met de gekozen datum.
+  const confirmManualPaid = async () => {
+    if (!paidTarget) return
+    const iso = paidDate ? new Date(`${paidDate}T12:00:00`).toISOString() : new Date().toISOString()
+    await supabase.from('invoices').update({ status: 'paid', paid_at: iso }).eq('id', paidTarget.id)
+    setPaidTarget(null)
     fetchInvoices()
   }
 
@@ -921,6 +959,44 @@ export default function Invoices() {
                   disabled={reminding}
                   className="px-4 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-60"
                 >
+                  Annuleren
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Handmatig betaald — betaaldatum vragen */}
+      {paidTarget && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setPaidTarget(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Factuur op betaald zetten</h2>
+                <button onClick={() => setPaidTarget(null)} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Factuur <span className="font-mono font-medium text-gray-900">{paidTarget.number}</span> handmatig markeren als betaald. Op welke datum is de betaling binnengekomen?
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Betaaldatum</label>
+              <input
+                type="date"
+                value={paidDate}
+                onChange={(e) => setPaidDate(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 mb-5"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmManualPaid}
+                  className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors"
+                >
+                  <CheckCircle className="w-4 h-4" /> Betaald op deze datum
+                </button>
+                <button onClick={() => setPaidTarget(null)} className="px-4 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
                   Annuleren
                 </button>
               </div>

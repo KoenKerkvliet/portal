@@ -19,6 +19,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Rol uit de (door de gateway al geverifieerde) JWT lezen.
+function jwtRole(req: Request): string | null {
+  const auth = req.headers.get('Authorization')
+  if (!auth?.startsWith('Bearer ')) return null
+  const parts = auth.slice(7).split('.')
+  if (parts.length !== 3) return null
+  try {
+    return JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))).role ?? null
+  } catch { return null }
+}
+
 const PORTAL_URL = 'https://portal.designpixels.nl'
 
 type RecurrenceInterval = 'daily' | 'weekly' | 'monthly' | 'yearly'
@@ -268,6 +279,14 @@ async function sendAdminSummary(opts: {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
+  // Alleen aanroepbaar door pg_cron (service_role). Voorkomt dat iemand met de
+  // publieke anon-key facturen laat genereren en klantmails triggert.
+  if (jwtRole(req) !== 'service_role') {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
   try {
     const db = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -441,6 +460,20 @@ Deno.serve(async (req) => {
     // rekening in de gaten moet houden.
     if (generated.length > 0 && EMAILIT_API_KEY && adminEmails.length > 0) {
       await sendAdminSummary({ apiKey: EMAILIT_API_KEY, from: EMAILIT_FROM, to: adminEmails, generated })
+    }
+
+    // Foutmelding: als een terugkerende factuur NIET gegenereerd kon worden, moet
+    // Koen dat weten — de HTTP-response verdwijnt anders in pg_cron.
+    if (errors.length > 0 && EMAILIT_API_KEY && adminEmails.length > 0) {
+      const rows = errors.map((e) => `<li>Template <code>${e.template_id}</code>: ${e.error}</li>`).join('')
+      const html = `<p>Bij het automatisch genereren van terugkerende facturen ging iets mis (${errors.length}):</p><ul>${rows}</ul><p>Controleer het klantportaal — deze facturen zijn <strong>niet</strong> verstuurd.</p>`
+      for (const to of adminEmails) {
+        await fetch('https://api.emailit.com/v2/emails', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${EMAILIT_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: EMAILIT_FROM, to, subject: `⚠️ Terugkerende factuur mislukt (${errors.length})`, html }),
+        }).catch((e) => console.error('Foutmail versturen mislukt:', e))
+      }
     }
 
     return new Response(

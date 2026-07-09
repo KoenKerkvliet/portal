@@ -1398,7 +1398,9 @@ function IncomeTab({ invoices }: { invoices: Invoice[] }) {
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'sent' | 'draft'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const real = useMemo(() => invoices.filter((inv) => !inv.is_test), [invoices])
+  // Sluit terugkerende sjablonen uit: die zijn geen echte factuur en zouden
+  // anders dubbel meetellen bovenop elke daadwerkelijk gegenereerde factuur.
+  const real = useMemo(() => invoices.filter((inv) => !inv.is_test && !inv.is_recurring), [invoices])
 
   const years = useMemo(() => {
     const set = new Set<number>([now.getFullYear()])
@@ -1607,7 +1609,7 @@ function BalansTab({
   }, [transactions])
 
   const paidInvoices = useMemo(
-    () => invoices.filter((inv) => inv.status === 'paid' && !inv.is_test && inv.invoice_date),
+    () => invoices.filter((inv) => inv.status === 'paid' && !inv.is_test && !inv.is_recurring && inv.invoice_date),
     [invoices],
   )
 
