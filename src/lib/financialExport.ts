@@ -34,6 +34,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 const isPrivateCat = (c: string | null) =>
   c === 'private_deposit' || c === 'private_withdrawal' || c === 'private_purchase'
 
+// Een refund (bv. teruggestorte AppSumo-aankoop) is een positieve transactie
+// gekoppeld aan een Kost. Die telt NIET als inkomst maar verlaagt de kosten —
+// gelijk aan hoe de Banktransacties-tab op het scherm het doet.
+const isRefund = (t: BankTransaction) => Number(t.amount) > 0 && t.expense_id != null
+
 export function generateTransactionsCsv(
   txs: BankTransaction[],
   invoiceById: Map<string, Invoice>,
@@ -108,8 +113,10 @@ export function generateSummaryText(opts: {
   const business = txs.filter((t) => !isPrivateCat(t.category))
   let income = 0, expense = 0
   for (const t of business) {
-    if (t.amount >= 0) income += Number(t.amount)
-    else expense += Math.abs(Number(t.amount))
+    const amt = Number(t.amount)
+    if (isRefund(t)) expense -= amt        // refund verlaagt de kosten
+    else if (amt >= 0) income += amt
+    else expense += Math.abs(amt)
   }
   const balance = income - expense
 
@@ -188,8 +195,10 @@ export function generatePdfReport(opts: {
   const business = txs.filter((t) => !isPrivateCat(t.category))
   let income = 0, expense = 0
   for (const t of business) {
-    if (t.amount >= 0) income += Number(t.amount)
-    else expense += Math.abs(Number(t.amount))
+    const amt = Number(t.amount)
+    if (isRefund(t)) expense -= amt        // refund verlaagt de kosten
+    else if (amt >= 0) income += amt
+    else expense += Math.abs(amt)
   }
   const balance = income - expense
 

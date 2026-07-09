@@ -97,6 +97,7 @@ export default function Financien() {
   const [loading, setLoading] = useState(true)
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [korEnabled, setKorEnabled] = useState(false)
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const saved = (typeof window !== 'undefined' && window.sessionStorage.getItem('financien_tab')) as TabKey | null
@@ -126,16 +127,18 @@ export default function Financien() {
   const [dateSort, setDateSort] = useState<'desc' | 'asc'>('desc')
 
   const fetchData = async () => {
-    const [txRes, stateRes, invRes, expRes] = await Promise.all([
+    const [txRes, stateRes, invRes, expRes, setRes] = await Promise.all([
       supabase.from('bank_transactions').select('*').order('booked_at', { ascending: false }),
       supabase.from('bunq_state').select('last_sync_at, session_token').eq('id', 1).maybeSingle(),
       supabase.from('invoices').select('*').order('invoice_date', { ascending: false, nullsFirst: false }),
       supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
+      supabase.from('invoice_settings').select('kor_enabled').limit(1).maybeSingle(),
     ])
     if (txRes.error) console.error('Kon transacties niet laden:', txRes.error)
     setTransactions((txRes.data as BankTransaction[] | null) ?? [])
     setInvoices((invRes.data as Invoice[] | null) ?? [])
     setExpenses((expRes.data as Expense[] | null) ?? [])
+    setKorEnabled(Boolean(setRes.data?.kor_enabled))
     setLastSyncAt(stateRes.data?.last_sync_at ?? null)
     setIsConnected(Boolean(stateRes.data?.session_token))
     setLoading(false)
@@ -337,6 +340,14 @@ export default function Financien() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Wallet className="w-6 h-6 text-primary" />
             Financiën
+            {korEnabled && (
+              <span
+                className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold"
+                title="Kleineondernemersregeling: je brengt geen btw in rekening. Omzet en bedragen zijn zonder btw."
+              >
+                KOR · omzet zonder btw
+              </span>
+            )}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {tabSubtitle}
@@ -1430,7 +1441,8 @@ function IncomeTab({ invoices }: { invoices: Invoice[] }) {
     let total = 0, paid = 0, outstanding = 0, draft = 0
     for (const inv of filtered) {
       const amt = Number(inv.amount)
-      total += amt
+      // Omzet (factuurstelsel) = gefactureerd = verstuurd + betaald; concept telt niet mee.
+      if (inv.status !== 'draft') total += amt
       if (inv.status === 'paid') paid += amt
       else if (inv.status === 'sent') outstanding += amt
       else if (inv.status === 'draft') draft += amt
@@ -1446,10 +1458,10 @@ function IncomeTab({ invoices }: { invoices: Invoice[] }) {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <FileText className="w-4 h-4 text-gray-700" />
-            Totaal verstuurd
+            Omzet (gefactureerd)
           </div>
           <div className="mt-2 text-2xl font-bold text-gray-900">{formatMoney(totals.total)}</div>
-          <div className="text-xs text-gray-400 mt-1">{totals.count} facturen · {periodLabel}</div>
+          <div className="text-xs text-gray-400 mt-1">verstuurd + betaald · {periodLabel}</div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1608,8 +1620,10 @@ function BalansTab({
     return map
   }, [transactions])
 
-  const paidInvoices = useMemo(
-    () => invoices.filter((inv) => inv.status === 'paid' && !inv.is_test && !inv.is_recurring && inv.invoice_date),
+  // Factuurstelsel: omzet telt zodra er gefactureerd is (verstuurd + betaald),
+  // op factuurdatum. Concepten tellen niet mee (nog niet uitgereikt).
+  const invoicedInvoices = useMemo(
+    () => invoices.filter((inv) => (inv.status === 'paid' || inv.status === 'sent') && !inv.is_test && !inv.is_recurring && inv.invoice_date),
     [invoices],
   )
 
@@ -1623,13 +1637,13 @@ function BalansTab({
     for (const e of expenses) {
       if (e.expense_date) set.add(new Date(e.expense_date).getFullYear())
     }
-    for (const inv of paidInvoices) {
+    for (const inv of invoicedInvoices) {
       if (inv.invoice_date) set.add(new Date(inv.invoice_date).getFullYear())
     }
     for (const t of interestTxs) set.add(new Date(t.booked_at).getFullYear())
     return [...set].sort((a, b) => b - a)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expenses, paidInvoices, interestTxs])
+  }, [expenses, invoicedInvoices, interestTxs])
 
   type Bucket = { label: string; income: number; expense: number }
 
@@ -1647,7 +1661,7 @@ function BalansTab({
         yearMap.set(y, cur)
       }
 
-      for (const inv of paidInvoices) {
+      for (const inv of invoicedInvoices) {
         bumpIncome(new Date(inv.invoice_date!).getFullYear(), Number(inv.amount))
       }
       for (const t of interestTxs) {
@@ -1671,7 +1685,7 @@ function BalansTab({
       expense: 0,
     }))
 
-    for (const inv of paidInvoices) {
+    for (const inv of invoicedInvoices) {
       const d = new Date(inv.invoice_date!)
       if (d.getFullYear() !== filterYear) continue
       months[d.getMonth()].income += Number(inv.amount)
@@ -1690,7 +1704,7 @@ function BalansTab({
     }
 
     return months
-  }, [paidInvoices, interestTxs, expenses, refundsByExpense, filterYear])
+  }, [invoicedInvoices, interestTxs, expenses, refundsByExpense, filterYear])
 
   const totals = useMemo(() => {
     let income = 0, expense = 0
