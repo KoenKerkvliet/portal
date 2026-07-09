@@ -113,6 +113,7 @@ export interface Invoice {
   amount: number
   status: InvoiceStatus
   due_date: string
+  paid_at: string | null
   is_test: boolean
   invoice_date: string | null
   client_name: string | null

@@ -47,7 +47,7 @@ function nextTempNumber(invoices: Invoice[]): string {
   return `TMP-${max + 1}`
 }
 
-function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize }: {
+function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
   invoice: Invoice
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onSend: (invoice: Invoice) => void
@@ -56,6 +56,7 @@ function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdi
   onEdit: (id: string) => void
   onSplit: (invoice: Invoice) => void
   onFinalize: (invoice: Invoice) => void
+  dateLabel: 'due' | 'paid'
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false })
@@ -139,7 +140,11 @@ function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdi
         {new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}
       </td>
       <td className="px-5 py-3.5 text-sm text-gray-500">
-        {new Date(invoice.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}
+        {dateLabel === 'paid'
+          ? (invoice.paid_at
+              ? new Date(invoice.paid_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
+              : '—')
+          : new Date(invoice.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}
       </td>
       <td className="px-5 py-3.5 text-sm font-semibold text-gray-900 text-right">
         &euro;&nbsp;{invoice.amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -382,7 +387,7 @@ function InvoiceTable({ invoices, onStatusChange, onSend, onRemind, onDelete, on
         </thead>
         <tbody>
           {invoices.map((invoice) => (
-            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onSend={onSend} onRemind={onRemind} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} />
+            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onSend={onSend} onRemind={onRemind} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} dateLabel={dateLabel} />
           ))}
         </tbody>
       </table>
