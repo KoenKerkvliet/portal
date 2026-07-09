@@ -93,8 +93,10 @@ Deno.serve(async (req) => {
     }
     const inv = invoice as unknown as InvoiceJoined
 
-    const recipientEmail = inv.client?.email || inv.client_email
-    const recipientName = inv.client?.name || inv.client_name || 'klant'
+    // Snapshot op de factuur wint van het live klant-adres: één klant kan per
+    // domein een ander factuuradres hebben (projects.invoice_email).
+    const recipientEmail = inv.client_email || inv.client?.email
+    const recipientName = inv.client_name || inv.client?.name || 'klant'
     const projectName = inv.project?.name || 'je domein'
 
     if (!recipientEmail) {

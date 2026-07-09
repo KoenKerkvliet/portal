@@ -85,8 +85,10 @@ Deno.serve(async (req) => {
     }
     const q = quote as unknown as QuoteJoined
 
-    const recipientEmail = q.client?.email || q.client_email
-    const recipientName = q.client?.name || q.client_name || 'klant'
+    // Snapshot op de offerte wint van het live klant-adres: één klant kan per
+    // domein een ander factuuradres hebben (projects.invoice_email).
+    const recipientEmail = q.client_email || q.client?.email
+    const recipientName = q.client_name || q.client?.name || 'klant'
     const projectName = q.project?.name || 'je project'
 
     if (!recipientEmail) {

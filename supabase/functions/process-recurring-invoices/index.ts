@@ -377,8 +377,10 @@ Deno.serve(async (req) => {
 
         if (updErr) throw new Error(`update template: ${updErr.message}`)
 
-        const recipientEmail = tpl.client?.email || tpl.client_email
-        const recipientName = tpl.client?.name || tpl.client_name || 'klant'
+        // Snapshot op de template wint van het live klant-adres: één klant kan
+        // per domein een ander factuuradres hebben (projects.invoice_email).
+        const recipientEmail = tpl.client_email || tpl.client?.email
+        const recipientName = tpl.client_name || tpl.client?.name || 'klant'
         const projectName = tpl.project?.name || 'je domein'
 
         // Klantmail + portaalnotificatie. Niet-fataal: lukt de mail niet, dan blijft

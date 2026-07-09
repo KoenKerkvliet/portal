@@ -1624,6 +1624,33 @@ export default function Projects() {
                                 displayValue={project.file_sharing_url ? '' : 'URL toevoegen'}
                               />
                             </div>
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Factuurcontact</p>
+                              {(project.invoice_name || project.invoice_email) && (
+                                <div className="flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                  <span className="text-sm text-gray-700 truncate">
+                                    {[project.invoice_name, project.invoice_email].filter(Boolean).join(' — ')}
+                                  </span>
+                                </div>
+                              )}
+                              <InlineEdit
+                                value={project.invoice_name || ''}
+                                onSave={(v) => updateProject(project.id, { invoice_name: v.trim() || null })}
+                                placeholder="Factuurnaam (bv. BGH)"
+                                icon={Pencil}
+                                displayValue={project.invoice_name ? '' : 'Factuurnaam toevoegen'}
+                              />
+                              <InlineEdit
+                                value={project.invoice_email || ''}
+                                onSave={(v) => updateProject(project.id, { invoice_email: v.trim() || null })}
+                                type="email"
+                                placeholder="Factuur e-mailadres"
+                                icon={Pencil}
+                                displayValue={project.invoice_email ? '' : 'Factuur e-mail toevoegen'}
+                              />
+                              <p className="text-[11px] text-gray-400">Leeg = gegevens van de gekozen klant</p>
+                            </div>
                           </div>
                           <div className="space-y-1.5 sm:col-span-2">
                             <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>

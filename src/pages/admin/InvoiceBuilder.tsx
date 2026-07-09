@@ -111,6 +111,9 @@ function computeNextRunAt(interval: RecurrenceInterval, sendTime: string, anchor
 interface ProjectWithClients {
   id: string
   name: string
+  // Factuurcontact van het domein zelf — wint van de klantgegevens bij domeinkeuze.
+  invoice_name: string | null
+  invoice_email: string | null
   clients: { client_id: string; client_name: string; client_email: string; client_address: string; notify_invoices: boolean }[]
 }
 
@@ -170,7 +173,7 @@ export default function InvoiceBuilder() {
   useEffect(() => {
     const load = async () => {
       const [projectsRes, productsRes, settingsRes, invoicesRes] = await Promise.all([
-        supabase.from('projects').select('id, name').order('name'),
+        supabase.from('projects').select('id, name, invoice_name, invoice_email').order('name'),
         supabase.from('products').select('*').order('name'),
         supabase.from('invoice_settings').select('*').limit(1).single(),
         supabase.from('invoices').select('number'),
@@ -189,6 +192,8 @@ export default function InvoiceBuilder() {
         return {
           id: p.id,
           name: p.name,
+          invoice_name: p.invoice_name ?? null,
+          invoice_email: p.invoice_email ?? null,
           clients: pcs.map((pc) => {
             const client = clientsData?.find(c => c.id === pc.client_id)
             return {
@@ -302,7 +307,9 @@ export default function InvoiceBuilder() {
     setShowProductPicker((v) => !v)
   }, [showProductPicker])
 
-  // When project changes, find the client with notify_invoices
+  // When project changes, find the client with notify_invoices.
+  // Het factuurcontact van het domein (invoice_name/invoice_email) wint van de
+  // klantgegevens — zo kan één klant per domein een ander factuuradres hebben.
   const handleProjectChange = (pid: string) => {
     setProjectId(pid)
     const project = projects.find((p) => p.id === pid)
@@ -310,13 +317,13 @@ export default function InvoiceBuilder() {
       const invoiceClient = project.clients.find((c) => c.notify_invoices) || project.clients[0]
       if (invoiceClient) {
         setClientId(invoiceClient.client_id)
-        setClientName(invoiceClient.client_name)
-        setClientEmail(invoiceClient.client_email)
+        setClientName(project.invoice_name || invoiceClient.client_name)
+        setClientEmail(project.invoice_email || invoiceClient.client_email)
         setClientAddress(invoiceClient.client_address)
       } else {
         setClientId('')
-        setClientName('')
-        setClientEmail('')
+        setClientName(project.invoice_name || '')
+        setClientEmail(project.invoice_email || '')
         setClientAddress('')
       }
     }

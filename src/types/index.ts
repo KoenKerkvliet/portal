@@ -39,6 +39,8 @@ export interface Project {
   id: string
   name: string
   url: string | null
+  invoice_name: string | null
+  invoice_email: string | null
   client_id: string | null
   current_phase: ProjectPhase
   status: ProjectStatus
