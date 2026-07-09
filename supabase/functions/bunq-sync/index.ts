@@ -405,10 +405,11 @@ async function matchInvoices(db: ReturnType<typeof createClient>): Promise<numbe
     if (candidates.length !== 1) continue
     const inv = candidates[0]
 
-    // Update factuur → paid
+    // Update factuur → paid. paid_at krijgt de ECHTE betaaldatum uit de
+    // banktransactie (booked_at), niet de factuur- of vervaldatum.
     const { error: invUpdErr } = await db
       .from('invoices')
-      .update({ status: 'paid' })
+      .update({ status: 'paid', paid_at: tx.booked_at })
       .eq('id', inv.id)
       .in('status', ['sent', 'draft']) // race-conditie: alleen als nog open
     if (invUpdErr) {

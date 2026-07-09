@@ -85,6 +85,7 @@ async function createInvoiceForPunchCardPurchase(
     status: 'paid',
     invoice_date: today,
     due_date: today,
+    paid_at: new Date().toISOString(),
     is_test: false,
     has_temp_number: false,
     is_recurring: false,
