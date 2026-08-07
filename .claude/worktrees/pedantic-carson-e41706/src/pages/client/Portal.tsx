@@ -1,0 +1,680 @@
+import { useEffect, useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import TicketSystem from './TicketSystem'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
+import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
+import { Sparkles, ArrowRight, Calendar, ExternalLink } from 'lucide-react'
+import { getIconComponent } from '../../components/CardElementEditor'
+import PunchCardView from '../../components/PunchCardView'
+
+const phases: ProjectPhase[] = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
+
+const phaseLabels: Record<ProjectPhase, string> = {
+  intake: 'Intake',
+  design: 'Design',
+  development: 'Development',
+  oplevering: 'Oplevering',
+  onderhoud: 'Onderhoud',
+}
+
+// Wrapper for button with form action — needs its own hook for navigate
+function ButtonFormLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/formulier/${element.data.formId}`)}
+        className={className}
+      >
+        {element.data.label || 'Formulier invullen'}
+      </button>
+    </div>
+  )
+}
+
+// Wrapper for button with quote action
+function ButtonQuoteLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/offerte/${element.data.quoteId}`)}
+        className={className}
+      >
+        {element.data.label || 'Offerte bekijken'}
+      </button>
+    </div>
+  )
+}
+
+// Wrapper for button with assignment action
+function ButtonAssignmentLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/opdracht/${element.data.assignmentId}`)}
+        className={className}
+      >
+        {element.data.label || 'Opdracht bekijken'}
+      </button>
+    </div>
+  )
+}
+
+// Wrapper for button with invoice action
+function ButtonInvoiceLink({ element, className }: { element: CardElement; className: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/factuur/${element.data.invoiceId}`)}
+        className={className}
+      >
+        {element.data.label || 'Factuur bekijken'}
+      </button>
+    </div>
+  )
+}
+
+// Wrapper for button with design preview actions (styleguide, homepage, contactpage)
+function ButtonDesignPreviewLink({ element, className, type, defaultLabel, projectId }: { element: CardElement; className: string; type: string; defaultLabel: string; projectId: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => navigate(`/design/${type}/${projectId}`)}
+        className={className}
+      >
+        {element.data.label || defaultLabel}
+      </button>
+    </div>
+  )
+}
+
+// Render a single card element for the client view
+function CardElementView({ element, project, disabled }: { element: CardElement; project: Project; disabled?: boolean }) {
+  switch (element.type) {
+    case 'icon': {
+      const IconComp = getIconComponent(element.data.name || 'star')
+      return (
+        <div className="flex justify-center">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${element.data.color || '#9e86ff'}15` }}>
+            <IconComp className="w-6 h-6" style={{ color: element.data.color || '#9e86ff' }} />
+          </div>
+        </div>
+      )
+    }
+    case 'text': {
+      return element.data.content ? (
+        <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-wrap text-center">{element.data.content}</p>
+      ) : null
+    }
+    case 'dynamic': {
+      const field = element.data.field
+      let displayValue = ''
+
+      if (field === 'start_meeting_at' && project.start_meeting_at) {
+        const d = new Date(project.start_meeting_at)
+        displayValue = d.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' }) +
+          ' om ' + d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) + ' uur'
+      } else if (field === 'due_date' && project.due_date) {
+        displayValue = new Date(project.due_date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+      } else if (field === 'project_name') {
+        displayValue = project.name
+      } else if (field === 'client_name') {
+        displayValue = (project.client as unknown as { name: string })?.name || ''
+      }
+
+      if (!displayValue) return null
+
+      return (
+        <div className="flex flex-col items-center gap-1.5 bg-gray-50 rounded-xl px-4 py-3">
+          {element.data.label && (
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{element.data.label}</p>
+          )}
+          <p className="text-sm font-semibold text-gray-800">{displayValue}</p>
+        </div>
+      )
+    }
+    case 'link': {
+      if (!element.data.url) return null
+      return (
+        <div className="flex justify-center">
+          <a href={element.data.url} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary-600 font-medium transition-colors">
+            {element.data.label || element.data.url}
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      )
+    }
+    case 'button': {
+      const action = element.data.action || 'url'
+      const isPrimary = element.data.variant !== 'outline'
+
+      // Disabled buttons (faded step)
+      if (disabled) {
+        const disabledClasses = `inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium cursor-not-allowed ${
+          isPrimary
+            ? 'bg-gray-300 text-gray-500'
+            : 'bg-white border-2 border-gray-200 text-gray-400'
+        }`
+        return (
+          <div className="flex justify-center pt-2">
+            <button type="button" disabled className={disabledClasses}>
+              {element.data.label || 'Binnenkort beschikbaar'}
+            </button>
+          </div>
+        )
+      }
+
+      const btnClasses = `inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+        isPrimary
+          ? 'bg-primary hover:bg-primary-600 text-white'
+          : 'bg-white border-2 border-primary/30 text-primary hover:bg-primary/5'
+      }`
+
+      if (action === 'form' && element.data.formId) {
+        return <ButtonFormLink element={element} className={btnClasses} />
+      }
+
+      if (action === 'quote' && element.data.quoteId) {
+        return <ButtonQuoteLink element={element} className={btnClasses} />
+      }
+
+      if (action === 'assignment' && element.data.assignmentId) {
+        return <ButtonAssignmentLink element={element} className={btnClasses} />
+      }
+      if (action === 'invoice' && element.data.invoiceId) {
+        return <ButtonInvoiceLink element={element} className={btnClasses} />
+      }
+      if (action === 'styleguide') {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="styleguide" defaultLabel="Styleguide bekijken" projectId={project.id} />
+      }
+      if (action === 'homepage') {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="homepage" defaultLabel="Homepage bekijken" projectId={project.id} />
+      }
+      if (action === 'contactpage') {
+        return <ButtonDesignPreviewLink element={element} className={btnClasses} type="contactpage" defaultLabel="Contactpagina bekijken" projectId={project.id} />
+      }
+      if (action === 'contentpage' && element.data.contentPageSlug) {
+        return (
+          <div className="flex justify-center pt-2">
+            <Link to={`/content/${element.data.contentPageSlug}`} className={btnClasses}>
+              {element.data.label || 'Meer informatie'}
+            </Link>
+          </div>
+        )
+      }
+      if (action === 'staging' && project.staging_url) {
+        return (
+          <div className="flex justify-center pt-2">
+            <a href={project.staging_url} target="_blank" rel="noopener noreferrer" className={btnClasses}>
+              {element.data.label || 'Stagingsite bekijken'}
+            </a>
+          </div>
+        )
+      }
+
+      // Default: URL action
+      if (!element.data.url) return null
+      return (
+        <div className="flex justify-center pt-2">
+          <a href={element.data.url} target="_blank" rel="noopener noreferrer" className={btnClasses}>
+            {element.data.label || 'Bekijk'}
+          </a>
+        </div>
+      )
+    }
+    default:
+      return null
+  }
+}
+
+export default function ClientPortal() {
+  const { profile } = useAuth()
+  const [project, setProject] = useState<Project | null>(null)
+  const [phaseContent, setPhaseContent] = useState<string>('')
+  const [phaseSteps, setPhaseSteps] = useState<PhaseStep[]>([])
+  const [showFileFooter, setShowFileFooter] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [punchCards, setPunchCards] = useState<PunchCard[]>([])
+  const [punchCardUses, setPunchCardUses] = useState<Record<string, PunchCardUse[]>>({})
+  const [submittedFormIds, setSubmittedFormIds] = useState<Set<string>>(new Set())
+  // IDs van quotes/invoices/assignments die voor de klant beschikbaar zijn (status >= 'sent').
+  // Gebruikt om kaarten met een gekoppelde knop automatisch actief te maken zodra de
+  // admin het bijbehorende item op 'verzonden' zet — ongeacht of de step in het
+  // template gefadet is.
+  const [readyItemIds, setReadyItemIds] = useState<{ quotes: Set<string>; invoices: Set<string>; assignments: Set<string> }>({
+    quotes: new Set(),
+    invoices: new Set(),
+    assignments: new Set(),
+  })
+  // IDs van facturen die op 'paid' staan. Triggeren het ✓-overlay op de bijbehorende
+  // factuur-kaart, zodat klant ziet dat de betaling verwerkt is.
+  const [paidInvoiceIds, setPaidInvoiceIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (!profile) return
+
+      const { data: client } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('profile_id', profile.id)
+        .single()
+
+      if (!client) {
+        setLoading(false)
+        return
+      }
+
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('*, client:clients(id, name, email)')
+        .eq('client_id', client.id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (projectData) {
+        setProject(projectData)
+
+        // Welke formulieren zijn al ingediend op dit project?
+        // En welke quotes/invoices/assignments zijn al uit 'draft' (dus zichtbaar gemaakt)?
+        const [{ data: subs }, { data: projQuotes }, { data: projInvoices }, { data: projAssignments }] = await Promise.all([
+          supabase.from('form_submissions').select('form_id').eq('project_id', projectData.id).not('submitted_at', 'is', null),
+          supabase.from('quotes').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
+          supabase.from('invoices').select('id, status').eq('project_id', projectData.id).neq('status', 'draft'),
+          supabase.from('assignments').select('id').eq('project_id', projectData.id).neq('status', 'draft'),
+        ])
+        setSubmittedFormIds(new Set((subs || []).map((s) => s.form_id as string)))
+        const invoiceRows = (projInvoices || []) as Array<{ id: string; status: string }>
+        setReadyItemIds({
+          quotes: new Set((projQuotes || []).map((q) => q.id as string)),
+          invoices: new Set(invoiceRows.map((i) => i.id)),
+          assignments: new Set((projAssignments || []).map((a) => a.id as string)),
+        })
+        setPaidInvoiceIds(new Set(invoiceRows.filter((i) => i.status === 'paid').map((i) => i.id)))
+
+        // First try to load domain-specific instance from project_phases
+        const { data: phaseInstance } = await supabase
+          .from('project_phases')
+          .select('*')
+          .eq('project_id', projectData.id)
+          .eq('phase', projectData.current_phase)
+          .limit(1)
+          .single()
+
+        if (phaseInstance?.custom_data) {
+          setPhaseContent(phaseInstance.custom_data.content || '')
+          setPhaseSteps(phaseInstance.custom_data.steps || [])
+          setShowFileFooter(phaseInstance.custom_data.show_file_footer || false)
+        } else {
+          // Fallback: load from template directly
+          const { data: templateData } = await supabase
+            .from('phase_templates')
+            .select('*')
+            .eq('phase', projectData.current_phase)
+            .limit(1)
+            .single()
+
+          if (templateData) {
+            setPhaseContent(templateData.content || templateData.description || '')
+            setShowFileFooter((templateData as unknown as { show_file_footer?: boolean }).show_file_footer || false)
+            setPhaseSteps(templateData.steps || [])
+          }
+        }
+      }
+
+      setLoading(false)
+    }
+
+    fetchProject()
+  }, [profile])
+
+  // Fetch punch cards + uses for onderhoud phase
+  useEffect(() => {
+    if (!project || project.current_phase !== 'onderhoud') return
+    supabase
+      .from('punch_cards')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('number', { ascending: true })
+      .then(async ({ data: cardsData }) => {
+        const cards = cardsData || []
+        setPunchCards(cards)
+        if (cards.length > 0) {
+          const cardIds = cards.map(c => c.id)
+          const { data: usesData } = await supabase
+            .from('punch_card_uses')
+            .select('*')
+            .in('punch_card_id', cardIds)
+            .order('punch_index')
+          const grouped: Record<string, PunchCardUse[]> = {}
+          for (const use of usesData || []) {
+            if (!grouped[use.punch_card_id]) grouped[use.punch_card_id] = []
+            grouped[use.punch_card_id].push(use)
+          }
+          setPunchCardUses(grouped)
+        }
+      })
+  }, [project])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    )
+  }
+
+  // No project linked — welcome message
+  if (!project) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-16 sm:py-24 px-4">
+        <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-6">
+          <Sparkles className="w-10 h-10 text-primary" />
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
+          Welkom, {profile?.full_name || 'daar'}!
+        </h2>
+        <p className="text-gray-500 leading-relaxed">
+          Jouw account is aangemaakt. Op dit moment wordt je account gekoppeld aan het juiste project.
+          Dit duurt meestal niet lang — heb nog even geduld.
+        </p>
+        <div className="mt-8 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+            <p className="text-sm text-gray-600 font-medium">Wachten op koppeling aan project...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const currentPhaseIndex = phases.indexOf(project.current_phase)
+  const nextPhase = currentPhaseIndex < phases.length - 1 ? phases[currentPhaseIndex + 1] : null
+  // Twee runtime-overrides op de steps:
+  // 1. Gefadete step actief maken als 'ie een knop bevat die naar een beschikbaar item
+  //    (quote/invoice/assignment uit 'draft') verwijst.
+  // 2. Step als voltooid markeren als 'ie een formulier-knop bevat waarvan de
+  //    submission al verzonden is — zorgt dat het ✓-overlay verschijnt zonder te
+  //    hoeven wachten op de markStepCompleted-write in FormPage.
+  const steps = phaseSteps.map((step) => {
+    let next = step
+    if (next.faded) {
+      const hasReady = (next.elements || []).some((el) => {
+        if (el.type !== 'button') return false
+        const a = el.data.action
+        if (a === 'quote' && el.data.quoteId && readyItemIds.quotes.has(el.data.quoteId)) return true
+        if (a === 'invoice' && el.data.invoiceId && readyItemIds.invoices.has(el.data.invoiceId)) return true
+        if (a === 'assignment' && el.data.assignmentId && readyItemIds.assignments.has(el.data.assignmentId)) return true
+        return false
+      })
+      if (hasReady) next = { ...next, faded: false }
+    }
+    if (!next.completed) {
+      const hasSubmittedForm = (next.elements || []).some((el) =>
+        el.type === 'button' && el.data.action === 'form' && el.data.formId && submittedFormIds.has(el.data.formId)
+      )
+      const hasPaidInvoice = (next.elements || []).some((el) =>
+        el.type === 'button' && el.data.action === 'invoice' && el.data.invoiceId && paidInvoiceIds.has(el.data.invoiceId)
+      )
+      if (hasSubmittedForm || hasPaidInvoice) next = { ...next, completed: true }
+    }
+    return next
+  })
+  const isOnderhoud = project.current_phase === 'onderhoud'
+  const isOplevering = project.current_phase === 'oplevering'
+
+  // Format due date in Dutch
+  const formattedDueDate = project.due_date
+    ? new Date(project.due_date).toLocaleDateString('nl-NL', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : null
+
+  return (
+    <div>
+      {/* ============================================ */}
+      {/* Onderhoud fase — hardcoded */}
+      {/* ============================================ */}
+      {isOnderhoud && (<>
+        <section className="bg-[#f8f7fc]">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 text-center">
+            <h2 className="text-xl sm:text-2xl font-light text-gray-700 mb-2">
+              Onderhoud
+            </h2>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Jouw website is live! Wij zorgen voor onderhoud, updates en eventuele aanpassingen.
+            </p>
+          </div>
+        </section>
+
+        {/* Strippenkaarten */}
+        {punchCards.length > 0 && (() => {
+          const activeCards = punchCards.filter(c => c.status === 'active')
+          const usedUpCards = punchCards.filter(c => c.status === 'used_up')
+          return (
+            <section className="bg-white">
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                {activeCards.length > 0 && (
+                  <div className="mb-12">
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Actieve Strippenkaarten</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
+                      {activeCards.map(card => (
+                        <PunchCardView key={card.id} card={card} uses={punchCardUses[card.id]} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {usedUpCards.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6">Opgebruikte Strippenkaarten</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
+                      {usedUpCards.map(card => (
+                        <PunchCardView key={card.id} card={card} uses={punchCardUses[card.id]} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )
+        })()}
+      </>)}
+
+      {/* ============================================ */}
+      {/* SECTION 1: White background — Hero / Overview */}
+      {/* ============================================ */}
+      {!isOnderhoud && <section className="bg-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+          {/* Project name */}
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
+            {project.name}
+          </h1>
+
+          {/* Phase content */}
+          {phaseContent && (
+            <p className="text-gray-500 text-center mt-4 sm:mt-6 leading-relaxed max-w-xl mx-auto text-sm sm:text-base">
+              {phaseContent}
+            </p>
+          )}
+
+          {/* 3 Info cards */}
+          {!isOnderhoud && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 sm:mt-10">
+              {/* Card 1: Huidige Fase */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
+                  {phaseLabels[project.current_phase]}
+                </p>
+                <div className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-xl">
+                  Huidige Fase
+                </div>
+              </div>
+
+              {/* Card 2: Volgende Fase */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
+                  {nextPhase ? phaseLabels[nextPhase] : '—'}
+                </p>
+                <div className="flex items-center justify-center gap-1.5 text-sm text-gray-400 font-medium">
+                  <ArrowRight className="w-4 h-4" />
+                  Volgende Fase
+                </div>
+              </div>
+
+              {/* Card 3: Verwachte Einddatum */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
+                  {formattedDueDate || 'Nog onbekend'}
+                </p>
+                <div className="flex items-center justify-center gap-1.5 text-sm text-gray-400 font-medium">
+                  <Calendar className="w-4 h-4" />
+                  Verwachte Einddatum
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>}
+
+      {/* ============================================ */}
+      {/* SECTION 2: Light background — Phase Cards */}
+      {/* ============================================ */}
+      {!isOnderhoud && (<>
+        <section className="bg-[#f8f7fc] min-h-[400px]">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+            {/* Phase title */}
+            {!isOplevering && (
+              <h2 className="text-2xl sm:text-3xl font-light text-gray-700 text-center mb-10 sm:mb-12">
+                {phaseLabels[project.current_phase]}
+              </h2>
+            )}
+
+            {/* Oplevering: Ticket system */}
+            {isOplevering ? (
+              <TicketSystem projectId={project.id} projectName={project.name} />
+            ) : steps.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-5 sm:gap-6">
+                {steps.map((step) => {
+                  const hasElements = step.elements && step.elements.length > 0
+
+                  return (
+                    <div
+                      key={step.id}
+                      className={`relative bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 transition-shadow flex flex-col w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] ${step.faded ? 'opacity-30' : 'hover:shadow-md'}`}
+                    >
+                      {/* Completed badge */}
+                      {step.completed && (
+                        <div className="absolute -top-2.5 -left-2.5 w-7 h-7 bg-accent rounded-full flex items-center justify-center shadow-sm">
+                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+
+                      {/* Card content */}
+                      {hasElements ? (
+                        // Render block-based elements
+                        (() => {
+                          const iconElement = step.elements!.find(el => el.type === 'icon')
+                          const otherElements = step.elements!.filter(el => el.type !== 'icon')
+                          const contentElements = otherElements.filter(el => el.type !== 'button')
+                          const buttonElements = otherElements.filter(el => el.type === 'button')
+                          return (
+                            <div className="flex flex-col flex-1 text-center">
+                              <div className="space-y-3">
+                                {iconElement && (
+                                  <CardElementView key={iconElement.id} element={iconElement} project={project} />
+                                )}
+                                <h3 className="text-lg font-bold text-gray-900">
+                                  {step.title}
+                                </h3>
+                                {contentElements.map((element) => (
+                                  <CardElementView key={element.id} element={element} project={project} />
+                                ))}
+                              </div>
+                              {buttonElements.length > 0 && (
+                                <div className="mt-auto pt-4 space-y-2">
+                                  {buttonElements.map((element) => (
+                                    <CardElementView key={element.id} element={element} project={project} disabled={step.faded} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()
+                      ) : (
+                        // Legacy: simple title + description
+                        <>
+                          <h3 className="text-lg font-bold text-gray-900 mt-2 mb-2 text-center">
+                            {step.title}
+                          </h3>
+                          {step.description && (
+                            <p className="text-sm text-gray-500 leading-relaxed text-center">
+                              {step.description}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-400">Er zijn nog geen stappen ingesteld voor deze fase.</p>
+              </div>
+            )}
+          </div>
+
+        </section>
+
+        {/* Footer section — white background */}
+        {project?.file_sharing_url && showFileFooter ? (
+          <section className="bg-white">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-4">
+              {/* File sharing footer */}
+              <div className="max-w-xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm px-6 sm:px-8 py-6 text-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <ExternalLink className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Bestanden delen</h3>
+                    <p className="text-xs text-gray-500 leading-relaxed mb-3">
+                      Heb je bestanden die je met ons wilt delen? Gebruik de onderstaande knop om je bestanden te uploaden.
+                    </p>
+                  </div>
+                  <a
+                    href={project.file_sharing_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-medium transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Bestanden uploaden
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
+      </>)}
+
+    </div>
+  )
+}

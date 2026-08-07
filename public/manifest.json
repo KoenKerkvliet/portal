@@ -1,0 +1,38 @@
+{
+  "name": "DesignPixels Portal",
+  "short_name": "Portal",
+  "description": "DesignPixels Klantportaal",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/Logo-favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Logo-favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/Logo-favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/Logo-favicon.png",
+      "sizes": "540x720",
+      "type": "image/png"
+    }
+  ]
+}
