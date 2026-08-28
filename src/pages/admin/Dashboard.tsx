@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { FolderKanban, Users, FileText, FileCheck, Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers } from 'lucide-react'
+import { FolderKanban, Users, FileText, FileCheck, Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface DashboardStats {
@@ -10,6 +10,55 @@ interface DashboardStats {
   quotes: number
   unpaidInvoices: number
   activeProjects: number
+}
+
+interface PunchProjectStat {
+  id: string
+  name: string
+  total: number
+  remaining: number
+  used: number
+  earned: number
+  cards: number
+}
+
+interface PunchStats {
+  soldCards: number
+  giftCards: number
+  stripsSold: number
+  revenue: number
+  stripsUsed: number
+  minutesUsed: number
+  earned: number
+  outstanding: number
+  stripsRemaining: number
+  avgStripPrice: number
+  perProject: PunchProjectStat[]
+}
+
+const emptyPunchStats: PunchStats = {
+  soldCards: 0,
+  giftCards: 0,
+  stripsSold: 0,
+  revenue: 0,
+  stripsUsed: 0,
+  minutesUsed: 0,
+  earned: 0,
+  outstanding: 0,
+  stripsRemaining: 0,
+  avgStripPrice: 0,
+  perProject: [],
+}
+
+function formatEuro(amount: number): string {
+  return `€ ${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest === 0 ? `${hours} uur` : `${hours} u ${rest} min`
 }
 
 interface AdminNotification {
@@ -70,8 +119,10 @@ export default function Dashboard() {
     activeProjects: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [punchStats, setPunchStats] = useState<PunchStats>(emptyPunchStats)
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const stackedIdsRef = useRef<Record<string, string[]>>({})
+  const [emailOpen, setEmailOpen] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [testEmailDesignPixels, setTestEmailDesignPixels] = useState(true)
@@ -164,6 +215,66 @@ export default function Dashboard() {
     setNotifications([])
   }
 
+  const fetchPunchStats = async () => {
+    const [cardsRes, usesRes] = await Promise.all([
+      supabase.from('punch_cards').select('*, project:projects(name)'),
+      supabase.from('punch_card_uses').select('duration_minutes'),
+    ])
+
+    const cards = cardsRes.data || []
+    const next: PunchStats = { ...emptyPunchStats, perProject: [] }
+    const byProject = new Map<string, PunchProjectStat>()
+
+    for (const card of cards) {
+      const total = Number(card.total_punches) || 0
+      const used = Number(card.used_punches) || 0
+      const price = Number(card.price) || 0
+      const isGift = !!card.is_gift
+      const isActive = card.status === 'active'
+      // Elke strip is evenveel waard binnen z'n eigen kaart; cadeaustrippen zijn € 0.
+      const stripValue = !isGift && total > 0 ? price / total : 0
+
+      if (isGift) next.giftCards++
+      else {
+        next.soldCards++
+        next.stripsSold += total
+        next.revenue += price
+      }
+
+      next.stripsUsed += used
+      next.earned += used * stripValue
+      if (isActive) {
+        next.stripsRemaining += total - used
+        next.outstanding += (total - used) * stripValue
+      }
+
+      const projectId = card.project_id
+      const entry = byProject.get(projectId) || {
+        id: projectId,
+        name: (card.project as unknown as { name: string } | null)?.name || 'Onbekend domein',
+        total: 0,
+        remaining: 0,
+        used: 0,
+        earned: 0,
+        cards: 0,
+      }
+      entry.cards++
+      entry.used += used
+      entry.earned += used * stripValue
+      if (isActive) {
+        entry.total += total
+        entry.remaining += total - used
+      }
+      byProject.set(projectId, entry)
+    }
+
+    next.minutesUsed = (usesRes.data || []).reduce((sum, u) => sum + (Number(u.duration_minutes) || 0), 0)
+    next.avgStripPrice = next.stripsSold > 0 ? next.revenue / next.stripsSold : 0
+    next.perProject = [...byProject.values()].sort((a, b) => b.remaining - a.remaining || a.name.localeCompare(b.name))
+
+    setPunchStats(next)
+  }
+
   useEffect(() => {
     const fetchStats = async () => {
       const [projects, clients, invoices, quotes] = await Promise.all([
@@ -186,6 +297,7 @@ export default function Dashboard() {
 
     fetchStats()
     fetchNotifications()
+    fetchPunchStats()
   }, [])
 
   const cards = [
@@ -312,10 +424,120 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Strippenkaarten */}
       <div className="mt-8 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">E-mail integratie</h2>
-        <p className="text-sm text-gray-500 mb-4">Test of de EmailIt v2 koppeling correct werkt.</p>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Ticket className="w-5 h-5 text-purple-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Strippenkaarten</h2>
+          </div>
+          <Link to="/admin/onderhoud" className="text-xs font-medium text-primary hover:text-primary/80 transition-colors">
+            Naar onderhoud
+          </Link>
+        </div>
 
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-gray-50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Ticket className="w-4 h-4 text-purple-500" />
+              <span className="text-xs font-medium text-gray-500">Kaarten gekocht</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{punchStats.soldCards}</p>
+            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+              <Gift className="w-3 h-3" />
+              {punchStats.giftCards} cadeau geschonken
+            </p>
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Layers className="w-4 h-4 text-blue-500" />
+              <span className="text-xs font-medium text-gray-500">Strippen verkocht</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{punchStats.stripsSold}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{formatEuro(punchStats.revenue)} omzet</p>
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Wrench className="w-4 h-4 text-emerald-500" />
+              <span className="text-xs font-medium text-gray-500">Strippen afgeschreven</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{punchStats.stripsUsed}</p>
+            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+              <Timer className="w-3 h-3" />
+              {formatDuration(punchStats.minutesUsed)} gelogd
+            </p>
+          </div>
+
+          <div className="bg-gray-50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Euro className="w-4 h-4 text-amber-500" />
+              <span className="text-xs font-medium text-gray-500">Verdiend met strippen</span>
+            </div>
+            <p className="text-2xl font-bold text-gray-900">{formatEuro(punchStats.earned)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{formatEuro(punchStats.outstanding)} nog te leveren</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-gray-400">
+          <span><span className="font-medium text-gray-600">{punchStats.stripsRemaining}</span> strippen open</span>
+          <span>•</span>
+          <span>Gem. <span className="font-medium text-gray-600">{formatEuro(punchStats.avgStripPrice)}</span> per strip</span>
+          <span>•</span>
+          <span>1 strip = 5 minuten</span>
+        </div>
+
+        {punchStats.perProject.length > 0 && (
+          <div className="mt-5 pt-5 border-t border-gray-100 space-y-2">
+            <p className="text-xs font-medium text-gray-500 mb-3">Per domein</p>
+            {punchStats.perProject.map((p) => {
+              const percentage = p.total > 0 ? (p.remaining / p.total) * 100 : 0
+              return (
+                <div key={p.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-3 mb-1">
+                      <span className="text-xs font-medium text-gray-700 truncate">{p.name}</span>
+                      <span className="text-xs text-gray-500 flex-shrink-0">
+                        {p.total > 0 ? `${p.remaining}/${p.total} strippen` : 'geen actieve kaart'}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          percentage > 50 ? 'bg-emerald-400' : percentage > 20 ? 'bg-amber-400' : 'bg-red-400'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      {p.cards} {p.cards === 1 ? 'kaart' : 'kaarten'} • {p.used} afgeschreven • {formatEuro(p.earned)} verdiend
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100">
+        <button
+          onClick={() => setEmailOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-3 p-4 sm:p-6 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Mail className="w-5 h-5 text-gray-400" />
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">E-mail integratie</h2>
+              <p className="text-sm text-gray-500">Test of de EmailIt v2 koppeling correct werkt.</p>
+            </div>
+          </div>
+          <ChevronDown className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${emailOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {emailOpen && (
+        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="space-y-3 mb-5">
           <label className="flex items-center gap-3 cursor-pointer">
             <input
@@ -350,6 +572,8 @@ export default function Dashboard() {
           <div className={`mt-3 px-4 py-3 rounded-lg text-sm ${testResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
             {testResult.message}
           </div>
+        )}
+        </div>
         )}
       </div>
     </div>
