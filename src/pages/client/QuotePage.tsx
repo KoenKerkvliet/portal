@@ -176,7 +176,6 @@ export default function QuotePage() {
           .from('quote_attachments')
           .select('*')
           .in('id', attachmentIds)
-          .eq('is_active', true)
           .order('sort_order')
           .order('created_at')
         setAttachments(attachmentData || [])

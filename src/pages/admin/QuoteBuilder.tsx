@@ -341,10 +341,18 @@ export default function QuoteBuilder() {
     setUploadingAttachment(false)
   }
 
-  const deleteAttachment = async (attachment: QuoteAttachment) => {
-    if (!confirm(`"${attachment.title}" definitief verwijderen uit de bijlagenbibliotheek?`)) return
-    await supabase.from('quote_attachments').delete().eq('id', attachment.id)
-    await supabase.storage.from('quote-attachments').remove([attachment.file_path])
+  // Archiveren, niet hard verwijderen: offertes die deze bijlage al hebben
+  // (en misschien al geaccepteerd zijn) moeten hem blijven tonen.
+  const archiveAttachment = async (attachment: QuoteAttachment) => {
+    if (
+      !confirm(
+        `"${attachment.title}" uit de bijlagenbibliotheek halen?\n\n` +
+          'Je kunt hem dan niet meer aanvinken bij nieuwe offertes. Offertes die deze bijlage al ' +
+          'hebben, blijven hem gewoon tonen.'
+      )
+    )
+      return
+    await supabase.from('quote_attachments').update({ is_active: false }).eq('id', attachment.id)
     setAttachments((list) => list.filter((a) => a.id !== attachment.id))
     setAttachmentIds((ids) => ids.filter((id) => id !== attachment.id))
   }
@@ -944,8 +952,8 @@ export default function QuoteBuilder() {
                         <Download className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => deleteAttachment(attachment)}
-                        title="Verwijderen uit bibliotheek"
+                        onClick={() => archiveAttachment(attachment)}
+                        title="Uit bibliotheek halen"
                         className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
