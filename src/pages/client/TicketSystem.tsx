@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import type { Ticket, TicketReply } from '../../types'
 import { Plus, X, Send, Paperclip, Clock, CheckCircle, AlertCircle, Loader2, ArrowLeft, MessageSquare, Image as ImageIcon } from 'lucide-react'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
+import { ticketAttachmentPath, uploadTicketAttachment } from '../../lib/ticketAttachments'
+import TicketAttachment from '../../components/TicketAttachment'
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: typeof Clock }> = {
   open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: AlertCircle },
@@ -32,11 +34,13 @@ export default function TicketSystem({ projectId, projectName }: Props) {
   const [newDescription, setNewDescription] = useState('')
   const [newFile, setNewFile] = useState<File | null>(null)
   const [creating, setCreating] = useState(false)
+  const [newError, setNewError] = useState('')
 
   // Reply
   const [replyText, setReplyText] = useState('')
   const [replyFile, setReplyFile] = useState<File | null>(null)
   const [sending, setSending] = useState(false)
+  const [replyError, setReplyError] = useState('')
   const repliesEndRef = useRef<HTMLDivElement>(null)
 
   const fetchTickets = async () => {
@@ -54,19 +58,22 @@ export default function TicketSystem({ projectId, projectName }: Props) {
   const createTicket = async () => {
     if (!newTitle.trim() || !profile) return
     setCreating(true)
+    setNewError('')
 
+    // Bijlage eerst: als die niet lukt maken we het ticket niet aan, zodat de
+    // klant kan kiezen tussen opnieuw proberen of de bijlage weglaten.
     let attachmentUrl: string | null = null
     if (newFile) {
-      const ext = newFile.name.split('.').pop() || 'jpg'
-      const path = `${projectId}/new_${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('ticket-attachments').upload(path, newFile, { upsert: true })
-      if (!error) {
-        const { data: urlData } = supabase.storage.from('ticket-attachments').getPublicUrl(path)
-        attachmentUrl = urlData.publicUrl
+      const { path, error } = await uploadTicketAttachment(newFile, ticketAttachmentPath(projectId, null, newFile))
+      if (error) {
+        setNewError(`${error} Probeer het opnieuw of verstuur de melding zonder bijlage.`)
+        setCreating(false)
+        return
       }
+      attachmentUrl = path
     }
 
-    const { data: ticket } = await supabase.from('tickets').insert({
+    const { data: ticket, error: ticketError } = await supabase.from('tickets').insert({
       project_id: projectId,
       created_by: profile.id,
       created_by_name: profile.full_name || 'Klant',
@@ -75,24 +82,28 @@ export default function TicketSystem({ projectId, projectName }: Props) {
       attachment_url: attachmentUrl,
     }).select().single()
 
-    if (ticket) {
-      // Notify admin
-      await supabase.from('admin_notifications').insert({
-        type: 'general',
-        title: `Nieuw ticket #${String(ticket.number).padStart(3, '0')}`,
-        message: `${profile.full_name || 'Klant'} heeft een nieuw ticket aangemaakt: "${newTitle.trim()}"`,
-        project_id: projectId,
-        client_id: null,
-      })
-
-      await sendAdminNotificationEmail({
-        type: 'ticket',
-        itemLabel: `Ticket #${String(ticket.number).padStart(3, '0')}: ${newTitle.trim()}`,
-        clientName: profile.full_name || 'Klant',
-        projectName,
-        ticketDescription: newDescription.trim() || null,
-      })
+    if (ticketError || !ticket) {
+      setNewError(`Melding versturen mislukt: ${ticketError?.message || 'onbekende fout'}`)
+      setCreating(false)
+      return
     }
+
+    // Notify admin
+    await supabase.from('admin_notifications').insert({
+      type: 'general',
+      title: `Nieuw ticket #${String(ticket.number).padStart(3, '0')}`,
+      message: `${profile.full_name || 'Klant'} heeft een nieuw ticket aangemaakt: "${newTitle.trim()}"`,
+      project_id: projectId,
+      client_id: null,
+    })
+
+    await sendAdminNotificationEmail({
+      type: 'ticket',
+      itemLabel: `Ticket #${String(ticket.number).padStart(3, '0')}: ${newTitle.trim()}`,
+      clientName: profile.full_name || 'Klant',
+      projectName,
+      ticketDescription: newDescription.trim() || null,
+    })
 
     setNewTitle('')
     setNewDescription('')
@@ -107,6 +118,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
     setLoadingReplies(true)
     setReplyText('')
     setReplyFile(null)
+    setReplyError('')
     const { data } = await supabase
       .from('ticket_replies')
       .select('*')
@@ -120,19 +132,23 @@ export default function TicketSystem({ projectId, projectName }: Props) {
   const sendReply = async () => {
     if (!selectedTicket || !replyText.trim() || !profile) return
     setSending(true)
+    setReplyError('')
 
     let attachmentUrl: string | null = null
     if (replyFile) {
-      const ext = replyFile.name.split('.').pop() || 'jpg'
-      const path = `${projectId}/${selectedTicket.id}/reply_${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('ticket-attachments').upload(path, replyFile, { upsert: true })
-      if (!error) {
-        const { data: urlData } = supabase.storage.from('ticket-attachments').getPublicUrl(path)
-        attachmentUrl = urlData.publicUrl
+      const { path, error } = await uploadTicketAttachment(
+        replyFile,
+        ticketAttachmentPath(projectId, selectedTicket.id, replyFile)
+      )
+      if (error) {
+        setReplyError(`${error} Probeer het opnieuw of verstuur je reactie zonder bijlage.`)
+        setSending(false)
+        return
       }
+      attachmentUrl = path
     }
 
-    await supabase.from('ticket_replies').insert({
+    const { error: replyInsertError } = await supabase.from('ticket_replies').insert({
       ticket_id: selectedTicket.id,
       author_id: profile.id,
       author_name: profile.full_name || 'Klant',
@@ -140,6 +156,12 @@ export default function TicketSystem({ projectId, projectName }: Props) {
       content: replyText.trim(),
       attachment_url: attachmentUrl,
     })
+
+    if (replyInsertError) {
+      setReplyError(`Reactie versturen mislukt: ${replyInsertError.message}`)
+      setSending(false)
+      return
+    }
 
     await supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', selectedTicket.id)
 
@@ -225,9 +247,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
                     }`}>
                       <p className={`text-sm whitespace-pre-wrap ${isOwnMessage ? 'text-white' : 'text-gray-700'}`}>{selectedTicket.description}</p>
                       {selectedTicket.attachment_url && (
-                        <a href={selectedTicket.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                          <img src={selectedTicket.attachment_url} alt="Bijlage" className="max-w-full max-h-48 rounded-lg" />
-                        </a>
+                        <TicketAttachment value={selectedTicket.attachment_url} />
                       )}
                     </div>
                     <p className={`text-[10px] text-gray-400 mt-1 px-1 ${isOwnMessage ? 'text-right' : ''}`}>
@@ -254,11 +274,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
                           : 'bg-white rounded-tl-sm shadow-sm border border-gray-100'
                       }`}>
                         <p className={`text-sm whitespace-pre-wrap ${isOwn ? 'text-white' : 'text-gray-700'}`}>{reply.content}</p>
-                        {reply.attachment_url && (
-                          <a href={reply.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                            <img src={reply.attachment_url} alt="Bijlage" className="max-w-full max-h-48 rounded-lg" />
-                          </a>
-                        )}
+                        {reply.attachment_url && <TicketAttachment value={reply.attachment_url} />}
                       </div>
                       <p className={`text-[10px] text-gray-400 mt-1 px-1 ${isOwn ? 'text-right' : ''}`}>
                         {reply.author_name} • {new Date(reply.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -300,6 +316,11 @@ export default function TicketSystem({ projectId, projectName }: Props) {
                       <button onClick={() => setReplyFile(null)} className="text-red-400 hover:text-red-600">×</button>
                     </div>
                   )}
+                  {replyError && (
+                    <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      {replyError}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer transition-colors" title="Bijlage">
@@ -327,7 +348,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
           <h2 className="text-xl font-bold text-gray-900">Support & Meldingen</h2>
           <p className="text-sm text-gray-500 mt-1">Heb je een vraag of probleem? Maak een melding aan.</p>
         </div>
-        <button onClick={() => setShowNew(true)}
+        <button onClick={() => { setShowNew(true); setNewError('') }}
           className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
           <Plus className="w-4 h-4" />
           Nieuwe melding
@@ -340,7 +361,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h3 className="text-lg font-bold text-gray-900">Nieuwe melding</h3>
-              <button onClick={() => { setShowNew(false); setNewTitle(''); setNewDescription(''); setNewFile(null) }}
+              <button onClick={() => { setShowNew(false); setNewTitle(''); setNewDescription(''); setNewFile(null); setNewError('') }}
                 className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -378,8 +399,13 @@ export default function TicketSystem({ projectId, projectName }: Props) {
                 )}
               </div>
             </div>
+            {newError && (
+              <div className="px-6 pb-4 -mt-1">
+                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{newError}</p>
+              </div>
+            )}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
-              <button onClick={() => { setShowNew(false); setNewTitle(''); setNewDescription(''); setNewFile(null) }}
+              <button onClick={() => { setShowNew(false); setNewTitle(''); setNewDescription(''); setNewFile(null); setNewError('') }}
                 className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors">
                 Annuleren
               </button>
@@ -405,7 +431,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
           </div>
           <h3 className="text-base font-semibold text-gray-900 mb-1">Geen meldingen</h3>
           <p className="text-sm text-gray-500 mb-4">Je hebt nog geen meldingen aangemaakt.</p>
-          <button onClick={() => setShowNew(true)}
+          <button onClick={() => { setShowNew(true); setNewError('') }}
             className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
             <Plus className="w-4 h-4" />
             Eerste melding aanmaken

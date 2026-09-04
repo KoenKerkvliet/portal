@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Ticket, TicketReply, TicketStatus } from '../../types'
 import { MessageSquare, ArrowLeft, Send, Paperclip, Clock, CheckCircle, AlertCircle, Loader2, Image as ImageIcon } from 'lucide-react'
+import { ticketAttachmentPath, uploadTicketAttachment } from '../../lib/ticketAttachments'
+import TicketAttachment from '../../components/TicketAttachment'
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: typeof Clock }> = {
   open: { label: 'Open', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200', icon: AlertCircle },
@@ -23,6 +25,7 @@ export default function Tickets() {
   const [replyText, setReplyText] = useState('')
   const [replyFile, setReplyFile] = useState<File | null>(null)
   const [sending, setSending] = useState(false)
+  const [replyError, setReplyError] = useState('')
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const repliesEndRef = useRef<HTMLDivElement>(null)
 
@@ -42,6 +45,7 @@ export default function Tickets() {
     setLoadingReplies(true)
     setReplyText('')
     setReplyFile(null)
+    setReplyError('')
     const { data } = await supabase
       .from('ticket_replies')
       .select('*')
@@ -79,16 +83,20 @@ export default function Tickets() {
   const sendReply = async () => {
     if (!selectedTicket || !replyText.trim()) return
     setSending(true)
+    setReplyError('')
 
     let attachmentUrl: string | null = null
     if (replyFile) {
-      const ext = replyFile.name.split('.').pop() || 'jpg'
-      const path = `${selectedTicket.project_id}/${selectedTicket.id}/reply_${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('ticket-attachments').upload(path, replyFile, { upsert: true })
-      if (!error) {
-        const { data: urlData } = supabase.storage.from('ticket-attachments').getPublicUrl(path)
-        attachmentUrl = urlData.publicUrl
+      const { path, error } = await uploadTicketAttachment(
+        replyFile,
+        ticketAttachmentPath(selectedTicket.project_id, selectedTicket.id, replyFile)
+      )
+      if (error) {
+        setReplyError(`${error} Probeer het opnieuw of verstuur de reactie zonder bijlage.`)
+        setSending(false)
+        return
       }
+      attachmentUrl = path
     }
 
     const reply: Partial<TicketReply> = {
@@ -100,7 +108,13 @@ export default function Tickets() {
       attachment_url: attachmentUrl,
     }
 
-    await supabase.from('ticket_replies').insert(reply)
+    const { error: replyInsertError } = await supabase.from('ticket_replies').insert(reply)
+
+    if (replyInsertError) {
+      setReplyError(`Reactie versturen mislukt: ${replyInsertError.message}`)
+      setSending(false)
+      return
+    }
 
     // Update ticket timestamp & status to in_progress if still open
     const statusUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -243,9 +257,7 @@ export default function Tickets() {
                 <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-gray-100">
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedTicket.description}</p>
                   {selectedTicket.attachment_url && (
-                    <a href={selectedTicket.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                      <img src={selectedTicket.attachment_url} alt="Bijlage" className="max-w-full max-h-48 rounded-lg border border-gray-200" />
-                    </a>
+                    <TicketAttachment value={selectedTicket.attachment_url} imageClassName="border border-gray-200" />
                   )}
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1 px-1">{selectedTicket.created_by_name} • {new Date(selectedTicket.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</p>
@@ -270,9 +282,10 @@ export default function Tickets() {
                       }`}>
                         <p className={`text-sm whitespace-pre-wrap ${isAdmin ? 'text-white' : 'text-gray-700'}`}>{reply.content}</p>
                         {reply.attachment_url && (
-                          <a href={reply.attachment_url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
-                            <img src={reply.attachment_url} alt="Bijlage" className="max-w-full max-h-48 rounded-lg border border-white/20" />
-                          </a>
+                          <TicketAttachment
+                            value={reply.attachment_url}
+                            imageClassName={isAdmin ? 'border border-white/20' : 'border border-gray-200'}
+                          />
                         )}
                       </div>
                       <p className={`text-[10px] text-gray-400 mt-1 px-1 ${isAdmin ? 'text-right' : ''}`}>
@@ -304,6 +317,11 @@ export default function Tickets() {
                       <span className="truncate">{replyFile.name}</span>
                       <button onClick={() => setReplyFile(null)} className="text-red-400 hover:text-red-600">×</button>
                     </div>
+                  )}
+                  {replyError && (
+                    <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      {replyError}
+                    </p>
                   )}
                 </div>
                 <div className="flex flex-col gap-1.5">
