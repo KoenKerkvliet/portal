@@ -29,12 +29,14 @@ import ClientAssignmentPage from './pages/client/AssignmentPage'
 import ClientInvoicePage from './pages/client/InvoicePage'
 import ClientStyleguidePage from './pages/client/StyleguidePage'
 import ContentPages from './pages/admin/ContentPages'
+import Attachments from './pages/admin/Attachments'
 import Tickets from './pages/admin/Tickets'
 import ChatLogs from './pages/admin/ChatLogs'
 import Onderhoud from './pages/admin/Onderhoud'
 import OnderhoudTimer from './pages/admin/OnderhoudTimer'
 import Financien from './pages/admin/Financien'
 import ClientContentPage from './pages/client/ContentPage'
+import ClientAttachmentPage from './pages/client/AttachmentPage'
 import PunchCardShop from './pages/client/PunchCardShop'
 import ClientSupport from './pages/client/Support'
 import Verify from './pages/Verify'
@@ -88,6 +90,7 @@ function AppRoutes() {
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />
         <Route path="contentpaginas" element={<ContentPages />} />
+        <Route path="bijlages" element={<Attachments />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="chatgesprekken" element={<ChatLogs />} />
         <Route path="onderhoud" element={<Onderhoud />} />
@@ -101,6 +104,11 @@ function AppRoutes() {
           <div className="min-h-screen bg-gray-50 py-8 px-4">
             <ClientQuotePage />
           </div>
+        </ProtectedRoute>
+      } />
+      <Route path="/bijlage/:attachmentId" element={
+        <ProtectedRoute>
+          <ClientAttachmentPage />
         </ProtectedRoute>
       } />
       <Route path="/factuur/:invoiceId" element={

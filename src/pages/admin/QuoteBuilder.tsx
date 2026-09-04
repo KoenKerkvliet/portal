@@ -20,7 +20,6 @@ import {
   ChevronDown,
   Repeat,
   Paperclip,
-  Upload,
   FileText,
   AlertCircle,
   Download,
@@ -99,9 +98,6 @@ export default function QuoteBuilder() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [uploadingAttachment, setUploadingAttachment] = useState(false)
-  const [attachmentError, setAttachmentError] = useState('')
-  const attachmentInputRef = useRef<HTMLInputElement>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 })
@@ -294,74 +290,16 @@ export default function QuoteBuilder() {
     setAttachmentIds((ids) => (ids.includes(id) ? ids.filter((a) => a !== id) : [...ids, id]))
   }
 
-  const updateAttachment = async (id: string, updates: Partial<QuoteAttachment>) => {
-    setAttachments((list) => list.map((a) => (a.id === id ? { ...a, ...updates } : a)))
-    await supabase.from('quote_attachments').update(updates).eq('id', id)
-  }
-
-  const handleAttachmentUpload = async (file: File) => {
-    setAttachmentError('')
-    setUploadingAttachment(true)
-
-    const ext = file.name.includes('.') ? file.name.split('.').pop() : 'pdf'
-    const path = `${genId()}.${ext}`
-
-    const { error: uploadErr } = await supabase.storage
-      .from('quote-attachments')
-      .upload(path, file, { contentType: file.type || 'application/octet-stream' })
-
-    if (uploadErr) {
-      setAttachmentError(`Uploaden mislukt: ${uploadErr.message}`)
-      setUploadingAttachment(false)
-      return
-    }
-
-    const { data, error } = await supabase
-      .from('quote_attachments')
-      .insert({
-        title: file.name.replace(/\.[^.]+$/, ''),
-        file_name: file.name,
-        file_path: path,
-        file_size: file.size,
-        mime_type: file.type || 'application/octet-stream',
-        sort_order: attachments.length,
-      })
-      .select()
-      .single()
-
-    if (error || !data) {
-      await supabase.storage.from('quote-attachments').remove([path])
-      setAttachmentError(`Opslaan van de bijlage mislukt: ${error?.message || 'onbekende fout'}`)
-      setUploadingAttachment(false)
-      return
-    }
-
-    setAttachments((list) => [...list, data])
-    setAttachmentIds((ids) => [...ids, data.id])
-    setUploadingAttachment(false)
-  }
-
-  // Archiveren, niet hard verwijderen: offertes die deze bijlage al hebben
-  // (en misschien al geaccepteerd zijn) moeten hem blijven tonen.
-  const archiveAttachment = async (attachment: QuoteAttachment) => {
-    if (
-      !confirm(
-        `"${attachment.title}" uit de bijlagenbibliotheek halen?\n\n` +
-          'Je kunt hem dan niet meer aanvinken bij nieuwe offertes. Offertes die deze bijlage al ' +
-          'hebben, blijven hem gewoon tonen.'
-      )
-    )
-      return
-    await supabase.from('quote_attachments').update({ is_active: false }).eq('id', attachment.id)
-    setAttachments((list) => list.filter((a) => a.id !== attachment.id))
-    setAttachmentIds((ids) => ids.filter((id) => id !== attachment.id))
-  }
-
   const openAttachment = async (attachment: QuoteAttachment) => {
-    const { data } = await supabase.storage
-      .from('quote-attachments')
-      .createSignedUrl(attachment.file_path, 60)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
+    if (attachment.kind === 'file') {
+      if (!attachment.file_path) return
+      const { data } = await supabase.storage
+        .from('quote-attachments')
+        .createSignedUrl(attachment.file_path, 60)
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
+      return
+    }
+    window.open(`/bijlage/${attachment.id}`, '_blank', 'noopener')
   }
 
   // Waarom kan er (nog) niet opgeslagen worden?
@@ -840,52 +778,33 @@ export default function QuoteBuilder() {
 
       {/* Bijlages */}
       <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100 gap-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Bijlages</h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              Vink aan welke documenten bij deze offerte horen. De klant kan ze downloaden op de
-              offertepagina.
+              Vink aan wat bij deze offerte hoort. Aangevinkte bijlages komen achter de offerte in
+              dezelfde PDF te staan.
             </p>
           </div>
-          <input
-            ref={attachmentInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx,image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) handleAttachmentUpload(file)
-              e.target.value = ''
-            }}
-          />
           <button
-            onClick={() => attachmentInputRef.current?.click()}
-            disabled={uploadingAttachment}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50 shrink-0"
+            onClick={() => window.open('/admin/bijlages', '_blank', 'noopener')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
           >
-            {uploadingAttachment ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Upload className="w-3.5 h-3.5" />
-            )}
-            Bijlage uploaden
+            <Paperclip className="w-3.5 h-3.5" />
+            Bijlages beheren
           </button>
         </div>
 
         <div className="p-6">
-          {attachmentError && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
-              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{attachmentError}</p>
-            </div>
-          )}
-
           {attachments.length === 0 ? (
             <div className="py-8 text-center">
               <Paperclip className="w-6 h-6 text-gray-300 mx-auto mb-2" />
               <p className="text-sm text-gray-400">
-                Nog geen bijlages. Upload een document om het bij offertes te kunnen aanvinken.
+                Nog geen bijlages. Maak er een aan bij{' '}
+                <a href="/admin/bijlages" className="text-primary hover:underline">
+                  Bijlages
+                </a>
+                .
               </p>
             </div>
           ) : (
@@ -893,73 +812,48 @@ export default function QuoteBuilder() {
               {attachments.map((attachment) => {
                 const checked = attachmentIds.includes(attachment.id)
                 return (
-                  <div
+                  <label
                     key={attachment.id}
-                    className={`flex items-start gap-3 group rounded-xl p-3 border transition-colors ${
-                      checked ? 'bg-primary/5 border-primary/30' : 'bg-gray-50 border-gray-100'
+                    className={`flex items-center gap-3 rounded-xl p-3 border cursor-pointer transition-colors ${
+                      checked
+                        ? 'bg-primary/5 border-primary/30'
+                        : 'bg-gray-50 border-gray-100 hover:bg-gray-100'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleAttachment(attachment.id)}
-                      className="mt-2.5 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/30 cursor-pointer shrink-0"
+                      className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/30 cursor-pointer shrink-0"
                     />
-                    <FileText className="w-4 h-4 text-gray-400 mt-2.5 shrink-0" />
+                    <FileText className="w-4 h-4 text-gray-400 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        value={attachment.title}
-                        onChange={(e) =>
-                          setAttachments((list) =>
-                            list.map((a) =>
-                              a.id === attachment.id ? { ...a, title: e.target.value } : a
-                            )
-                          )
-                        }
-                        onBlur={(e) => updateAttachment(attachment.id, { title: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                        placeholder="Titel van de bijlage..."
-                      />
-                      <input
-                        type="text"
-                        value={attachment.description}
-                        onChange={(e) =>
-                          setAttachments((list) =>
-                            list.map((a) =>
-                              a.id === attachment.id ? { ...a, description: e.target.value } : a
-                            )
-                          )
-                        }
-                        onBlur={(e) =>
-                          updateAttachment(attachment.id, { description: e.target.value })
-                        }
-                        className="w-full px-3 py-1.5 mt-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-                        placeholder="Korte omschrijving (optioneel)..."
-                      />
-                      <p className="text-[11px] text-gray-400 mt-1.5 px-1 truncate">
-                        {attachment.file_name}
-                        {attachment.file_size > 0 &&
-                          ` \u00b7 ${(attachment.file_size / 1024).toFixed(0)} kB`}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-gray-900">{attachment.title}</span>
+                        {attachment.kind === 'file' && (
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[11px] font-medium rounded-full">
+                            Bestand &middot; alleen downloadlink
+                          </span>
+                        )}
+                      </div>
+                      {attachment.description && (
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                          {attachment.description}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1 mt-2 shrink-0">
-                      <button
-                        onClick={() => openAttachment(attachment)}
-                        title="Bekijken"
-                        className="p-1.5 text-gray-300 hover:text-gray-600 transition-colors"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => archiveAttachment(attachment)}
-                        title="Uit bibliotheek halen"
-                        className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        openAttachment(attachment)
+                      }}
+                      title="Bekijken"
+                      className="p-1.5 text-gray-300 hover:text-gray-600 transition-colors shrink-0"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  </label>
                 )
               })}
             </div>

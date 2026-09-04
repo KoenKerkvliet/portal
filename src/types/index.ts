@@ -239,14 +239,19 @@ export interface QuoteItem {
   title?: string
 }
 
+export type QuoteAttachmentKind = 'content' | 'file'
+
 export interface QuoteAttachment {
   id: string
   title: string
   description: string
-  file_name: string
-  file_path: string
-  file_size: number
-  mime_type: string
+  /** 'content' gaat mee in de offerte-PDF, 'file' blijft een downloadlink. */
+  kind: QuoteAttachmentKind
+  content: string
+  file_name: string | null
+  file_path: string | null
+  file_size: number | null
+  mime_type: string | null
   sort_order: number
   is_active: boolean
   created_at: string

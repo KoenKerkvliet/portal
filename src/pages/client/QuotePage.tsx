@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Quote, QuoteItem, QuoteAttachment, InvoiceSettings } from '../../types'
-import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle, Paperclip, FileText } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle, Paperclip, FileText, ExternalLink } from 'lucide-react'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
+import { renderRichTextToPdf } from '../../lib/richTextPdf'
 
 // Convert HTML to structured plain text for PDF
 function htmlToPlainText(html: string): string {
@@ -186,12 +187,18 @@ export default function QuotePage() {
     fetch()
   }, [quoteId])
 
-  // Bijlage openen via een tijdelijke signed URL (bucket is niet publiek)
+  // Content-bijlages openen als leespagina, geuploade bestanden via een tijdelijke
+  // signed URL (de bucket is niet publiek).
   const handleOpenAttachment = async (attachment: QuoteAttachment) => {
+    if (attachment.kind === 'content') {
+      navigate(`/bijlage/${attachment.id}`)
+      return
+    }
+    if (!attachment.file_path) return
     setOpeningAttachment(attachment.id)
     const { data } = await supabase.storage
       .from('quote-attachments')
-      .createSignedUrl(attachment.file_path, 60, { download: attachment.file_name })
+      .createSignedUrl(attachment.file_path, 60, { download: attachment.file_name || undefined })
     if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
     setOpeningAttachment('')
   }
@@ -420,7 +427,7 @@ export default function QuotePage() {
       y += noteLines.length * 4
     }
 
-    // Bijlages
+    // Bijlages: opsomming op de offerte zelf
     if (attachments.length > 0) {
       y += 12
       if (y > 255) { doc.addPage(); y = 25 }
@@ -429,17 +436,17 @@ export default function QuotePage() {
       doc.setTextColor(100, 100, 100)
       doc.text('Bijlages:', margin, y)
       y += 5
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(80, 80, 80)
       for (const attachment of attachments) {
         if (y > 275) { doc.addPage(); y = 25 }
-        doc.text(`\u2022 ${attachment.title}`, margin, y)
+        const suffix = attachment.kind === 'content'
+          ? ' (hierna opgenomen)'
+          : ' (te downloaden in het klantportaal)'
+        doc.text(`\u2022 ${attachment.title}${suffix}`, margin, y)
         y += 5
       }
-      doc.setFontSize(7)
-      doc.setFont('helvetica', 'italic')
-      doc.setTextColor(140, 140, 140)
-      doc.text('Deze documenten staan als download bij de offerte in het klantportaal.', margin, y)
     }
 
     // KOR notice
@@ -450,6 +457,40 @@ export default function QuotePage() {
       doc.setFont('helvetica', 'italic')
       doc.setTextColor(140, 140, 140)
       doc.text('Op grond van de Kleineondernemersregeling (KOR) is er geen BTW verschuldigd.', margin, y)
+    }
+
+    // Content-bijlages achter de offerte plakken, zodat de klant één bestand heeft
+    const contentAttachments = attachments.filter(
+      (a) => a.kind === 'content' && a.content?.trim(),
+    )
+    for (const attachment of contentAttachments) {
+      doc.addPage()
+      let ay = 25
+
+      doc.setFontSize(15)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(40, 40, 40)
+      const titleLines = doc.splitTextToSize(attachment.title, contentWidth)
+      doc.text(titleLines, margin, ay)
+      ay += titleLines.length * 7
+
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(150, 150, 150)
+      doc.text(`Bijlage bij offerte ${quote.number}`, margin, ay)
+      ay += 4
+
+      doc.setDrawColor(225, 225, 228)
+      doc.setLineWidth(0.2)
+      doc.line(margin, ay, margin + contentWidth, ay)
+      ay += 8
+
+      ay = renderRichTextToPdf(doc, attachment.content, ay, {
+        margin,
+        top: 25,
+        bottom: 278,
+        width: contentWidth,
+      })
     }
 
     // Footer
@@ -817,10 +858,13 @@ export default function QuotePage() {
         {/* Bijlages */}
         {attachments.length > 0 && (
           <div className="px-8 py-5 border-t border-gray-100">
-            <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
               <Paperclip className="w-3.5 h-3.5" />
               Bijlages
             </h3>
+            <p className="text-xs text-gray-400 mb-3">
+              Deze horen bij de offerte. Ze zitten ook in de PDF-download.
+            </p>
             <div className="space-y-2">
               {attachments.map((attachment) => (
                 <button
@@ -840,6 +884,8 @@ export default function QuotePage() {
                   </div>
                   {openingAttachment === attachment.id ? (
                     <Loader2 className="w-4 h-4 text-gray-400 animate-spin shrink-0" />
+                  ) : attachment.kind === 'content' ? (
+                    <ExternalLink className="w-4 h-4 text-gray-400 shrink-0" />
                   ) : (
                     <Download className="w-4 h-4 text-gray-400 shrink-0" />
                   )}

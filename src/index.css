@@ -124,3 +124,75 @@ button:not(:disabled),
   font-weight: 600;
   margin-top: 0.25rem;
 }
+
+/* Bijlage-inhoud: ruimere opmaak dan de compacte prose-quote van offerteregels */
+.prose-attachment p {
+  margin-bottom: 0.75rem;
+  line-height: 1.65;
+}
+
+.prose-attachment h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-attachment h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  margin-top: 1.25rem;
+  margin-bottom: 0.375rem;
+}
+
+.prose-attachment ul,
+.prose-attachment ol {
+  margin-bottom: 0.75rem;
+}
+
+.prose-attachment li {
+  margin-bottom: 0.25rem;
+  line-height: 1.6;
+}
+
+.prose-attachment hr {
+  border-color: #e5e7eb;
+  margin: 1.5rem 0;
+}
+
+.prose-attachment blockquote {
+  border-left: 3px solid #e5e7eb;
+  padding-left: 0.875rem;
+  color: #6b7280;
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.prose-attachment table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.8125rem;
+}
+
+.prose-attachment th,
+.prose-attachment td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.625rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose-attachment th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Tabellen mogen op smalle schermen scrollen in plaats van de pagina te rekken */
+.prose-attachment table {
+  display: block;
+  overflow-x: auto;
+}

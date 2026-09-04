@@ -20,6 +20,7 @@ import {
   MessageCircle,
   Wrench,
   Wallet,
+  Paperclip,
 } from 'lucide-react'
 
 const mainItems = [
@@ -40,6 +41,7 @@ const contentItems = [
   { to: '/admin/templates', icon: Layers, label: 'Templates' },
   { to: '/admin/formulieren', icon: ClipboardList, label: 'Formulieren' },
   { to: '/admin/contentpaginas', icon: BookOpen, label: "Contentpagina's" },
+  { to: '/admin/bijlages', icon: Paperclip, label: 'Bijlages' },
 ]
 
 const supportItems = [

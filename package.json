@@ -13,6 +13,7 @@
     "@supabase/supabase-js": "^2.101.1",
     "@tiptap/extension-link": "^3.22.3",
     "@tiptap/extension-placeholder": "^3.22.1",
+    "@tiptap/extension-table": "^3.22.3",
     "@tiptap/extension-text-align": "^3.22.1",
     "@tiptap/extension-underline": "^3.22.1",
     "@tiptap/pm": "^3.22.3",
