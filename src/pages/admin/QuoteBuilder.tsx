@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { generateTestNumber } from '../../lib/testNumbering'
-import type { Product, QuoteItem, YearFormat, InvoiceSettings } from '../../types'
+import type { Product, QuoteItem, QuoteAttachment, YearFormat, InvoiceSettings } from '../../types'
 import {
   ArrowLeft,
   Save,
@@ -19,6 +19,11 @@ import {
   Search,
   ChevronDown,
   Repeat,
+  Paperclip,
+  Upload,
+  FileText,
+  AlertCircle,
+  Download,
 } from 'lucide-react'
 
 function generateQuoteNumber(
@@ -73,6 +78,7 @@ export default function QuoteBuilder() {
   const [projects, setProjects] = useState<ProjectWithClients[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings | null>(null)
+  const [attachments, setAttachments] = useState<QuoteAttachment[]>([])
 
   // Form state
   const [number, setNumber] = useState('')
@@ -85,12 +91,17 @@ export default function QuoteBuilder() {
   const [discountPercent, setDiscountPercent] = useState(0)
   const [btwPercent, setBtwPercent] = useState(21)
   const [notes, setNotes] = useState('')
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([])
   const [isTestQuote, setIsTestQuote] = useState(isTest)
 
   // UI
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [attachmentError, setAttachmentError] = useState('')
+  const attachmentInputRef = useRef<HTMLInputElement>(null)
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [productSearch, setProductSearch] = useState('')
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 })
@@ -101,12 +112,13 @@ export default function QuoteBuilder() {
   useEffect(() => {
     const load = async () => {
       // Fetch all needed data in parallel
-      const [projectsRes, productsRes, settingsRes, invoiceRes, quotesRes] = await Promise.all([
+      const [projectsRes, productsRes, settingsRes, invoiceRes, quotesRes, attachmentsRes] = await Promise.all([
         supabase.from('projects').select('id, name').order('name'),
         supabase.from('products').select('*').order('name'),
         supabase.from('quote_settings').select('*').limit(1).single(),
         supabase.from('invoice_settings').select('*').limit(1).single(),
         supabase.from('quotes').select('number'),
+        supabase.from('quote_attachments').select('*').eq('is_active', true).order('sort_order').order('created_at'),
       ])
 
       // Fetch project_clients with client names
@@ -130,6 +142,7 @@ export default function QuoteBuilder() {
 
       setProjects(projectsWithClients)
       setProducts(productsRes.data || [])
+      setAttachments(attachmentsRes.data || [])
       if (invoiceRes.data) setInvoiceSettings(invoiceRes.data)
 
       // Set BTW based on KOR
@@ -167,6 +180,7 @@ export default function QuoteBuilder() {
           setDiscountPercent(quote.discount_percent || 0)
           setBtwPercent(quote.btw_percent ?? 21)
           setNotes(quote.notes || '')
+          setAttachmentIds(quote.attachment_ids || [])
 
           // Find client name
           const pc = (pcData || []).find((pc) => pc.client_id === quote.client_id)
@@ -275,11 +289,86 @@ export default function QuoteBuilder() {
   const btwAmount = afterDiscount * (btwPercent / 100)
   const total = afterDiscount + btwAmount
 
+  // Bijlages
+  const toggleAttachment = (id: string) => {
+    setAttachmentIds((ids) => (ids.includes(id) ? ids.filter((a) => a !== id) : [...ids, id]))
+  }
+
+  const updateAttachment = async (id: string, updates: Partial<QuoteAttachment>) => {
+    setAttachments((list) => list.map((a) => (a.id === id ? { ...a, ...updates } : a)))
+    await supabase.from('quote_attachments').update(updates).eq('id', id)
+  }
+
+  const handleAttachmentUpload = async (file: File) => {
+    setAttachmentError('')
+    setUploadingAttachment(true)
+
+    const ext = file.name.includes('.') ? file.name.split('.').pop() : 'pdf'
+    const path = `${genId()}.${ext}`
+
+    const { error: uploadErr } = await supabase.storage
+      .from('quote-attachments')
+      .upload(path, file, { contentType: file.type || 'application/octet-stream' })
+
+    if (uploadErr) {
+      setAttachmentError(`Uploaden mislukt: ${uploadErr.message}`)
+      setUploadingAttachment(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('quote_attachments')
+      .insert({
+        title: file.name.replace(/\.[^.]+$/, ''),
+        file_name: file.name,
+        file_path: path,
+        file_size: file.size,
+        mime_type: file.type || 'application/octet-stream',
+        sort_order: attachments.length,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      await supabase.storage.from('quote-attachments').remove([path])
+      setAttachmentError(`Opslaan van de bijlage mislukt: ${error?.message || 'onbekende fout'}`)
+      setUploadingAttachment(false)
+      return
+    }
+
+    setAttachments((list) => [...list, data])
+    setAttachmentIds((ids) => [...ids, data.id])
+    setUploadingAttachment(false)
+  }
+
+  const deleteAttachment = async (attachment: QuoteAttachment) => {
+    if (!confirm(`"${attachment.title}" definitief verwijderen uit de bijlagenbibliotheek?`)) return
+    await supabase.from('quote_attachments').delete().eq('id', attachment.id)
+    await supabase.storage.from('quote-attachments').remove([attachment.file_path])
+    setAttachments((list) => list.filter((a) => a.id !== attachment.id))
+    setAttachmentIds((ids) => ids.filter((id) => id !== attachment.id))
+  }
+
+  const openAttachment = async (attachment: QuoteAttachment) => {
+    const { data } = await supabase.storage
+      .from('quote-attachments')
+      .createSignedUrl(attachment.file_path, 60)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
+  }
+
+  // Waarom kan er (nog) niet opgeslagen worden?
+  const saveBlockedReason = !projectId
+    ? 'Selecteer eerst een domein'
+    : !clientId
+      ? 'Dit domein heeft nog geen gekoppelde klant'
+      : ''
+
   // Save
   const handleSave = async () => {
-    if (!projectId || !clientId) return
+    if (saveBlockedReason) return
     setSaving(true)
     setSaved(false)
+    setSaveError('')
 
     const payload = {
       number,
@@ -293,16 +382,21 @@ export default function QuoteBuilder() {
       discount_percent: discountPercent,
       btw_percent: btwPercent,
       notes,
+      attachment_ids: attachmentIds,
       created_at: new Date(createdDate).toISOString(),
     }
 
-    if (editId) {
-      await supabase.from('quotes').update(payload).eq('id', editId)
-    } else {
-      await supabase.from('quotes').insert(payload)
-    }
+    const { error } = editId
+      ? await supabase.from('quotes').update(payload).eq('id', editId)
+      : await supabase.from('quotes').insert(payload)
 
     setSaving(false)
+
+    if (error) {
+      setSaveError(`Opslaan mislukt: ${error.message}`)
+      return
+    }
+
     setSaved(true)
     setTimeout(() => navigate('/admin/offertes'), 800)
   }
@@ -349,21 +443,37 @@ export default function QuoteBuilder() {
             </div>
           </div>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving || !projectId || !clientId}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
-        >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : saved ? (
-            <Check className="w-4 h-4" />
-          ) : (
-            <Save className="w-4 h-4" />
+        <div className="flex flex-col items-end gap-1.5">
+          <button
+            onClick={handleSave}
+            disabled={saving || !!saveBlockedReason}
+            title={saveBlockedReason || undefined}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-600 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : saved ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {saved ? 'Opgeslagen' : 'Opslaan'}
+          </button>
+          {saveBlockedReason && (
+            <p className="flex items-center gap-1.5 text-xs text-amber-600">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              {saveBlockedReason}
+            </p>
           )}
-          {saved ? 'Opgeslagen' : 'Opslaan'}
-        </button>
+        </div>
       </div>
+
+      {saveError && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-6">
+          <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-red-700">{saveError}</p>
+        </div>
+      )}
 
       {/* Basisgegevens */}
       <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
@@ -390,11 +500,16 @@ export default function QuoteBuilder() {
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
-              {clientName && (
+              {clientName ? (
                 <p className="text-xs text-gray-400 mt-1.5">
                   Klant: <span className="font-medium text-gray-600">{clientName}</span>
                 </p>
-              )}
+              ) : projectId ? (
+                <p className="text-xs text-amber-600 mt-1.5">
+                  Aan dit domein is nog geen klant gekoppeld. Koppel er eerst een klant aan bij
+                  Domeinen &mdash; zonder klant kan de offerte niet opgeslagen worden.
+                </p>
+              ) : null}
             </div>
 
             {/* Aanmaakdatum */}
@@ -712,6 +827,135 @@ export default function QuoteBuilder() {
             rows={4}
             placeholder="Voeg eventuele opmerkingen of voorwaarden toe..."
           />
+        </div>
+      </section>
+
+      {/* Bijlages */}
+      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Bijlages</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Vink aan welke documenten bij deze offerte horen. De klant kan ze downloaden op de
+              offertepagina.
+            </p>
+          </div>
+          <input
+            ref={attachmentInputRef}
+            type="file"
+            accept=".pdf,.doc,.docx,image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleAttachmentUpload(file)
+              e.target.value = ''
+            }}
+          />
+          <button
+            onClick={() => attachmentInputRef.current?.click()}
+            disabled={uploadingAttachment}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50 shrink-0"
+          >
+            {uploadingAttachment ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Upload className="w-3.5 h-3.5" />
+            )}
+            Bijlage uploaden
+          </button>
+        </div>
+
+        <div className="p-6">
+          {attachmentError && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{attachmentError}</p>
+            </div>
+          )}
+
+          {attachments.length === 0 ? (
+            <div className="py-8 text-center">
+              <Paperclip className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">
+                Nog geen bijlages. Upload een document om het bij offertes te kunnen aanvinken.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {attachments.map((attachment) => {
+                const checked = attachmentIds.includes(attachment.id)
+                return (
+                  <div
+                    key={attachment.id}
+                    className={`flex items-start gap-3 group rounded-xl p-3 border transition-colors ${
+                      checked ? 'bg-primary/5 border-primary/30' : 'bg-gray-50 border-gray-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleAttachment(attachment.id)}
+                      className="mt-2.5 w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/30 cursor-pointer shrink-0"
+                    />
+                    <FileText className="w-4 h-4 text-gray-400 mt-2.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <input
+                        type="text"
+                        value={attachment.title}
+                        onChange={(e) =>
+                          setAttachments((list) =>
+                            list.map((a) =>
+                              a.id === attachment.id ? { ...a, title: e.target.value } : a
+                            )
+                          )
+                        }
+                        onBlur={(e) => updateAttachment(attachment.id, { title: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                        placeholder="Titel van de bijlage..."
+                      />
+                      <input
+                        type="text"
+                        value={attachment.description}
+                        onChange={(e) =>
+                          setAttachments((list) =>
+                            list.map((a) =>
+                              a.id === attachment.id ? { ...a, description: e.target.value } : a
+                            )
+                          )
+                        }
+                        onBlur={(e) =>
+                          updateAttachment(attachment.id, { description: e.target.value })
+                        }
+                        className="w-full px-3 py-1.5 mt-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                        placeholder="Korte omschrijving (optioneel)..."
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1.5 px-1 truncate">
+                        {attachment.file_name}
+                        {attachment.file_size > 0 &&
+                          ` \u00b7 ${(attachment.file_size / 1024).toFixed(0)} kB`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 mt-2 shrink-0">
+                      <button
+                        onClick={() => openAttachment(attachment)}
+                        title="Bekijken"
+                        className="p-1.5 text-gray-300 hover:text-gray-600 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteAttachment(attachment)}
+                        title="Verwijderen uit bibliotheek"
+                        className="p-1.5 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 

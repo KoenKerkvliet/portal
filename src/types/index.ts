@@ -239,6 +239,19 @@ export interface QuoteItem {
   title?: string
 }
 
+export interface QuoteAttachment {
+  id: string
+  title: string
+  description: string
+  file_name: string
+  file_path: string
+  file_size: number
+  mime_type: string
+  sort_order: number
+  is_active: boolean
+  created_at: string
+}
+
 export interface Quote {
   id: string
   project_id: string
@@ -252,6 +265,7 @@ export interface Quote {
   discount_percent: number
   btw_percent: number
   notes: string
+  attachment_ids: string[]
   accepted_at: string | null
   accepted_name: string | null
   accepted_signature: string | null

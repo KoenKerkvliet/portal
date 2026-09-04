@@ -2,8 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import type { Quote, QuoteItem, InvoiceSettings } from '../../types'
-import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle } from 'lucide-react'
+import type { Quote, QuoteItem, QuoteAttachment, InvoiceSettings } from '../../types'
+import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle, Paperclip, FileText } from 'lucide-react'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 
 // Convert HTML to structured plain text for PDF
@@ -129,6 +129,8 @@ export default function QuotePage() {
   const [clientName, setClientName] = useState('')
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [attachments, setAttachments] = useState<QuoteAttachment[]>([])
+  const [openingAttachment, setOpeningAttachment] = useState('')
 
   // Acceptance state
   const [acceptName, setAcceptName] = useState('')
@@ -166,10 +168,34 @@ export default function QuotePage() {
         setClientName(client?.name || '')
       }
       if (settingsRes.data) setSettings(settingsRes.data)
+
+      // Bijlages die aan deze offerte gekoppeld zijn, in de volgorde van de bibliotheek
+      const attachmentIds: string[] = quoteRes.data?.attachment_ids || []
+      if (attachmentIds.length > 0) {
+        const { data: attachmentData } = await supabase
+          .from('quote_attachments')
+          .select('*')
+          .in('id', attachmentIds)
+          .eq('is_active', true)
+          .order('sort_order')
+          .order('created_at')
+        setAttachments(attachmentData || [])
+      }
+
       setLoading(false)
     }
     fetch()
   }, [quoteId])
+
+  // Bijlage openen via een tijdelijke signed URL (bucket is niet publiek)
+  const handleOpenAttachment = async (attachment: QuoteAttachment) => {
+    setOpeningAttachment(attachment.id)
+    const { data } = await supabase.storage
+      .from('quote-attachments')
+      .createSignedUrl(attachment.file_path, 60, { download: attachment.file_name })
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
+    setOpeningAttachment('')
+  }
 
   const handleDownloadPdf = async () => {
     if (!quote) return
@@ -392,6 +418,29 @@ export default function QuotePage() {
       doc.setTextColor(80, 80, 80)
       const noteLines = doc.splitTextToSize(quote.notes, contentWidth)
       doc.text(noteLines, margin, y)
+      y += noteLines.length * 4
+    }
+
+    // Bijlages
+    if (attachments.length > 0) {
+      y += 12
+      if (y > 255) { doc.addPage(); y = 25 }
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(100, 100, 100)
+      doc.text('Bijlages:', margin, y)
+      y += 5
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(80, 80, 80)
+      for (const attachment of attachments) {
+        if (y > 275) { doc.addPage(); y = 25 }
+        doc.text(`\u2022 ${attachment.title}`, margin, y)
+        y += 5
+      }
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(140, 140, 140)
+      doc.text('Deze documenten staan als download bij de offerte in het klantportaal.', margin, y)
     }
 
     // KOR notice
@@ -763,6 +812,41 @@ export default function QuotePage() {
           <div className="px-8 py-5 border-t border-gray-100">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Opmerkingen</h3>
             <p className="text-sm text-gray-600 whitespace-pre-wrap">{quote.notes}</p>
+          </div>
+        )}
+
+        {/* Bijlages */}
+        {attachments.length > 0 && (
+          <div className="px-8 py-5 border-t border-gray-100">
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              <Paperclip className="w-3.5 h-3.5" />
+              Bijlages
+            </h3>
+            <div className="space-y-2">
+              {attachments.map((attachment) => (
+                <button
+                  key={attachment.id}
+                  onClick={() => handleOpenAttachment(attachment)}
+                  disabled={openingAttachment === attachment.id}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-100 rounded-xl transition-colors text-left disabled:opacity-60"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{attachment.title}</p>
+                    {attachment.description && (
+                      <p className="text-xs text-gray-500 truncate">{attachment.description}</p>
+                    )}
+                  </div>
+                  {openingAttachment === attachment.id ? (
+                    <Loader2 className="w-4 h-4 text-gray-400 animate-spin shrink-0" />
+                  ) : (
+                    <Download className="w-4 h-4 text-gray-400 shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
