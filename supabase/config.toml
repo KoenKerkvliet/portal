@@ -26,3 +26,14 @@ verify_jwt = false
 # Aangeroepen door /account-instellen (klant nog niet ingelogd). Auth zit in het
 # invite-token zelf (32-byte random + expiry + used_at in client_invites).
 verify_jwt = false
+
+# api-maintenance draait wél live (version 1, verify_jwt=false), maar is nooit via
+# deze repo uitgerold. De broncode staat in supabase/functions-archief/ zodat hij
+# in git zit zonder dat de CI hem aanraakt.
+#
+# Verplaats je die map ooit naar supabase/functions/, haal dan deze twee regels in
+# DEZELFDE commit uit commentaar. Anders zet de eerste deploy verify_jwt op true,
+# krijgt de MainWP-plugin een 401, geeft get_balance() null terug en verdwijnt de
+# strippenkaart-sectie zonder foutmelding uit het klantrapport.
+# [functions.api-maintenance]
+# verify_jwt = false
