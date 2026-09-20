@@ -415,3 +415,30 @@ export interface TicketReply {
   attachment_url: string | null
   created_at: string
 }
+
+export type WorkLogCategory =
+  | 'onderhoud'
+  | 'update'
+  | 'bugfix'
+  | 'content'
+  | 'design'
+  | 'development'
+  | 'seo'
+  | 'beveiliging'
+  | 'overleg'
+  | 'overig'
+
+export interface WorkLog {
+  id: string
+  project_id: string
+  performed_at: string
+  title: string
+  description: string
+  duration_minutes: number
+  category: WorkLogCategory
+  billable: boolean
+  visible_to_client: boolean
+  created_at: string
+  updated_at: string
+  project?: Project
+}

@@ -19,6 +19,7 @@ import {
   MessageSquare,
   MessageCircle,
   Wrench,
+  History,
   Wallet,
   Paperclip,
 } from 'lucide-react'
@@ -48,6 +49,7 @@ const supportItems = [
   { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
   { to: '/admin/chatgesprekken', icon: MessageCircle, label: 'Chatgesprekken' },
   { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud' },
+  { to: '/admin/werkzaamheden', icon: History, label: 'Werkzaamheden' },
 ]
 
 export default function AdminLayout() {

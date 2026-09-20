@@ -34,6 +34,7 @@ import Tickets from './pages/admin/Tickets'
 import ChatLogs from './pages/admin/ChatLogs'
 import Onderhoud from './pages/admin/Onderhoud'
 import OnderhoudTimer from './pages/admin/OnderhoudTimer'
+import Werkzaamheden from './pages/admin/Werkzaamheden'
 import Financien from './pages/admin/Financien'
 import ClientContentPage from './pages/client/ContentPage'
 import ClientAttachmentPage from './pages/client/AttachmentPage'
@@ -95,6 +96,7 @@ function AppRoutes() {
         <Route path="chatgesprekken" element={<ChatLogs />} />
         <Route path="onderhoud" element={<Onderhoud />} />
         <Route path="onderhoud/:projectId/timer" element={<OnderhoudTimer />} />
+        <Route path="werkzaamheden" element={<Werkzaamheden />} />
         <Route path="instellingen" element={<AdminSettings />} />
       </Route>
 
