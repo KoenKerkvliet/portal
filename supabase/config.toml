@@ -27,6 +27,12 @@ verify_jwt = false
 # invite-token zelf (32-byte random + expiry + used_at in client_invites).
 verify_jwt = false
 
+[functions.mcp]
+# Connector voor Claude (claude.ai, desktop, mobiel, Code). Claude stuurt een
+# eigen sleutel mee als "Authorization: Bearer <MCP_TOKEN>", geen Supabase-JWT;
+# de function controleert die zelf en weigert alles zonder de juiste sleutel.
+verify_jwt = false
+
 # api-maintenance draait wél live (version 1, verify_jwt=false), maar is nooit via
 # deze repo uitgerold. De broncode staat in supabase/functions-archief/ zodat hij
 # in git zit zonder dat de CI hem aanraakt.
