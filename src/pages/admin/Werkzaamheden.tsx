@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, WorkLog, WorkLogCategory } from '../../types'
-import { Plus, X, Pencil, Trash2, Search, ClipboardList, Clock, Globe, Calendar, Receipt } from 'lucide-react'
+import { Plus, X, Pencil, Trash2, Search, ClipboardList, Clock, Globe, Calendar, Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import RichTextEditor from '../../components/RichTextEditor'
 
@@ -19,6 +19,18 @@ const CATEGORIES: { value: WorkLogCategory; label: string; className: string }[]
 ]
 
 const DURATION_PRESETS = [15, 30, 45, 60, 90, 120]
+
+const PAGE_SIZES = [10, 20, 50]
+const PAGE_SIZE_STORAGE_KEY = 'werkzaamheden-page-size'
+
+const readPageSize = () => {
+  try {
+    const stored = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY))
+    return PAGE_SIZES.includes(stored) ? stored : PAGE_SIZES[0]
+  } catch {
+    return PAGE_SIZES[0]
+  }
+}
 
 const todayISO = () => {
   const d = new Date()
@@ -82,6 +94,8 @@ export default function Werkzaamheden() {
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(readPageSize)
 
   const fetchData = async () => {
     const [{ data: logData }, { data: projectData }] = await Promise.all([
@@ -181,12 +195,35 @@ export default function Werkzaamheden() {
     .filter((l) => monthKey(l.performed_at) === thisMonth)
     .reduce((sum, l) => sum + l.duration_minutes, 0)
 
-  const grouped: { key: string; logs: WorkLog[] }[] = []
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pageStart = (currentPage - 1) * pageSize
+  const pageLogs = filtered.slice(pageStart, pageStart + pageSize)
+
+  // Maandtotalen over alle gefilterde logs, niet alleen de huidige pagina
+  const minutesByMonth = new Map<string, number>()
   for (const log of filtered) {
+    const key = monthKey(log.performed_at)
+    minutesByMonth.set(key, (minutesByMonth.get(key) || 0) + log.duration_minutes)
+  }
+
+  const grouped: { key: string; logs: WorkLog[] }[] = []
+  for (const log of pageLogs) {
     const key = monthKey(log.performed_at)
     const last = grouped[grouped.length - 1]
     if (last && last.key === key) last.logs.push(log)
     else grouped.push({ key, logs: [log] })
+  }
+
+  const changePageSize = (size: number) => {
+    setPageSize(size)
+    setPage(1)
+    try { localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size)) } catch { /* niet opslaan is prima */ }
+  }
+
+  const goToPage = (target: number) => {
+    setPage(target)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const inputClass = 'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all'
@@ -378,14 +415,14 @@ export default function Werkzaamheden() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm transition-all"
               placeholder="Zoek op titel, omschrijving of domein..."
             />
           </div>
           <select
             value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value)}
+            onChange={(e) => { setProjectFilter(e.target.value); setPage(1) }}
             className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm transition-all"
           >
             <option value="">Alle domeinen</option>
@@ -395,7 +432,7 @@ export default function Werkzaamheden() {
           </select>
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            onChange={(e) => { setCategoryFilter(e.target.value); setPage(1) }}
             className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm transition-all"
           >
             <option value="">Alle categorieën</option>
@@ -425,20 +462,18 @@ export default function Werkzaamheden() {
         </div>
       ) : (
         <div className="space-y-6">
-          {grouped.map((group) => {
-            const groupMinutes = group.logs.reduce((sum, l) => sum + l.duration_minutes, 0)
-            return (
+          {grouped.map((group) => (
               <div key={group.key}>
                 <div className="flex items-center justify-between mb-2 px-1">
                   <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{formatMonth(group.key)}</h2>
-                  <span className="text-xs text-gray-400">{formatDuration(groupMinutes)}</span>
+                  <span className="text-xs text-gray-400">{formatDuration(minutesByMonth.get(group.key) || 0)}</span>
                 </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50 overflow-hidden">
+                <div className="space-y-3">
                   {group.logs.map((log) => {
                     const category = CATEGORIES.find((c) => c.value === log.category) || CATEGORIES[CATEGORIES.length - 1]
                     const project = log.project as unknown as { name?: string } | undefined
                     return (
-                      <div key={log.id} className="px-5 py-4 hover:bg-gray-50/50 transition-colors group">
+                      <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4 hover:border-gray-200 transition-colors group">
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
@@ -498,10 +533,85 @@ export default function Werkzaamheden() {
                   })}
                 </div>
               </div>
-            )
-          })}
+          ))}
+
+          {/* Pagination */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <span>Toon</span>
+              <select
+                value={pageSize}
+                onChange={(e) => changePageSize(Number(e.target.value))}
+                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm transition-all"
+              >
+                {PAGE_SIZES.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+              <span>per pagina</span>
+              <span className="text-gray-300 mx-1">·</span>
+              <span>
+                {pageStart + 1}–{pageStart + pageLogs.length} van {filtered.length}
+              </span>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                  title="Vorige pagina"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                {pageNumbers(currentPage, totalPages).map((n, i) =>
+                  n === null ? (
+                    <span key={`gap-${i}`} className="px-1.5 text-sm text-gray-400">…</span>
+                  ) : (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => goToPage(n)}
+                      className={`min-w-[2.25rem] px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        n === currentPage
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-gray-500 hover:bg-gray-100'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  )
+                )}
+                <button
+                  type="button"
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-transparent transition-colors"
+                  title="Volgende pagina"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   )
+}
+
+// Paginanummers met weglatingstekens: 1 … 4 5 6 … 12
+function pageNumbers(current: number, total: number): (number | null)[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = new Set([1, total, current - 1, current, current + 1])
+  const sorted = [...pages].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b)
+  const result: (number | null)[] = []
+  for (const n of sorted) {
+    const prev = result[result.length - 1]
+    if (typeof prev === 'number' && n - prev > 1) result.push(null)
+    result.push(n)
+  }
+  return result
 }
