@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { Project, WorkLog, WorkLogCategory } from '../../types'
 import { Plus, X, Pencil, Trash2, Search, ClipboardList, Clock, Globe, Calendar, Receipt } from 'lucide-react'
+import DOMPurify from 'dompurify'
+import RichTextEditor from '../../components/RichTextEditor'
 
 const CATEGORIES: { value: WorkLogCategory; label: string; className: string }[] = [
   { value: 'onderhoud', label: 'Onderhoud', className: 'bg-emerald-50 text-emerald-700' },
@@ -45,6 +47,23 @@ const formatDuration = (minutes: number) => {
 const formatDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
 
+// Oudere logs zijn als platte tekst opgeslagen; nieuwe als HTML uit de editor
+const isHtml = (text: string) => /<\/?[a-z][\s\S]*>/i.test(text)
+
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+const toEditorHtml = (text: string) => {
+  if (!text || isHtml(text)) return text
+  return text
+    .split('\n')
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join('')
+}
+
+const htmlToText = (html: string) =>
+  isHtml(html) ? new DOMParser().parseFromString(html, 'text/html').body.textContent || '' : html
+
 const monthKey = (iso: string) => iso.slice(0, 7)
 
 const formatMonth = (key: string) =>
@@ -58,6 +77,8 @@ export default function Werkzaamheden() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState(emptyForm)
+  // De editor neemt zijn inhoud alleen bij mount over; bij elk nieuw formulier opnieuw mounten
+  const [formKey, setFormKey] = useState(0)
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -81,6 +102,7 @@ export default function Werkzaamheden() {
   const openNew = () => {
     setFormData({ ...emptyForm, performed_at: todayISO(), project_id: projectFilter || '' })
     setEditingId(null)
+    setFormKey((k) => k + 1)
     setShowForm(true)
   }
 
@@ -89,12 +111,13 @@ export default function Werkzaamheden() {
       project_id: log.project_id,
       performed_at: log.performed_at,
       title: log.title,
-      description: log.description,
+      description: toEditorHtml(log.description),
       duration_minutes: String(log.duration_minutes),
       category: log.category,
       billable: log.billable,
     })
     setEditingId(log.id)
+    setFormKey((k) => k + 1)
     setShowForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -114,7 +137,7 @@ export default function Werkzaamheden() {
       project_id: formData.project_id,
       performed_at: formData.performed_at,
       title: formData.title.trim(),
-      description: formData.description.trim(),
+      description: htmlToText(formData.description).trim() ? formData.description : '',
       duration_minutes: parseInt(formData.duration_minutes) || 0,
       category: formData.category,
       billable: formData.billable,
@@ -145,7 +168,7 @@ export default function Werkzaamheden() {
       const projectName = (log.project as unknown as { name?: string })?.name || ''
       if (
         !log.title.toLowerCase().includes(q) &&
-        !log.description.toLowerCase().includes(q) &&
+        !htmlToText(log.description).toLowerCase().includes(q) &&
         !projectName.toLowerCase().includes(q)
       ) return false
     }
@@ -252,11 +275,10 @@ export default function Werkzaamheden() {
 
             <div className="lg:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">Uitgevoerde werkzaamheden</label>
-              <textarea
+              <RichTextEditor
+                key={formKey}
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-                className={`${inputClass} resize-y`}
+                onChange={(html) => setFormData((prev) => ({ ...prev, description: html }))}
                 placeholder="Wat heb je precies gedaan? Denk aan wat je over een jaar nog wilt weten."
               />
             </div>
@@ -445,9 +467,14 @@ export default function Werkzaamheden() {
                                 {formatDuration(log.duration_minutes)}
                               </span>
                             </div>
-                            {log.description && (
+                            {log.description && (isHtml(log.description) ? (
+                              <div
+                                className="text-sm text-gray-600 mt-2 prose-worklog"
+                                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(log.description) }}
+                              />
+                            ) : (
                               <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{log.description}</p>
-                            )}
+                            ))}
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                             <button
