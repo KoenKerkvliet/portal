@@ -1,8 +1,41 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import type { Project, PunchCard } from '../../types'
-import { Wrench, Gift, Globe, ExternalLink, Loader2, Ticket, Clock } from 'lucide-react'
+import type { Project, PunchCard, PunchCardUse } from '../../types'
+import { Wrench, Gift, Globe, ExternalLink, Loader2, Ticket, Clock, History, ChevronDown } from 'lucide-react'
+
+interface HistoryEntry {
+  key: string
+  used_at: string
+  description: string
+  strips: number
+  minutes: number
+  cardIds: string[]
+}
+
+// Eén tijdregistratie schrijft per strip een rij weg; voeg die samen tot één regel
+function groupUses(uses: PunchCardUse[]): HistoryEntry[] {
+  const entries = new Map<string, HistoryEntry>()
+  for (const use of uses) {
+    const key = `${use.used_at}|${use.description}`
+    const entry = entries.get(key)
+    if (entry) {
+      entry.strips += 1
+      entry.minutes += use.duration_minutes || 0
+      if (!entry.cardIds.includes(use.punch_card_id)) entry.cardIds.push(use.punch_card_id)
+    } else {
+      entries.set(key, {
+        key,
+        used_at: use.used_at,
+        description: use.description,
+        strips: 1,
+        minutes: use.duration_minutes || 0,
+        cardIds: [use.punch_card_id],
+      })
+    }
+  }
+  return [...entries.values()].sort((a, b) => b.used_at.localeCompare(a.used_at))
+}
 
 export default function Onderhoud() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -12,6 +45,9 @@ export default function Onderhoud() {
   const [gifting, setGifting] = useState<string | null>(null)
   const [giftPunches, setGiftPunches] = useState<Record<string, number>>({})
   const [showGiftPicker, setShowGiftPicker] = useState<string | null>(null)
+  const [openHistory, setOpenHistory] = useState<string | null>(null)
+  const [history, setHistory] = useState<Record<string, HistoryEntry[]>>({})
+  const [loadingHistory, setLoadingHistory] = useState<string | null>(null)
 
   const fetchData = async () => {
     const { data: projectData } = await supabase
@@ -70,6 +106,29 @@ export default function Onderhoud() {
     fetchData()
   }
 
+  const toggleHistory = async (projectId: string) => {
+    if (openHistory === projectId) {
+      setOpenHistory(null)
+      return
+    }
+    setOpenHistory(projectId)
+
+    const cardIds = (punchCards[projectId] || []).map(c => c.id)
+    if (cardIds.length === 0) {
+      setHistory(prev => ({ ...prev, [projectId]: [] }))
+      return
+    }
+
+    setLoadingHistory(projectId)
+    const { data } = await supabase
+      .from('punch_card_uses')
+      .select('*')
+      .in('punch_card_id', cardIds)
+      .order('used_at', { ascending: false })
+    setHistory(prev => ({ ...prev, [projectId]: groupUses(data || []) }))
+    setLoadingHistory(null)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -101,6 +160,9 @@ export default function Onderhoud() {
             const totalRemaining = activeCards.reduce((sum, c) => sum + (c.total_punches - c.used_punches), 0)
             const clientName = (project.client as unknown as { name: string })?.name || ''
             const isGifting = gifting === project.id
+            const isHistoryOpen = openHistory === project.id
+            const projectHistory = history[project.id]
+            const cardsById = new Map(cards.map(c => [c.id, c]))
 
             return (
               <div key={project.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
@@ -177,15 +239,69 @@ export default function Onderhoud() {
                   )}
                 </div>
 
+                {/* Historie afgeschreven strippen */}
+                {isHistoryOpen && (
+                  <div className="px-6 py-4 border-t border-gray-100">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Historie afgeschreven strippen</h4>
+                    {loadingHistory === project.id || !projectHistory ? (
+                      <div className="flex justify-center py-3">
+                        <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+                      </div>
+                    ) : projectHistory.length === 0 ? (
+                      <p className="text-xs text-gray-400 text-center py-3">Nog geen strippen afgeschreven</p>
+                    ) : (
+                      <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                        {projectHistory.map((entry) => {
+                          const cardLabels = entry.cardIds
+                            .map(id => cardsById.get(id))
+                            .filter((c): c is PunchCard => !!c)
+                            .map(c => (c.is_gift ? `Cadeau #${c.number}` : `Kaart #${c.number}`))
+                          return (
+                            <li key={entry.key} className="flex items-start gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] text-gray-400">
+                                  {new Date(entry.used_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                  {' · '}
+                                  {new Date(entry.used_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
+                                  {cardLabels.length > 0 && ` · ${cardLabels.join(', ')}`}
+                                </p>
+                                <p className="text-xs text-gray-700 mt-0.5 break-words">{entry.description}</p>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-xs font-bold text-purple-600">
+                                  {entry.strips} {entry.strips === 1 ? 'strip' : 'strips'}
+                                </p>
+                                {entry.minutes > 0 && (
+                                  <p className="text-[11px] text-gray-400">{entry.minutes} min</p>
+                                )}
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
                 {/* Footer actions */}
                 <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
-                  <button
-                    onClick={() => navigate(`/admin/onderhoud/${project.id}/timer`)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    Tijd loggen
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => navigate(`/admin/onderhoud/${project.id}/timer`)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      Tijd loggen
+                    </button>
+                    <button
+                      onClick={() => toggleHistory(project.id)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      Historie
+                      <ChevronDown className={`w-3 h-3 transition-transform ${isHistoryOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
                   <div>
                   {showGiftPicker === project.id ? (
                     <div className="flex items-center gap-3">
