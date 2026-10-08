@@ -1,5 +1,5 @@
 import type { Project, Quote, Invoice, Assignment } from '../../types'
-import { Calendar, Clock, ClipboardCheck, FileCheck, FileText, Send, Loader2, ExternalLink } from 'lucide-react'
+import { Clock, ClipboardCheck, FileCheck, FileText, Send, Loader2, ExternalLink } from 'lucide-react'
 import HelpTip from '../HelpTip'
 import { toDatetimeLocal, type IntakeLinks } from './domainShared'
 
@@ -132,15 +132,6 @@ export default function DomainIntake({
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="flex items-center gap-3 bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
-          <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Opleverdatum</p>
-            <input type="date" value={project.due_date || ''}
-              onChange={(e) => updateProject({ due_date: e.target.value || null })}
-              className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
-          </div>
-        </div>
         <div className="flex items-center gap-3 bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
           <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
           <div className="min-w-0 flex-1">

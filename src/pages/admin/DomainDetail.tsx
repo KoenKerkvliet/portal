@@ -699,6 +699,9 @@ export default function DomainDetail() {
             <FieldInput label="Factuur-e-mail" type="email" placeholder="Leeg = e-mail van de klant" helpAlign="right"
               value={project.invoice_email || ''} onSave={(v) => updateProject({ invoice_email: v.trim() || null })}
               help="Alleen invullen als facturen voor dit domein naar een ander adres moeten, bijv. de penningmeester of administratie. Nieuwe facturen en herinneringen gaan dan naar dit adres; bestaande facturen veranderen niet." />
+            <FieldInput label="Opleverdatum" type="date"
+              value={project.due_date || ''} onSave={(v) => updateProject({ due_date: v || null })}
+              help="Verwachte datum waarop de website klaar is. Staat ook in het domeinoverzicht. Klanten die inloggen zien deze datum in hun portaal." />
           </div>
 
           <div className="min-w-0">
