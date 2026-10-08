@@ -1,16 +1,18 @@
 // Stuurt een VRIENDELIJKE betalingsherinnering naar de klant voor een openstaande
 // factuur. Wordt alleen handmatig door de admin aangeroepen (knop 'Herinnering
 // sturen' in het portaal). De toon is bewust zacht en niet beschuldigend: als de
-// klant al betaald heeft, mag-ie dit bericht negeren. Alleen aanroepbaar door admins.
+// klant al betaald heeft, mag-ie dit bericht negeren. Met de factuur als PDF en een
+// link zonder inloggen (/d/factuur/:token). Alleen aanroepbaar door admins.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { publicDocumentUrl } from '../_shared/publicLink.ts'
+import { tryInvoicePdfBase64 } from '../_shared/invoicePdf.ts'
+import type { PdfInvoice } from '../_shared/invoicePdfLayout.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-const PORTAL_URL = 'https://portal.designpixels.nl'
 
 function formatDateNL(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -102,9 +104,12 @@ Deno.serve(async (req) => {
       throw new Error('Klant heeft geen e-mailadres — kan geen mail sturen')
     }
 
-    const invoiceUrl = `${PORTAL_URL}/factuur/${invoice_id}`
+    const invoiceUrl = await publicDocumentUrl(adminClient, 'invoices', invoice_id)
     const amountFormatted = `€${inv.amount.toFixed(2).replace('.', ',')}`
     const dueDateText = formatDateNL(inv.due_date)
+
+    const { data: settings } = await adminClient.from('invoice_settings').select('*').limit(1).maybeSingle()
+    const pdfContent = tryInvoicePdfBase64(invoice as unknown as PdfInvoice, settings, inv.client?.name || '')
 
     const html = `<!DOCTYPE html>
 <html lang="nl">
@@ -119,15 +124,17 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;">Hoi ${recipientName},</p>
 <p style="margin:0 0 16px;">Een kleine vriendelijke herinnering: voor je domein <strong>${projectName}</strong> staat nog een factuur open.</p>
 <p style="margin:0 0 16px;"><strong>${inv.number}</strong> — ${amountFormatted}${dueDateText ? `<br><span style=\"color:#666;font-size:14px;\">Vervaldatum: ${dueDateText}</span>` : ''}</p>
-<p style="margin:0 0 24px;">Bekijk de factuur en betalingsgegevens via je portaal:</p>
-<p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="color:#6b46c1;">${invoiceUrl}</a></p>
+${pdfContent ? '<p style="margin:0 0 16px;">De factuur is als PDF bijgevoegd.</p>' : ''}
+<p style="margin:0 0 24px;">Je kunt de factuur en de betalingsgegevens ook online bekijken. Inloggen is niet nodig.</p>
+<p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Factuur bekijken</a></p>
+<p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${invoiceUrl}" style="color:#6b46c1;word-break:break-all;">${invoiceUrl}</a></p>
 <p style="margin:0 0 24px;color:#666;font-size:14px;">Heb je de betaling inmiddels al gedaan? Dan kun je dit bericht gerust negeren — onze administratie en jouw betaling kruisen elkaar soms even.</p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
 </html>`
 
-    const text = `Hoi ${recipientName},\n\nEen kleine vriendelijke herinnering: voor je domein ${projectName} staat nog een factuur open.\n\n${inv.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}\n\nBekijk de factuur en betalingsgegevens via je portaal:\n${invoiceUrl}\n\nHeb je de betaling inmiddels al gedaan? Dan kun je dit bericht gerust negeren — onze administratie en jouw betaling kruisen elkaar soms even.\n\nMet vriendelijke groet,\nDesignPixels`
+    const text = `Hoi ${recipientName},\n\nEen kleine vriendelijke herinnering: voor je domein ${projectName} staat nog een factuur open.\n\n${inv.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}\n${pdfContent ? '\nDe factuur is als PDF bijgevoegd.\n' : ''}\nJe kunt de factuur en de betalingsgegevens ook online bekijken (inloggen is niet nodig):\n${invoiceUrl}\n\nHeb je de betaling inmiddels al gedaan? Dan kun je dit bericht gerust negeren — onze administratie en jouw betaling kruisen elkaar soms even.\n\nMet vriendelijke groet,\nDesignPixels`
 
     const emailResponse = await fetch('https://api.emailit.com/v2/emails', {
       method: 'POST',
@@ -141,6 +148,9 @@ Deno.serve(async (req) => {
         subject: `Herinnering: openstaande factuur voor ${projectName}`,
         html,
         text,
+        ...(pdfContent ? {
+          attachments: [{ filename: `Factuur-${inv.number}.pdf`, content: pdfContent, content_type: 'application/pdf' }],
+        } : {}),
       }),
     })
 

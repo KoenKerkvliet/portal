@@ -1,15 +1,17 @@
-// Verstuurt een mail naar de klant zodra de admin een factuur aan een domeinkaart
-// koppelt. Klant krijgt linkje naar /factuur/:id in het portaal, plus bedrag en
-// vervaldatum. Alleen aanroepbaar door admins.
+// Verstuurt de factuur naar de klant: bedrag, vervaldatum, de PDF als bijlage en
+// een link waarmee de factuur zonder inloggen te bekijken is (/d/factuur/:token).
+// De PDF komt van de aanroeper (Facturen-pagina) of wordt hier gemaakt; lukt dat
+// niet, dan gaat de mail zonder bijlage. Alleen aanroepbaar door admins.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { publicDocumentUrl } from '../_shared/publicLink.ts'
+import { tryInvoicePdfBase64 } from '../_shared/invoicePdf.ts'
+import type { PdfInvoice } from '../_shared/invoicePdfLayout.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-const PORTAL_URL = 'https://portal.designpixels.nl'
 
 function formatDateNL(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -103,10 +105,16 @@ Deno.serve(async (req) => {
       throw new Error('Klant heeft geen e-mailadres — kan geen mail sturen')
     }
 
-    const invoiceUrl = `${PORTAL_URL}/factuur/${invoice_id}`
+    const invoiceUrl = await publicDocumentUrl(adminClient, 'invoices', invoice_id)
     const amountFormatted = `€${inv.amount.toFixed(2).replace('.', ',')}`
     const dueDateText = formatDateNL(inv.due_date)
-    const hasAttachment = Boolean(pdf_base64 && typeof pdf_base64 === 'string')
+
+    let pdfContent: string | null = typeof pdf_base64 === 'string' && pdf_base64 ? pdf_base64 : null
+    if (!pdfContent) {
+      const { data: settings } = await adminClient.from('invoice_settings').select('*').limit(1).maybeSingle()
+      pdfContent = tryInvoicePdfBase64(invoice as unknown as PdfInvoice, settings, inv.client?.name || '')
+    }
+    const hasAttachment = Boolean(pdfContent)
     const attachmentLineHtml = hasAttachment ? '<p style="margin:0 0 16px;">De factuur is als PDF bijgevoegd.</p>' : ''
     const attachmentLineText = hasAttachment ? '\nDe factuur is als PDF bijgevoegd.\n' : ''
 
@@ -124,8 +132,9 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;">Voor je domein <strong>${projectName}</strong> staat een nieuwe factuur voor je klaar:</p>
 <p style="margin:0 0 16px;"><strong>${inv.number}</strong> — ${amountFormatted}${dueDateText ? `<br><span style="color:#666;font-size:14px;">Vervaldatum: ${dueDateText}</span>` : ''}</p>
 ${attachmentLineHtml}
-<p style="margin:0 0 24px;">Bekijk de factuur en betalingsgegevens via je portaal:</p>
-<p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="color:#6b46c1;">${invoiceUrl}</a></p>
+<p style="margin:0 0 24px;">Je kunt de factuur en de betalingsgegevens ook online bekijken. Inloggen is niet nodig.</p>
+<p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Factuur bekijken</a></p>
+<p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${invoiceUrl}" style="color:#6b46c1;word-break:break-all;">${invoiceUrl}</a></p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
@@ -137,7 +146,7 @@ Voor je domein ${projectName} staat een nieuwe factuur voor je klaar:
 
 ${inv.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}
 ${attachmentLineText}
-Bekijk de factuur en betalingsgegevens via je portaal:
+Je kunt de factuur en de betalingsgegevens ook online bekijken (inloggen is niet nodig):
 ${invoiceUrl}
 
 Met vriendelijke groet,
@@ -155,7 +164,7 @@ DesignPixels`
       emailBody.attachments = [
         {
           filename: `Factuur-${inv.number}.pdf`,
-          content: pdf_base64,
+          content: pdfContent,
           content_type: 'application/pdf',
         },
       ]
@@ -176,7 +185,7 @@ DesignPixels`
     }
 
     return new Response(
-      JSON.stringify({ success: true, sent_to: recipientEmail }),
+      JSON.stringify({ success: true, sent_to: recipientEmail, pdf_attached: hasAttachment }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

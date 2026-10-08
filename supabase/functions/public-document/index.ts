@@ -71,7 +71,8 @@ async function loadDocument(db: SupabaseClient, type: DocType, token: string) {
 // De geheime code gaat nooit terug naar de browser. Klant (naam/bedrijf) en
 // domeinnaam wel: die staan op het document en in de PDF.
 function publicView(doc: Record<string, unknown>) {
-  const { public_token: _token, ...rest } = doc
+  const rest = { ...doc }
+  delete rest.public_token
   return rest
 }
 

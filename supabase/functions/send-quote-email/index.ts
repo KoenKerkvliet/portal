@@ -1,15 +1,14 @@
-// Verstuurt een mail naar de klant zodra de admin een offerte aan een domeinkaart
-// koppelt. Klant krijgt linkje naar /offerte/:id in het portaal. Alleen aanroepbaar
-// door admins (op basis van de aanroepende JWT + role-check op profiles).
+// Verstuurt de offerte naar de klant. De klant krijgt een link waarmee de offerte
+// zonder inloggen te bekijken en te accepteren is (/d/offerte/:token). Alleen
+// aanroepbaar door admins (op basis van de aanroepende JWT + role-check op profiles).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { publicDocumentUrl } from '../_shared/publicLink.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-const PORTAL_URL = 'https://portal.designpixels.nl'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -95,7 +94,7 @@ Deno.serve(async (req) => {
       throw new Error('Klant heeft geen e-mailadres — kan geen mail sturen')
     }
 
-    const quoteUrl = `${PORTAL_URL}/offerte/${quote_id}`
+    const quoteUrl = await publicDocumentUrl(adminClient, 'quotes', quote_id)
     const amountFormatted = `€${q.amount.toFixed(2).replace('.', ',')}`
 
     const html = `<!DOCTYPE html>
@@ -111,8 +110,9 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;">Hoi ${recipientName},</p>
 <p style="margin:0 0 16px;">Voor je project <strong>${projectName}</strong> staat een nieuwe offerte voor je klaar:</p>
 <p style="margin:0 0 16px;"><strong>${q.number}</strong> — ${amountFormatted}</p>
-<p style="margin:0 0 24px;">Bekijk en accordeer de offerte via je portaal:</p>
-<p style="margin:0 0 24px;"><a href="${quoteUrl}" style="color:#6b46c1;">${quoteUrl}</a></p>
+<p style="margin:0 0 24px;">Via de knop hieronder bekijk je de offerte en geef je akkoord. Inloggen is niet nodig.</p>
+<p style="margin:0 0 24px;"><a href="${quoteUrl}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Offerte bekijken</a></p>
+<p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${quoteUrl}" style="color:#6b46c1;word-break:break-all;">${quoteUrl}</a></p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
@@ -124,7 +124,7 @@ Voor je project ${projectName} staat een nieuwe offerte voor je klaar:
 
 ${q.number} — ${amountFormatted}
 
-Bekijk en accordeer de offerte via je portaal:
+Via deze link bekijk je de offerte en geef je akkoord (inloggen is niet nodig):
 ${quoteUrl}
 
 Met vriendelijke groet,

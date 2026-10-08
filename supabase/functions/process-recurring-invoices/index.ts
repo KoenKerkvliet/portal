@@ -13,6 +13,9 @@
 //     Koen weet wanneer hij zijn rekening extra in de gaten moet houden.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { publicDocumentUrl } from '../_shared/publicLink.ts'
+import { tryInvoicePdfBase64 } from '../_shared/invoicePdf.ts'
+import type { PdfSettings } from '../_shared/invoicePdfLayout.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,8 +32,6 @@ function jwtRole(req: Request): string | null {
     return JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))).role ?? null
   } catch { return null }
 }
-
-const PORTAL_URL = 'https://portal.designpixels.nl'
 
 type RecurrenceInterval = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
@@ -58,7 +59,7 @@ interface InvoiceTemplate {
   client: { name: string | null; email: string | null } | null
 }
 
-interface InvoiceSettingsRow {
+interface InvoiceSettingsRow extends PdfSettings {
   invoice_prefix: string
   year_format: 'YY' | 'YYYY'
   start_number: number
@@ -127,7 +128,8 @@ function formatAmount(amount: number): string {
   return `€${amount.toFixed(2).replace('.', ',')}`
 }
 
-// Verstuurt de klantmail via EmailIt. Gooit bij falen, zodat de aanroeper het
+// Verstuurt de klantmail via EmailIt, met de PDF als bijlage (als die gemaakt kon
+// worden) en een link zonder inloggen. Gooit bij falen, zodat de aanroeper het
 // kan loggen — generatie van de factuur mag er echter niet op stuklopen.
 async function sendClientEmail(opts: {
   apiKey: string
@@ -138,11 +140,14 @@ async function sendClientEmail(opts: {
   number: string
   amount: number
   dueDate: string | null
-  invoiceId: string
+  invoiceUrl: string
+  pdfBase64: string | null
 }): Promise<void> {
-  const invoiceUrl = `${PORTAL_URL}/factuur/${opts.invoiceId}`
+  const invoiceUrl = opts.invoiceUrl
   const amountFormatted = formatAmount(opts.amount)
   const dueDateText = formatDateNL(opts.dueDate)
+  const pdfLineHtml = opts.pdfBase64 ? '<p style="margin:0 0 16px;">De factuur is als PDF bijgevoegd.</p>' : ''
+  const pdfLineText = opts.pdfBase64 ? '\nDe factuur is als PDF bijgevoegd.\n' : ''
 
   const html = `<!DOCTYPE html>
 <html lang="nl">
@@ -157,8 +162,10 @@ async function sendClientEmail(opts: {
 <p style="margin:0 0 16px;">Hoi ${opts.recipientName},</p>
 <p style="margin:0 0 16px;">Voor je domein <strong>${opts.projectName}</strong> staat een nieuwe factuur voor je klaar:</p>
 <p style="margin:0 0 16px;"><strong>${opts.number}</strong> — ${amountFormatted}${dueDateText ? `<br><span style="color:#666;font-size:14px;">Vervaldatum: ${dueDateText}</span>` : ''}</p>
-<p style="margin:0 0 24px;">Bekijk de factuur en betalingsgegevens via je portaal:</p>
-<p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="color:#6b46c1;">${invoiceUrl}</a></p>
+${pdfLineHtml}
+<p style="margin:0 0 24px;">Je kunt de factuur en de betalingsgegevens ook online bekijken. Inloggen is niet nodig.</p>
+<p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Factuur bekijken</a></p>
+<p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${invoiceUrl}" style="color:#6b46c1;word-break:break-all;">${invoiceUrl}</a></p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
@@ -169,8 +176,8 @@ async function sendClientEmail(opts: {
 Voor je domein ${opts.projectName} staat een nieuwe factuur voor je klaar:
 
 ${opts.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}
-
-Bekijk de factuur en betalingsgegevens via je portaal:
+${pdfLineText}
+Je kunt de factuur en de betalingsgegevens ook online bekijken (inloggen is niet nodig):
 ${invoiceUrl}
 
 Met vriendelijke groet,
@@ -185,6 +192,9 @@ DesignPixels`
       subject: `Nieuwe factuur voor ${opts.projectName}`,
       html,
       text,
+      ...(opts.pdfBase64 ? {
+        attachments: [{ filename: `Factuur-${opts.number}.pdf`, content: opts.pdfBase64, content_type: 'application/pdf' }],
+      } : {}),
     }),
   })
   if (!res.ok) {
@@ -202,6 +212,7 @@ interface GeneratedRow {
   is_test: boolean
   email_sent: boolean
   email_error?: string
+  pdf_attached: boolean
 }
 
 // Bouwt en verstuurt de samenvattingsmail naar de admin(s).
@@ -217,7 +228,7 @@ async function sendAdminSummary(opts: {
   const rows = opts.generated.map((g) => {
     const badge = g.is_test ? ' <span style="color:#b45309;font-size:12px;">(test)</span>' : ''
     const mailState = g.email_sent
-      ? '<span style="color:#166534;">mail verstuurd</span>'
+      ? `<span style="color:#166534;">mail verstuurd</span>${g.pdf_attached ? '' : ' <span style="color:#b45309;">(zonder PDF)</span>'}`
       : `<span style="color:#b91c1c;">mail mislukt${g.email_error ? `: ${g.email_error}` : ''}</span>`
     return `<tr>
 <td style="padding:8px 12px;border-bottom:1px solid #eee;font-family:monospace;">${g.number}${badge}</td>
@@ -258,7 +269,7 @@ async function sendAdminSummary(opts: {
 
   const text = `Terugkerende facturen verstuurd (${now})\n\n` +
     opts.generated.map((g) =>
-      `- ${g.number}${g.is_test ? ' (test)' : ''} | ${g.client_name || '—'} | ${formatAmount(g.amount)} | klantmail: ${g.email_sent ? 'verstuurd' : 'mislukt'}`,
+      `- ${g.number}${g.is_test ? ' (test)' : ''} | ${g.client_name || '—'} | ${formatAmount(g.amount)} | klantmail: ${g.email_sent ? (g.pdf_attached ? 'verstuurd' : 'verstuurd zonder PDF') : 'mislukt'}`,
     ).join('\n') +
     (realCount > 0 ? '\n\nHoud je rekening de komende dagen extra in de gaten.' : '')
 
@@ -317,7 +328,8 @@ Deno.serve(async (req) => {
     // Eén keer settings + bestaande nummers + admin-mails ophalen; we werken de
     // lokale nummerlijst bij voor opeenvolgende inserts in dezelfde run.
     const [settingsRes, numsRes, adminsRes] = await Promise.all([
-      db.from('invoice_settings').select('invoice_prefix, year_format, start_number').limit(1).single(),
+      // Volledige instellingen: ook bedrijfsgegevens voor de PDF
+      db.from('invoice_settings').select('*').limit(1).single(),
       db.from('invoices').select('number, is_test, has_temp_number, is_recurring'),
       db.from('profiles').select('email').eq('role', 'admin'),
     ])
@@ -406,12 +418,19 @@ Deno.serve(async (req) => {
         // de factuur gewoon staan en loggen we de fout in de samenvatting.
         let emailSent = false
         let emailError: string | undefined
+        let pdfAttached = false
         if (!EMAILIT_API_KEY) {
           emailError = 'EMAILIT_API_KEY niet geconfigureerd'
         } else if (!recipientEmail) {
           emailError = 'klant heeft geen e-mailadres'
         } else {
           try {
+            const invoiceUrl = await publicDocumentUrl(db, 'invoices', inserted.id)
+            const pdfBase64 = tryInvoicePdfBase64(
+              { ...insertPayload, created_at: nowIso, items: insertPayload.items as never },
+              settings,
+              tpl.client?.name || '',
+            )
             await sendClientEmail({
               apiKey: EMAILIT_API_KEY,
               from: EMAILIT_FROM,
@@ -421,9 +440,11 @@ Deno.serve(async (req) => {
               number: newNumber,
               amount: tpl.amount,
               dueDate,
-              invoiceId: inserted.id,
+              invoiceUrl,
+              pdfBase64,
             })
             emailSent = true
+            pdfAttached = Boolean(pdfBase64)
           } catch (e) {
             emailError = e instanceof Error ? e.message : String(e)
           }
@@ -449,6 +470,7 @@ Deno.serve(async (req) => {
           is_test: tpl.is_test,
           email_sent: emailSent,
           email_error: emailError,
+          pdf_attached: pdfAttached,
         })
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
