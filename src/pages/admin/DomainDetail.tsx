@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, ProjectClient, Quote, Invoice, Assignment } from '../../types'
 import {
-  ArrowLeft, ChevronDown, Globe, ExternalLink, Pencil, Upload, FileText, FileCheck, Users, UserPlus, Bell,
-  MessageSquare, Ticket, Trash2, Settings, Key, Copy, Archive, ArchiveRestore, Loader2, Info,
+  ArrowLeft, ChevronDown, Globe, ExternalLink, FileText, FileCheck, Users, UserPlus, Bell,
+  MessageSquare, Ticket, Trash2, Settings, Key, Copy, Archive, ArchiveRestore, Loader2, Info, X,
 } from 'lucide-react'
 import InlineEdit from '../../components/InlineEdit'
+import FieldInput from '../../components/FieldInput'
+import HelpTip, { Tooltip } from '../../components/HelpTip'
 import PhaseCardsEditor from '../../components/domain/PhaseCardsEditor'
 import DomainIntake from '../../components/domain/DomainIntake'
 import DomainDesign from '../../components/domain/DomainDesign'
@@ -18,12 +20,17 @@ import {
 
 type NotifyField = 'notify_invoices' | 'notify_quotes' | 'notify_portal' | 'notify_tickets' | 'notify_punch_cards'
 
-const notifyOptions: { field: NotifyField; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { field: 'notify_invoices', label: 'Factuur e-mails', icon: FileText },
-  { field: 'notify_quotes', label: 'Offerte e-mails', icon: FileCheck },
-  { field: 'notify_portal', label: 'Portaal meldingen', icon: Bell },
-  { field: 'notify_tickets', label: 'Ticket reacties', icon: MessageSquare },
-  { field: 'notify_punch_cards', label: 'Strippenkaart afschrijvingen', icon: Ticket },
+const notifyOptions: { field: NotifyField; label: string; help: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { field: 'notify_invoices', label: 'Facturen', icon: FileText,
+    help: 'Bij een nieuwe factuur voor dit domein wordt deze klant als ontvanger ingevuld.' },
+  { field: 'notify_quotes', label: 'Offertes', icon: FileCheck,
+    help: 'Bij een nieuwe offerte voor dit domein wordt deze klant als ontvanger ingevuld.' },
+  { field: 'notify_portal', label: 'Portaalmails', icon: Bell,
+    help: 'Krijgt een mail als er een design klaarstaat of als je de fase wijzigt zonder "stil bijwerken".' },
+  { field: 'notify_tickets', label: 'Tickets', icon: MessageSquare,
+    help: 'Krijgt een mail als jij reageert op een ticket.' },
+  { field: 'notify_punch_cards', label: 'Strippenkaart', icon: Ticket,
+    help: 'Krijgt een mail als er strippen worden afgeschreven.' },
 ]
 
 const summarize = (instance: ProjectPhaseInstance | undefined) => {
@@ -61,7 +68,6 @@ export default function DomainDetail() {
   const [phaseMenuOpen, setPhaseMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [clientMenuOpen, setClientMenuOpen] = useState(false)
-  const [expandedClientId, setExpandedClientId] = useState<string | null>(null)
   const [openSections, setOpenSections] = useState<Partial<Record<ProjectPhase, boolean>>>({})
   const [dirtyPhases, setDirtyPhases] = useState<Partial<Record<ProjectPhase, boolean>>>({})
 
@@ -189,10 +195,6 @@ export default function DomainDetail() {
     })
     if (error) console.error('Error creating notification:', error)
   }, [project?.id, project?.client_id])
-
-  const notifyCardUpdate = useCallback((title: string, message: string) => {
-    createNotification('card_update', title, message)
-  }, [createNotification])
 
   // ── Fase wisselen ──
 
@@ -647,44 +649,55 @@ export default function DomainDetail() {
         <div className="px-5 sm:px-6 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-900">Algemeen</h2>
         </div>
-        <div className="px-5 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <div className="space-y-4 min-w-0">
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Website</p>
-              <InlineEdit value={project.url || ''} onSave={(url) => updateProject({ url: url || null })} type="url"
-                placeholder="https://voorbeeld.nl" icon={Pencil} displayValue={project.url ? project.url.replace(/^https?:\/\//, '') : 'URL toevoegen'} />
-            </div>
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Bestanden delen</p>
-              {project.file_sharing_url && (
-                <a href={project.file_sharing_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-primary hover:text-primary-600 transition-colors min-w-0">
-                  <Upload className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                  <span className="truncate">{project.file_sharing_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
-                  <ExternalLink className="w-3 h-3 text-primary/50 flex-shrink-0" />
-                </a>
-              )}
-              <InlineEdit value={project.file_sharing_url || ''} onSave={(url) => updateProject({ file_sharing_url: withHttps(url) })} type="url"
-                placeholder={project.file_sharing_url ? 'Wijzig URL' : 'URL toevoegen'} icon={Pencil} displayValue={project.file_sharing_url ? '' : 'URL toevoegen'} />
-              {!project.file_sharing_url && (
-                <p className="text-[11px] text-amber-600">Nodig om de fase te kunnen wijzigen.</p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Factuurcontact</p>
-              <InlineEdit value={project.invoice_name || ''} onSave={(v) => updateProject({ invoice_name: v.trim() || null })}
-                placeholder="Factuurnaam (bv. BGH)" icon={Pencil} displayValue={project.invoice_name || 'Factuurnaam toevoegen'} />
-              <InlineEdit value={project.invoice_email || ''} onSave={(v) => updateProject({ invoice_email: v.trim() || null })} type="email"
-                placeholder="Factuur e-mailadres" icon={Pencil} displayValue={project.invoice_email || 'Factuur e-mail toevoegen'} />
-              <p className="text-[11px] text-gray-400">Leeg = gegevens van de gekozen klant</p>
-            </div>
+        <div className="px-5 sm:px-6 py-4 space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            <FieldInput label="Website" type="url" placeholder="https://voorbeeld.nl" linkable
+              value={project.url || ''} onSave={(v) => updateProject({ url: withHttps(v) })}
+              help="Het adres van de live website. Alleen voor jouw overzicht, de klant ziet dit niet." />
+            <FieldInput label="Bestanden delen" type="url" placeholder="https://..." linkable helpAlign="right"
+              value={project.file_sharing_url || ''} onSave={(v) => updateProject({ file_sharing_url: withHttps(v) })}
+              help="Link naar een gedeelde map (bijv. Google Drive) waar de klant bestanden kan aanleveren. Verschijnt onderaan het klantportaal als 'Bestanden delen footer' aanstaat bij een fase. Verplicht voordat je de fase kunt wijzigen."
+              hint={!project.file_sharing_url && <span className="text-amber-600">Nodig om de fase te kunnen wijzigen.</span>} />
+            <FieldInput label="Factuurnaam" placeholder="Leeg = naam van de klant"
+              value={project.invoice_name || ''} onSave={(v) => updateProject({ invoice_name: v.trim() || null })}
+              help="Alleen invullen als facturen voor dit domein op een andere naam moeten dan die van de klant, bijv. een bedrijf of vereniging. Wordt ingevuld bij elke nieuwe factuur voor dit domein; bestaande facturen veranderen niet." />
+            <FieldInput label="Factuur-e-mail" type="email" placeholder="Leeg = e-mail van de klant" helpAlign="right"
+              value={project.invoice_email || ''} onSave={(v) => updateProject({ invoice_email: v.trim() || null })}
+              help="Alleen invullen als facturen voor dit domein naar een ander adres moeten, bijv. de penningmeester of administratie. Nieuwe facturen en herinneringen gaan dan naar dit adres; bestaande facturen veranderen niet." />
           </div>
 
-          <div className="space-y-1.5 sm:col-span-2 min-w-0">
-            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Klanten</p>
-            <div className="space-y-1">
+          <div className="min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Klanten</span>
+                <HelpTip text="Klanten die bij dit domein horen en kunnen inloggen in het portaal. Met de icoontjes rechts bepaal je per klant welke mails en rollen die krijgt; ga erop staan voor uitleg." />
+              </div>
+              <div className="relative" ref={clientMenuRef}>
+                <button onClick={() => setClientMenuOpen(!clientMenuOpen)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-primary transition-colors">
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Klant toevoegen
+                </button>
+                {clientMenuOpen && (
+                  <div className="absolute top-full right-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[200px] max-h-72 overflow-y-auto">
+                    {availableClients.map((c) => (
+                      <button key={c.id} onClick={() => { addClientToProject(c.id); setClientMenuOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                        <UserPlus className="w-3.5 h-3.5 text-gray-400" />
+                        {c.name}
+                      </button>
+                    ))}
+                    {availableClients.length === 0 && (
+                      <p className="px-3.5 py-2 text-xs text-gray-400 italic">Alle klanten al gekoppeld</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-md divide-y divide-gray-100">
               {projectClients.length === 0 && project.client_id && (
-                <div className="bg-amber-50 rounded-lg border border-amber-100 px-3 py-2 flex items-center gap-2">
+                <div className="bg-amber-50 px-3 py-2 flex items-center gap-2">
                   <Users className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700 flex-1 truncate">{(project.client as unknown as { name: string })?.name || 'Onbekend'}</span>
                   <button onClick={() => addClientToProject(project.client_id!)}
@@ -693,63 +706,40 @@ export default function DomainDetail() {
                   </button>
                 </div>
               )}
+              {projectClients.length === 0 && !project.client_id && (
+                <p className="px-3 py-2 text-xs text-gray-400">Nog geen klant gekoppeld.</p>
+              )}
               {projectClients.map((pc) => {
                 const clientName = (pc.client as unknown as { name: string })?.name || 'Onbekend'
                 const clientEmail = (pc.client as unknown as { email: string })?.email || ''
-                const isOpen = expandedClientId === pc.id
                 return (
-                  <div key={pc.id} className="bg-gray-50 rounded-lg border border-gray-100">
-                    <button onClick={() => setExpandedClientId(isOpen ? null : pc.id)} className="flex items-center gap-2 w-full px-3 py-2 text-left">
-                      <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-sm font-medium text-gray-700 flex-1 truncate">{clientName}</span>
-                      {pc.notify_portal && <span title="Krijgt portaalmeldingen"><Bell className="w-3 h-3 text-gray-300" /></span>}
-                      <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {isOpen && (
-                      <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-                        <p className="text-xs text-gray-400 mb-2">{clientEmail}</p>
-                        <div className="space-y-1.5">
-                          {notifyOptions.map(({ field, label, icon: Icon }) => (
-                            <label key={field} className="flex items-center gap-2 cursor-pointer group">
-                              <input type="checkbox" checked={pc[field]}
-                                onChange={(e) => toggleProjectClientPref(pc.id, field, e.target.checked)}
-                                className="w-3.5 h-3.5 rounded text-primary border-gray-300 focus:ring-primary/30" />
-                              <Icon className="w-3.5 h-3.5 text-gray-400" />
-                              <span className="text-xs text-gray-600 group-hover:text-gray-800">{label}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <button onClick={() => { if (confirm(`${clientName} verwijderen van dit domein?`)) removeClientFromProject(pc.id) }}
-                          className="flex items-center gap-1 mt-2 text-xs text-red-400 hover:text-red-600 transition-colors">
-                          <Trash2 className="w-3 h-3" />
-                          Ontkoppelen
+                  <div key={pc.id} className="flex items-center gap-3 px-3 py-1.5 flex-wrap sm:flex-nowrap">
+                    <div className="flex-1 min-w-0 flex items-baseline gap-2">
+                      <span className="text-sm font-medium text-gray-800 truncate">{clientName}</span>
+                      <span className="text-xs text-gray-400 truncate">{clientEmail}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      {notifyOptions.map(({ field, label, help, icon: Icon }) => (
+                        <Tooltip key={field} text={`${label} — ${pc[field] ? 'aan' : 'uit'}. ${help}`} align="right">
+                          <button type="button" aria-pressed={pc[field]} aria-label={label}
+                            onClick={() => toggleProjectClientPref(pc.id, field, !pc[field])}
+                            className={`p-1.5 rounded-md transition-colors ${pc[field] ? 'text-primary bg-primary/10 hover:bg-primary/15' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </button>
+                        </Tooltip>
+                      ))}
+                      <span className="w-px h-4 bg-gray-200 mx-1" />
+                      <Tooltip text="Ontkoppel deze klant van het domein. De klant zelf blijft bestaan." align="right">
+                        <button type="button" aria-label={`${clientName} ontkoppelen`}
+                          onClick={() => { if (confirm(`${clientName} verwijderen van dit domein?`)) removeClientFromProject(pc.id) }}
+                          className="p-1.5 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          <X className="w-3.5 h-3.5" />
                         </button>
-                      </div>
-                    )}
+                      </Tooltip>
+                    </div>
                   </div>
                 )
               })}
-            </div>
-            <div className="relative" ref={clientMenuRef}>
-              <button onClick={() => setClientMenuOpen(!clientMenuOpen)}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-primary transition-colors mt-1">
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Klant toevoegen</span>
-              </button>
-              {clientMenuOpen && (
-                <div className="absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[200px] max-h-72 overflow-y-auto">
-                  {availableClients.map((c) => (
-                    <button key={c.id} onClick={() => { addClientToProject(c.id); setClientMenuOpen(false) }}
-                      className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                      <UserPlus className="w-3.5 h-3.5 text-gray-400" />
-                      {c.name}
-                    </button>
-                  ))}
-                  {availableClients.length === 0 && (
-                    <p className="px-3.5 py-2 text-xs text-gray-400 italic">Alle klanten al gekoppeld</p>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -803,18 +793,10 @@ export default function DomainDetail() {
                 />
               )}
               {phase === 'development' && (
-                <div className="space-y-1 max-w-md">
-                  <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Stagingsite</p>
-                  {project.staging_url && (
-                    <a href={project.staging_url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-sm text-primary hover:text-primary-600 transition-colors min-w-0">
-                      <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="truncate">{project.staging_url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</span>
-                      <ExternalLink className="w-3 h-3 text-primary/50 flex-shrink-0" />
-                    </a>
-                  )}
-                  <InlineEdit value={project.staging_url || ''} onSave={(url) => updateProject({ staging_url: withHttps(url) })} type="url"
-                    placeholder={project.staging_url ? 'Wijzig URL' : 'URL toevoegen'} icon={Pencil} displayValue={project.staging_url ? '' : 'URL toevoegen'} />
+                <div className="max-w-md">
+                  <FieldInput label="Stagingsite" type="url" placeholder="https://staging..." linkable
+                    value={project.staging_url || ''} onSave={(v) => updateProject({ staging_url: withHttps(v) })}
+                    help="Testomgeving waar je de site bouwt voordat hij live gaat. Alleen voor jouw overzicht, de klant ziet dit niet." />
                 </div>
               )}
               {phase === 'onderhoud' && <DomainOnderhoud projectId={project.id} />}
@@ -834,7 +816,6 @@ export default function DomainDetail() {
                   intakeLinks={phase === 'intake' ? intakeLinks : undefined}
                   onChanged={reloadInstances}
                   onDirtyChange={handleDirtyChange}
-                  notify={notifyCardUpdate}
                 />
               </div>
             </div>

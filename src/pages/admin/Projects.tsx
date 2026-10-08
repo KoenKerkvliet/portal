@@ -846,12 +846,6 @@ export default function Projects() {
 
     await fetchPhaseInstances()
 
-    // Send notification for card update
-    const project = projects.find(p => p.id === projectId)
-    if (project) {
-      createNotification(projectId, 'card_update', 'Je portaal is bijgewerkt', `De ${phaseLabels[phase as ProjectPhase] || phase}-fase is bijgewerkt.`)
-    }
-
     setSavingInstance(false)
   }
 

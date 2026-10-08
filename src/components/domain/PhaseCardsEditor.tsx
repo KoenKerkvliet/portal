@@ -38,7 +38,6 @@ export default function PhaseCardsEditor({
   intakeLinks,
   onChanged,
   onDirtyChange,
-  notify,
 }: {
   projectId: string
   phase: ProjectPhase
@@ -47,7 +46,6 @@ export default function PhaseCardsEditor({
   intakeLinks?: IntakeLinks
   onChanged: () => Promise<void>
   onDirtyChange: (phase: ProjectPhase, dirty: boolean) => void
-  notify: (title: string, message: string) => void
 }) {
   const [draft, setDraft] = useState<Draft | null>(instance ? fromInstance(instance) : null)
   const [dirty, setDirty] = useState(false)
@@ -165,7 +163,6 @@ export default function PhaseCardsEditor({
 
     setDirty(false)
     await onChanged()
-    notify('Je portaal is bijgewerkt', `De ${phaseLabels[phase]}-fase is bijgewerkt.`)
     setSaving(false)
   }
 
