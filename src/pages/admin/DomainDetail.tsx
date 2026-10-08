@@ -13,6 +13,7 @@ import HelpTip, { Tooltip } from '../../components/HelpTip'
 import PhaseCardsEditor from '../../components/domain/PhaseCardsEditor'
 import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
 import DomainDesign from '../../components/domain/DomainDesign'
+import DomainDevelopment from '../../components/domain/DomainDevelopment'
 import DomainOnderhoud from '../../components/domain/DomainOnderhoud'
 import {
   phases, phaseLabels, phaseColors, phaseDots, withHttps, emptyIntakeLinks, emptyDesignImages, designFields,
@@ -33,6 +34,26 @@ const notifyOptions: { field: NotifyField; label: string; help: string; icon: Re
   { field: 'notify_punch_cards', label: 'Strippenkaart', icon: Ticket,
     help: 'Krijgt een mail als er strippen worden afgeschreven.' },
 ]
+
+type MailResult = { success: true; sent_to: string | string[]; pdf_attached?: boolean; sent_at?: string | null }
+
+// Roept een mail-Edge Function aan en geeft de data terug, of een leesbare foutmelding.
+// Met viaPortalRecipients: mails naar klanten met 'Portaalmails' aan; niemand = fout.
+async function invokeMail(fn: string, body: Record<string, unknown>, viaPortalRecipients = false): Promise<{ data: MailResult | null; failure: string }> {
+  const { data, error } = await supabase.functions.invoke(fn, { body })
+  if (error) {
+    let failure = 'Versturen mislukt.'
+    if (error instanceof FunctionsHttpError) {
+      try { failure = (await error.context.json())?.error || failure } catch { /* standaardmelding */ }
+    }
+    return { data: null, failure }
+  }
+  if (!data?.success) return { data: null, failure: data?.error || 'Versturen mislukt.' }
+  if (viaPortalRecipients && ![data.sent_to].flat().filter(Boolean).length) {
+    return { data: null, failure: "er is geen klant met 'Portaalmails' aan. Zet dat aan bij een klant onder Algemeen." }
+  }
+  return { data: data as MailResult, failure: '' }
+}
 
 const summarize = (instance: ProjectPhaseInstance | undefined) => {
   if (!instance) return 'Niet ingericht'
@@ -68,6 +89,8 @@ export default function DomainDetail() {
   const [uploadingDesignImage, setUploadingDesignImage] = useState<DesignImageKey | null>(null)
   const [sendingDesign, setSendingDesign] = useState<DesignImageKey | null>(null)
   const [designSendResults, setDesignSendResults] = useState<Partial<Record<DesignImageKey, string>>>({})
+  const [sendingStaging, setSendingStaging] = useState(false)
+  const [stagingSendResult, setStagingSendResult] = useState<string | undefined>()
 
   const [phaseChangeModal, setPhaseChangeModal] = useState<{ newPhase: ProjectPhase; silent: boolean } | null>(null)
   const [phaseMenuOpen, setPhaseMenuOpen] = useState(false)
@@ -344,23 +367,14 @@ export default function DomainDetail() {
 
     setSendingKind(kind)
     setSendResults(prev => ({ ...prev, [kind]: undefined }))
-    const { data, error } = await supabase.functions.invoke(config.fn, { body: { [config.idKey]: config.id } })
-    let failure = ''
-    if (error) {
-      failure = 'Versturen mislukt.'
-      if (error instanceof FunctionsHttpError) {
-        try { failure = (await error.context.json())?.error || failure } catch { /* standaardmelding */ }
-      }
-    } else if (!data?.success) {
-      failure = data?.error || 'Versturen mislukt.'
-    }
+    const { data, failure } = await invokeMail(config.fn, { [config.idKey]: config.id })
     setSendingKind(null)
-    if (failure) {
+    if (!data) {
       alert(`${config.label} is niet verstuurd: ${failure}`)
       return
     }
     const pdfNote = kind === 'invoice' ? (data.pdf_attached ? ' (met PDF)' : ' (zonder PDF — alleen de link)') : ''
-    setSendResults(prev => ({ ...prev, [kind]: `Gemaild naar ${data.sent_to}${pdfNote}` }))
+    setSendResults(prev => ({ ...prev, [kind]: `Gemaild naar ${[data.sent_to].flat().join(', ')}${pdfNote}` }))
     await fetchLinkables()
   }
 
@@ -506,27 +520,34 @@ export default function DomainDetail() {
 
     setSendingDesign(key)
     setDesignSendResults(prev => ({ ...prev, [key]: undefined }))
-    const { data, error } = await supabase.functions.invoke('send-design-ready-email', {
-      body: { project_id: project.id, design_type: field.approvalType, is_new_version: isNewVersion },
-    })
-    let failure = ''
-    if (error) {
-      failure = 'Versturen mislukt.'
-      if (error instanceof FunctionsHttpError) {
-        try { failure = (await error.context.json())?.error || failure } catch { /* standaardmelding */ }
-      }
-    } else if (!data?.success) {
-      failure = data?.error || 'Versturen mislukt.'
-    } else if (!data.sent_to?.length) {
-      failure = "er is geen klant met 'Portaalmails' aan. Zet dat aan bij een klant onder Algemeen."
-    }
+    const { data, failure } = await invokeMail('send-design-ready-email', {
+      project_id: project.id, design_type: field.approvalType, is_new_version: isNewVersion,
+    }, true)
     setSendingDesign(null)
-    if (failure) {
+    if (!data) {
       alert(`De ${field.label.toLowerCase()} is niet verstuurd: ${failure}`)
       return
     }
-    setDesignSendResults(prev => ({ ...prev, [key]: `Gemaild naar ${data.sent_to.join(', ')}` }))
+    setDesignSendResults(prev => ({ ...prev, [key]: `Gemaild naar ${[data.sent_to].flat().join(', ')}` }))
     await fetchInstances()
+  }
+
+  // Bewust versturen: de klant krijgt een mail met een knop naar de testsite
+  const sendStaging = async () => {
+    if (!project?.staging_url) return
+    const again = project.staging_sent_at ? `\n\nLet op: de link is al eerder gemaild op ${new Date(project.staging_sent_at).toLocaleString('nl-NL')}.` : ''
+    if (!confirm(`De link naar de testsite nu naar de klant mailen?\n${project.staging_url}${again}`)) return
+
+    setSendingStaging(true)
+    setStagingSendResult(undefined)
+    const { data, failure } = await invokeMail('send-staging-email', { project_id: project.id }, true)
+    setSendingStaging(false)
+    if (!data) {
+      alert(`De link is niet verstuurd: ${failure}`)
+      return
+    }
+    setStagingSendResult(`Gemaild naar ${[data.sent_to].flat().join(', ')}`)
+    await fetchProject()
   }
 
   // ── Weergave ──
@@ -831,6 +852,10 @@ export default function DomainDetail() {
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${intakeSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{intakeSummary || 'Nog niets gekoppeld'}</span>
               ) : phase === 'design' ? (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${designSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{designSummary || 'Nog geen ontwerpen'}</span>
+              ) : phase === 'development' ? (
+                <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${project.staging_url ? 'text-gray-500' : 'text-gray-400 italic'}`}>
+                  {!project.staging_url ? 'Nog geen testsite' : project.staging_sent_at ? 'Testsite gemaild' : 'Testsite nog niet gemaild'}
+                </span>
               ) : (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${instance ? 'text-gray-500' : 'text-gray-400 italic'}`}>{summarize(instance)}</span>
               )}
@@ -868,17 +893,19 @@ export default function DomainDetail() {
                 />
               )}
               {phase === 'development' && (
-                <div className="max-w-md">
-                  <FieldInput label="Stagingsite" type="url" placeholder="https://staging..." linkable
-                    value={project.staging_url || ''} onSave={(v) => updateProject({ staging_url: withHttps(v) })}
-                    help="Testomgeving waar je de site bouwt voordat hij live gaat. Alleen voor jouw overzicht, de klant ziet dit niet." />
-                </div>
+                <DomainDevelopment
+                  project={project}
+                  sending={sendingStaging}
+                  sendResult={stagingSendResult}
+                  onSaveUrl={(v) => updateProject({ staging_url: withHttps(v) })}
+                  onSend={sendStaging}
+                />
               )}
               {phase === 'onderhoud' && <DomainOnderhoud projectId={project.id} />}
 
-              {/* Intake en design lopen via mail met links zonder inloggen; geen cards of introtekst in
-                  het portaal. Bestaande cards blijven bewaard in de database. */}
-              {phase !== 'intake' && phase !== 'design' && (
+              {/* Intake, design en development lopen via mail met links zonder inloggen; geen cards of
+                  introtekst in het portaal. Bestaande cards blijven bewaard in de database. */}
+              {(phase === 'oplevering' || phase === 'onderhoud') && (
               <div className={phase === 'oplevering' ? '' : 'pt-5 border-t border-gray-100'}>
                 {phase !== 'oplevering' && (
                   <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
