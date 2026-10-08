@@ -195,7 +195,13 @@ export default function AdminSettings() {
     e.preventDefault()
     setInvoiceSaving(true)
     setInvoiceSaved(false)
-    const payload = { ...invoiceSettings, updated_at: new Date().toISOString() }
+    // Reviewlink mag zonder https:// ingevuld worden; die zetten we er dan zelf voor
+    const reviewUrl = invoiceSettings.review_url?.trim() || ''
+    const normalizedReviewUrl = reviewUrl && !/^https?:\/\//i.test(reviewUrl) ? `https://${reviewUrl}` : reviewUrl
+    if (normalizedReviewUrl !== invoiceSettings.review_url) {
+      setInvoiceSettings(prev => ({ ...prev, review_url: normalizedReviewUrl }))
+    }
+    const payload = { ...invoiceSettings, review_url: normalizedReviewUrl || null, updated_at: new Date().toISOString() }
     if (invoiceSettingsId) {
       await supabase.from('invoice_settings').update(payload).eq('id', invoiceSettingsId)
     } else {
@@ -334,7 +340,7 @@ export default function AdminSettings() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Reviewlink <span className="text-gray-400 font-normal">(optioneel)</span></label>
-                    <input type="url" value={invoiceSettings.review_url || ''} onChange={(e) => updateInvoice('review_url', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all" placeholder="https://g.page/r/.../review" />
+                    <input type="text" inputMode="url" value={invoiceSettings.review_url || ''} onChange={(e) => updateInvoice('review_url', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all" placeholder="bijv. feedback.designpixels.nl" />
                     <p className="text-xs text-gray-500 mt-1">De link waar klanten een review achterlaten, bijv. je Google-reviewlink. Wordt gebruikt bij 'Review-verzoek' in de Oplevering-fase van een domein.</p>
                   </div>
                 </div>
