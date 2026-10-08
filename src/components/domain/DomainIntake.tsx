@@ -1,42 +1,136 @@
 import type { Project, Quote, Invoice, Assignment } from '../../types'
-import { Calendar, Clock, ClipboardCheck, FileCheck, FileText, AlertTriangle } from 'lucide-react'
-import { toDatetimeLocal, type IntakeLinks, type ProjectPhaseInstance } from './domainShared'
+import { Calendar, Clock, ClipboardCheck, FileCheck, FileText, Send, Loader2, ExternalLink } from 'lucide-react'
+import HelpTip from '../HelpTip'
+import { toDatetimeLocal, type IntakeLinks } from './domainShared'
+
+export type IntakeDocKind = 'assignment' | 'quote' | 'invoice'
+
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
+
+const quoteTotal = (q: Quote) =>
+  (q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)
+
+type DocStatus = { label: string; className: string; detail?: string }
+
+const statusBadge: Record<string, string> = {
+  draft: 'bg-gray-100 text-gray-600',
+  sent: 'bg-blue-50 text-blue-700',
+  accepted: 'bg-green-50 text-green-700',
+  declined: 'bg-red-50 text-red-600',
+  paid: 'bg-green-50 text-green-700',
+}
+
+function docStatus(doc: Quote | Invoice | Assignment): DocStatus {
+  const status = doc.status as string
+  const className = statusBadge[status] || 'bg-gray-100 text-gray-600'
+  if (status === 'accepted' && 'accepted_at' in doc && doc.accepted_at) {
+    return { label: 'Geaccepteerd', className, detail: `door ${doc.accepted_name || 'de klant'} op ${formatDate(doc.accepted_at)}` }
+  }
+  if (status === 'declined' && 'declined_reason' in doc) {
+    return { label: 'Afgewezen', className, detail: doc.declined_reason ? `"${doc.declined_reason}"` : undefined }
+  }
+  if (status === 'paid') return { label: 'Betaald', className }
+  if (status === 'sent') return { label: 'Verzonden', className }
+  return { label: 'Concept', className }
+}
+
+const publicPath: Record<IntakeDocKind, string> = { assignment: 'opdracht', quote: 'offerte', invoice: 'factuur' }
+
+function DocRow({
+  kind,
+  label,
+  help,
+  icon: Icon,
+  value,
+  options,
+  doc,
+  sending,
+  sendResult,
+  onSelect,
+  onSend,
+}: {
+  kind: IntakeDocKind
+  label: string
+  help: string
+  icon: React.ComponentType<{ className?: string }>
+  value: string
+  options: { id: string; label: string }[]
+  doc: Quote | Invoice | Assignment | undefined
+  sending: boolean
+  sendResult?: string
+  onSelect: (id: string) => void
+  onSend: () => void
+}) {
+  const status = doc ? docStatus(doc) : null
+  return (
+    <div className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-1.5 mb-1">
+        <Icon className="w-3.5 h-3.5 text-gray-400" />
+        <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">{label}</span>
+        <HelpTip text={help} />
+      </div>
+      <div className="flex items-center gap-2">
+        <select value={value} onChange={(e) => onSelect(e.target.value)}
+          className="flex-1 min-w-0 h-8 px-2 text-sm text-gray-800 bg-white border border-gray-200 rounded-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors">
+          <option value="">Niet gekoppeld</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+        <button type="button" onClick={onSend} disabled={!doc || sending}
+          className="flex-shrink-0 inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-primary hover:bg-primary-600 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          {doc?.last_sent_at ? 'Opnieuw mailen' : 'Mail sturen'}
+        </button>
+      </div>
+      {doc && status && (
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-1.5 text-[11px] text-gray-500">
+          <span className={`px-1.5 py-0.5 rounded font-medium ${status.className}`}>{status.label}</span>
+          {status.detail && <span className="truncate max-w-full">{status.detail}</span>}
+          <span>{doc.last_sent_at ? `Gemaild op ${formatDateTime(doc.last_sent_at)}` : 'Nog niet gemaild'}</span>
+          {doc.public_token && (
+            <a href={`/d/${publicPath[kind]}/${doc.public_token}`} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-primary hover:text-primary-600">
+              Bekijk als klant
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      )}
+      {sendResult && <p className="mt-1 text-[11px] text-green-600">{sendResult}</p>}
+    </div>
+  )
+}
 
 export default function DomainIntake({
   project,
-  instance,
   links,
   quotes,
   invoices,
   assignments,
   saving,
+  sendingKind,
+  sendResults,
   onChangeLinks,
+  onSend,
   updateProject,
 }: {
   project: Project
-  instance: ProjectPhaseInstance | null
   links: IntakeLinks
   quotes: Quote[]
   invoices: Invoice[]
   assignments: Assignment[]
   saving: boolean
+  sendingKind: IntakeDocKind | null
+  sendResults: Partial<Record<IntakeDocKind, string>>
   onChangeLinks: (links: IntakeLinks) => void
+  onSend: (kind: IntakeDocKind) => void
   updateProject: (updates: Partial<Project>) => void
 }) {
-  const fadedWarnings: string[] = []
-  for (const step of instance?.custom_data?.steps || []) {
-    if (!step.faded || !step.elements) continue
-    for (const el of step.elements) {
-      if (el.type !== 'button') continue
-      if (el.data.action === 'quote' && links.quote_id) fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een offerte-knop`)
-      if (el.data.action === 'assignment' && links.assignment_id) fadedWarnings.push(`"${step.title || 'Naamloos'}" bevat een opdracht-knop`)
-    }
-  }
-
-  const selectClass = 'flex-1 min-w-0 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all'
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="flex items-center gap-3 bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
           <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -58,77 +152,48 @@ export default function DomainIntake({
         </div>
       </div>
 
-      {/* Koppelingen worden in de intake-fase opgeslagen, dus pas mogelijk als die is ingericht */}
-      {!instance ? (
-        <p className="text-xs text-gray-400">Richt de intake-fase hieronder in om een opdracht, offerte of factuur te koppelen.</p>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-            Let op: een offerte of factuur koppelen stuurt de klant direct een mail en zet de offerte of factuur op &lsquo;verzonden&rsquo;.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Opdracht</label>
-              <div className="flex items-center gap-2">
-                <ClipboardCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <select value={links.assignment_id}
-                  onChange={(e) => onChangeLinks({ ...links, assignment_id: e.target.value })}
-                  className={selectClass}>
-                  <option value="">Geen opdracht</option>
-                  {assignments.map((a) => (
-                    <option key={a.id} value={a.id}>{a.title}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Offerte</label>
-              <div className="flex items-center gap-2">
-                <FileCheck className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <select value={links.quote_id}
-                  onChange={(e) => onChangeLinks({ ...links, quote_id: e.target.value })}
-                  className={selectClass}>
-                  <option value="">Geen offerte</option>
-                  {quotes.map((q) => (
-                    <option key={q.id} value={q.id}>
-                      {q.number} — €{((q.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0)).toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-1">Factuur</label>
-              <div className="flex items-center gap-2">
-                <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <select value={links.invoice_id}
-                  onChange={(e) => onChangeLinks({ ...links, invoice_id: e.target.value })}
-                  className={selectClass}>
-                  <option value="">Geen factuur</option>
-                  {invoices.filter((inv) => !inv.is_remainder_invoice).map((inv) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.number} — €{inv.amount.toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          {fadedWarnings.length > 0 && (
-            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-              <div className="text-xs text-amber-700">
-                <p className="font-medium mb-0.5">Stappen niet zichtbaar voor klant:</p>
-                {fadedWarnings.map((w, i) => (
-                  <p key={i}>• {w}</p>
-                ))}
-                <p className="mt-1 text-amber-600">Maak deze stappen zichtbaar zodat de klant ze kan zien.</p>
-              </div>
-            </div>
-          )}
-          {saving && <p className="text-xs text-primary">Opslaan...</p>}
-        </div>
-      )}
+      <div className="divide-y divide-gray-100">
+        <DocRow
+          kind="assignment"
+          label="Opdracht"
+          help="Kies de opdrachtomschrijving voor dit domein. Koppelen stuurt niets. Met 'Mail sturen' krijgt de klant een link om de opdracht te lezen en te accepteren, zonder in te loggen."
+          icon={ClipboardCheck}
+          value={links.assignment_id}
+          options={assignments.map(a => ({ id: a.id, label: a.title }))}
+          doc={assignments.find(a => a.id === links.assignment_id)}
+          sending={sendingKind === 'assignment'}
+          sendResult={sendResults.assignment}
+          onSelect={(id) => onChangeLinks({ ...links, assignment_id: id })}
+          onSend={() => onSend('assignment')}
+        />
+        <DocRow
+          kind="quote"
+          label="Offerte"
+          help="Kies de offerte voor dit domein. Koppelen stuurt niets. Met 'Mail sturen' krijgt de klant een link om de offerte te bekijken en te accepteren of af te wijzen, zonder in te loggen."
+          icon={FileCheck}
+          value={links.quote_id}
+          options={quotes.map(q => ({ id: q.id, label: `${q.number} — €${quoteTotal(q).toFixed(2)}` }))}
+          doc={quotes.find(q => q.id === links.quote_id)}
+          sending={sendingKind === 'quote'}
+          sendResult={sendResults.quote}
+          onSelect={(id) => onChangeLinks({ ...links, quote_id: id })}
+          onSend={() => onSend('quote')}
+        />
+        <DocRow
+          kind="invoice"
+          label="Factuur"
+          help="Kies de factuur voor dit domein. Koppelen stuurt niets. Met 'Mail sturen' krijgt de klant de factuur als PDF-bijlage plus een link om hem online te bekijken, zonder in te loggen."
+          icon={FileText}
+          value={links.invoice_id}
+          options={invoices.filter(inv => !inv.is_remainder_invoice && !inv.is_recurring).map(inv => ({ id: inv.id, label: `${inv.number} — €${inv.amount.toFixed(2)}` }))}
+          doc={invoices.find(inv => inv.id === links.invoice_id)}
+          sending={sendingKind === 'invoice'}
+          sendResult={sendResults.invoice}
+          onSelect={(id) => onChangeLinks({ ...links, invoice_id: id })}
+          onSend={() => onSend('invoice')}
+        />
+      </div>
+      {saving && <p className="text-xs text-primary">Opslaan...</p>}
     </div>
   )
 }

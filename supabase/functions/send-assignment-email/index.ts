@@ -131,7 +131,12 @@ DesignPixels`
       throw new Error(`EmailIt API error: ${emailResponse.status} ${errorText}`)
     }
 
-    return json({ success: true, sent_to: recipientEmail })
+    // Vastleggen dat de opdracht gemaild is; een concept wordt 'verzonden'
+    const sentAt = new Date().toISOString()
+    await adminClient.from('assignments').update({ last_sent_at: sentAt }).eq('id', assignment_id)
+    await adminClient.from('assignments').update({ status: 'sent' }).eq('id', assignment_id).eq('status', 'draft')
+
+    return json({ success: true, sent_to: recipientEmail, sent_at: sentAt })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error('send-assignment-email error:', message)

@@ -445,6 +445,7 @@ Deno.serve(async (req) => {
             })
             emailSent = true
             pdfAttached = Boolean(pdfBase64)
+            await db.from('invoices').update({ last_sent_at: new Date().toISOString() }).eq('id', inserted.id)
           } catch (e) {
             emailError = e instanceof Error ? e.message : String(e)
           }

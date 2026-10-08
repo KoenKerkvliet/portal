@@ -476,14 +476,6 @@ export default function Projects() {
 
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
-      // Auto-set linked quote/invoice to 'sent' if draft (koppelen impliceert verzenden)
-      if (quoteId) {
-        await supabase.from('quotes').update({ status: 'sent' }).eq('id', quoteId).eq('status', 'draft')
-      }
-      if (invoiceId) {
-        await supabase.from('invoices').update({ status: 'sent' }).eq('id', invoiceId).eq('status', 'draft')
-      }
-
       await fetchPhaseInstances()
 
       // Update editingInstance if currently editing intake phase
@@ -494,39 +486,8 @@ export default function Projects() {
         }
       }
     }
-    // Create notifications for newly linked items
-    const oldLinks = intakeLinks[projectId] || { quote_id: '', invoice_id: '', assignment_id: '' }
-    console.log('[IntakeLinks] old:', oldLinks, 'new quote:', quoteId, 'new invoice:', invoiceId, 'new assignment:', assignmentId)
-    if (quoteId && quoteId !== oldLinks.quote_id) {
-      console.log('[IntakeLinks] Quote changed, creating notification + sending email...')
-      const q = (projectQuotes[projectId] || []).find(q => q.id === quoteId)
-      createNotification(projectId, 'quote', 'Nieuwe offerte beschikbaar', q ? `Offerte ${q.number} staat voor je klaar.` : 'Er is een offerte voor je klaargezet.', `/offerte/${quoteId}`)
-      // Branded mail naar de klant via EmailIt — non-blocking, fouten loggen we alleen.
-      try {
-        const { data, error } = await supabase.functions.invoke('send-quote-email', { body: { quote_id: quoteId } })
-        if (error || (data && !data.success)) {
-          console.error('[IntakeLinks] send-quote-email failed:', error || data?.error)
-        }
-      } catch (e) {
-        console.error('[IntakeLinks] send-quote-email exception:', e)
-      }
-    }
-    if (invoiceId && invoiceId !== oldLinks.invoice_id) {
-      createNotification(projectId, 'invoice', 'Nieuwe factuur beschikbaar', 'Er is een factuur voor je klaargezet.')
-      // Branded mail naar de klant via EmailIt — non-blocking, fouten loggen we alleen.
-      try {
-        const { data, error } = await supabase.functions.invoke('send-invoice-email', { body: { invoice_id: invoiceId } })
-        if (error || (data && !data.success)) {
-          console.error('[IntakeLinks] send-invoice-email failed:', error || data?.error)
-        }
-      } catch (e) {
-        console.error('[IntakeLinks] send-invoice-email exception:', e)
-      }
-    }
-    if (assignmentId && assignmentId !== oldLinks.assignment_id) {
-      const a = (projectAssignments[projectId] || []).find(a => a.id === assignmentId)
-      createNotification(projectId, 'assignment', 'Nieuwe opdracht beschikbaar', a ? `Opdracht "${a.title}" staat voor je klaar.` : 'Er is een opdrachtomschrijving voor je klaargezet.', `/opdracht/${assignmentId}`)
-    }
+    // Koppelen is stil: geen mail, melding of statuswijziging. Mailen gaat via de
+    // knop 'Mail sturen' op de domeinpagina (/admin/projecten/:id).
 
     setIntakeLinks(prev => ({ ...prev, [projectId]: { quote_id: quoteId, invoice_id: invoiceId, assignment_id: assignmentId } }))
     setSavingIntakeLinks(null)

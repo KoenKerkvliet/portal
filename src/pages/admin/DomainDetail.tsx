@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, PhaseTemplate, ProjectClient, Quote, Invoice, Assignment } from '../../types'
 import {
@@ -10,7 +11,7 @@ import InlineEdit from '../../components/InlineEdit'
 import FieldInput from '../../components/FieldInput'
 import HelpTip, { Tooltip } from '../../components/HelpTip'
 import PhaseCardsEditor from '../../components/domain/PhaseCardsEditor'
-import DomainIntake from '../../components/domain/DomainIntake'
+import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
 import DomainDesign from '../../components/domain/DomainDesign'
 import DomainOnderhoud from '../../components/domain/DomainOnderhoud'
 import {
@@ -60,6 +61,8 @@ export default function DomainDetail() {
 
   const [intakeLinks, setIntakeLinks] = useState<IntakeLinks>(emptyIntakeLinks)
   const [savingIntakeLinks, setSavingIntakeLinks] = useState(false)
+  const [sendingKind, setSendingKind] = useState<IntakeDocKind | null>(null)
+  const [sendResults, setSendResults] = useState<Partial<Record<IntakeDocKind, string>>>({})
   const [designImages, setDesignImages] = useState<DesignImages>(emptyDesignImages)
   const [savingDesignImages, setSavingDesignImages] = useState(false)
   const [uploadingDesignImage, setUploadingDesignImage] = useState<DesignImageKey | null>(null)
@@ -278,13 +281,30 @@ export default function DomainDetail() {
 
   // ── Intake-koppelingen ──
 
+  // Koppelen legt alleen vast welke opdracht/offerte/factuur bij dit domein hoort.
+  // Er gaat niets naar de klant en de status verandert niet; dat doet 'Mail sturen'.
   const saveIntakeLinks = async (newLinks: IntakeLinks) => {
     if (!project) return
-    const oldLinks = intakeLinks
     setIntakeLinks(newLinks)
     setSavingIntakeLinks(true)
     const instance = instances.intake
-    if (instance) {
+    if (!instance) {
+      // Koppelingen worden in de intake-fase bewaard; maak die aan als hij nog niet bestaat
+      await supabase.from('project_phases').insert({
+        project_id: project.id,
+        phase: 'intake',
+        template_id: null,
+        custom_data: {
+          content: '',
+          steps: [],
+          linked_quote_id: newLinks.quote_id || undefined,
+          linked_invoice_id: newLinks.invoice_id || undefined,
+          linked_assignment_id: newLinks.assignment_id || undefined,
+        },
+        status: 'active',
+      })
+      await fetchInstances()
+    } else {
       const { data: fresh } = await supabase.from('project_phases').select('custom_data').eq('id', instance.id).single()
       const customData: PhaseCustomData = (fresh?.custom_data as PhaseCustomData | null) || instance.custom_data || { content: '', steps: [] }
       const updatedData: PhaseCustomData = {
@@ -315,43 +335,47 @@ export default function DomainDetail() {
       }
 
       await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
-
-      // Auto-set linked quote/invoice to 'sent' if draft (koppelen impliceert verzenden)
-      if (newLinks.quote_id) {
-        await supabase.from('quotes').update({ status: 'sent' }).eq('id', newLinks.quote_id).eq('status', 'draft')
-      }
-      if (newLinks.invoice_id) {
-        await supabase.from('invoices').update({ status: 'sent' }).eq('id', newLinks.invoice_id).eq('status', 'draft')
-      }
       await fetchInstances()
     }
 
-    if (newLinks.quote_id && newLinks.quote_id !== oldLinks.quote_id) {
-      const q = quotes.find(q => q.id === newLinks.quote_id)
-      createNotification('quote', 'Nieuwe offerte beschikbaar', q ? `Offerte ${q.number} staat voor je klaar.` : 'Er is een offerte voor je klaargezet.', `/offerte/${newLinks.quote_id}`)
-      // Branded mail naar de klant via EmailIt — non-blocking, fouten loggen we alleen.
-      try {
-        const { data, error } = await supabase.functions.invoke('send-quote-email', { body: { quote_id: newLinks.quote_id } })
-        if (error || (data && !data.success)) console.error('[IntakeLinks] send-quote-email failed:', error || data?.error)
-      } catch (e) {
-        console.error('[IntakeLinks] send-quote-email exception:', e)
-      }
-    }
-    if (newLinks.invoice_id && newLinks.invoice_id !== oldLinks.invoice_id) {
-      createNotification('invoice', 'Nieuwe factuur beschikbaar', 'Er is een factuur voor je klaargezet.')
-      try {
-        const { data, error } = await supabase.functions.invoke('send-invoice-email', { body: { invoice_id: newLinks.invoice_id } })
-        if (error || (data && !data.success)) console.error('[IntakeLinks] send-invoice-email failed:', error || data?.error)
-      } catch (e) {
-        console.error('[IntakeLinks] send-invoice-email exception:', e)
-      }
-    }
-    if (newLinks.assignment_id && newLinks.assignment_id !== oldLinks.assignment_id) {
-      const a = assignments.find(a => a.id === newLinks.assignment_id)
-      createNotification('assignment', 'Nieuwe opdracht beschikbaar', a ? `Opdracht "${a.title}" staat voor je klaar.` : 'Er is een opdrachtomschrijving voor je klaargezet.', `/opdracht/${newLinks.assignment_id}`)
-    }
-
     setSavingIntakeLinks(false)
+  }
+
+  // Bewust versturen: de klant krijgt een mail met een link zonder inloggen
+  // (bij een factuur ook de PDF). De Edge Function legt 'gemaild op' vast en zet
+  // een concept op 'verzonden'.
+  const sendIntakeDocument = async (kind: IntakeDocKind) => {
+    const config = {
+      assignment: { fn: 'send-assignment-email', idKey: 'assignment_id', id: intakeLinks.assignment_id, label: 'De opdracht', doc: assignments.find(a => a.id === intakeLinks.assignment_id) },
+      quote: { fn: 'send-quote-email', idKey: 'quote_id', id: intakeLinks.quote_id, label: 'De offerte', doc: quotes.find(q => q.id === intakeLinks.quote_id) },
+      invoice: { fn: 'send-invoice-email', idKey: 'invoice_id', id: intakeLinks.invoice_id, label: 'De factuur', doc: invoices.find(i => i.id === intakeLinks.invoice_id) },
+    }[kind]
+    if (!config.id || !config.doc) return
+
+    const what = kind === 'assignment' ? `opdracht "${(config.doc as Assignment).title}"` : `${kind === 'quote' ? 'offerte' : 'factuur'} ${(config.doc as Quote | Invoice).number}`
+    const again = config.doc.last_sent_at ? `\n\nLet op: deze is al eerder gemaild op ${new Date(config.doc.last_sent_at).toLocaleString('nl-NL')}.` : ''
+    if (!confirm(`De ${what} nu naar de klant mailen?${again}`)) return
+
+    setSendingKind(kind)
+    setSendResults(prev => ({ ...prev, [kind]: undefined }))
+    const { data, error } = await supabase.functions.invoke(config.fn, { body: { [config.idKey]: config.id } })
+    let failure = ''
+    if (error) {
+      failure = 'Versturen mislukt.'
+      if (error instanceof FunctionsHttpError) {
+        try { failure = (await error.context.json())?.error || failure } catch { /* standaardmelding */ }
+      }
+    } else if (!data?.success) {
+      failure = data?.error || 'Versturen mislukt.'
+    }
+    setSendingKind(null)
+    if (failure) {
+      alert(`${config.label} is niet verstuurd: ${failure}`)
+      return
+    }
+    const pdfNote = kind === 'invoice' ? (data.pdf_attached ? ' (met PDF)' : ' (zonder PDF — alleen de link)') : ''
+    setSendResults(prev => ({ ...prev, [kind]: `Gemaild naar ${data.sent_to}${pdfNote}` }))
+    await fetchLinkables()
   }
 
   // ── Design-afbeeldingen ──
@@ -519,6 +543,17 @@ export default function DomainDetail() {
 
   const isArchived = (project.status || 'active') === 'archived'
   const availableClients = clients.filter(c => !projectClients.some(pc => pc.client_id === c.id))
+
+  // Kop van de Intake-sectie: wat er gekoppeld is en hoe het ervoor staat
+  const statusWord: Record<string, string> = { draft: 'concept', sent: 'verzonden', accepted: 'geaccepteerd', declined: 'afgewezen', paid: 'betaald' }
+  const intakeSummary = ([
+    ['Opdracht', assignments.find(a => a.id === intakeLinks.assignment_id)],
+    ['Offerte', quotes.find(q => q.id === intakeLinks.quote_id)],
+    ['Factuur', invoices.find(i => i.id === intakeLinks.invoice_id)],
+  ] as const)
+    .filter(([, doc]) => doc)
+    .map(([label, doc]) => `${label} ${statusWord[doc!.status] || doc!.status}`)
+    .join(' · ')
 
   return (
     <div className="space-y-5">
@@ -763,7 +798,11 @@ export default function DomainDetail() {
               {dirtyPhases[phase] && (
                 <span className="text-[11px] font-medium text-amber-600">Niet opgeslagen</span>
               )}
-              <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${instance ? 'text-gray-500' : 'text-gray-400 italic'}`}>{summarize(instance)}</span>
+              {phase === 'intake' ? (
+                <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${intakeSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{intakeSummary || 'Nog niets gekoppeld'}</span>
+              ) : (
+                <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${instance ? 'text-gray-500' : 'text-gray-400 italic'}`}>{summarize(instance)}</span>
+              )}
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 max-sm:ml-auto ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -772,13 +811,15 @@ export default function DomainDetail() {
               {phase === 'intake' && (
                 <DomainIntake
                   project={project}
-                  instance={instance || null}
                   links={intakeLinks}
                   quotes={quotes}
                   invoices={invoices}
                   assignments={assignments}
                   saving={savingIntakeLinks}
+                  sendingKind={sendingKind}
+                  sendResults={sendResults}
                   onChangeLinks={saveIntakeLinks}
+                  onSend={sendIntakeDocument}
                   updateProject={updateProject}
                 />
               )}
@@ -801,6 +842,9 @@ export default function DomainDetail() {
               )}
               {phase === 'onderhoud' && <DomainOnderhoud projectId={project.id} />}
 
+              {/* De intake loopt via mail met links zonder inloggen; geen cards of introtekst in het portaal.
+                  Bestaande intake-cards blijven bewaard in de database. */}
+              {phase !== 'intake' && (
               <div className={phase === 'oplevering' ? '' : 'pt-5 border-t border-gray-100'}>
                 {phase !== 'oplevering' && (
                   <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
@@ -813,11 +857,11 @@ export default function DomainDetail() {
                   phase={phase}
                   instance={instance || null}
                   templates={templates.filter(t => t.phase === phase)}
-                  intakeLinks={phase === 'intake' ? intakeLinks : undefined}
                   onChanged={reloadInstances}
                   onDirtyChange={handleDirtyChange}
                 />
               </div>
+              )}
             </div>
           </section>
         )

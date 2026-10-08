@@ -137,6 +137,8 @@ export interface Invoice {
   recurrence_next_run_at: string | null
   recurrence_last_run_at: string | null
   recurring_template_id: string | null
+  last_sent_at?: string | null
+  public_token?: string | null
   created_at: string
   project?: Project
   client?: Client
@@ -271,6 +273,8 @@ export interface Quote {
   btw_percent: number
   notes: string
   attachment_ids: string[]
+  last_sent_at?: string | null
+  public_token?: string | null
   accepted_at: string | null
   accepted_name: string | null
   accepted_signature: string | null
@@ -351,6 +355,8 @@ export interface Assignment {
   title: string
   content: string
   status: AssignmentStatus
+  last_sent_at?: string | null
+  public_token?: string | null
   accepted_at: string | null
   accepted_name: string | null
   accepted_signature: string | null

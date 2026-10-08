@@ -184,8 +184,13 @@ DesignPixels`
       throw new Error(`EmailIt API error: ${emailResponse.status} ${errorText}`)
     }
 
+    // Vastleggen dat de factuur gemaild is; een concept wordt 'verzonden'
+    const sentAt = new Date().toISOString()
+    await adminClient.from('invoices').update({ last_sent_at: sentAt }).eq('id', invoice_id)
+    await adminClient.from('invoices').update({ status: 'sent' }).eq('id', invoice_id).eq('status', 'draft')
+
     return new Response(
-      JSON.stringify({ success: true, sent_to: recipientEmail, pdf_attached: hasAttachment }),
+      JSON.stringify({ success: true, sent_to: recipientEmail, pdf_attached: hasAttachment, sent_at: sentAt }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

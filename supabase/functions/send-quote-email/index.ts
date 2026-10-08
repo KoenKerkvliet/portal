@@ -150,8 +150,13 @@ DesignPixels`
       throw new Error(`EmailIt API error: ${emailResponse.status} ${errorText}`)
     }
 
+    // Vastleggen dat de offerte gemaild is; een concept wordt 'verzonden'
+    const sentAt = new Date().toISOString()
+    await adminClient.from('quotes').update({ last_sent_at: sentAt }).eq('id', quote_id)
+    await adminClient.from('quotes').update({ status: 'sent' }).eq('id', quote_id).eq('status', 'draft')
+
     return new Response(
-      JSON.stringify({ success: true, sent_to: recipientEmail }),
+      JSON.stringify({ success: true, sent_to: recipientEmail, sent_at: sentAt }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
