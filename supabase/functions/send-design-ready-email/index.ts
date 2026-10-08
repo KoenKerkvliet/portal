@@ -1,21 +1,28 @@
-// Verstuurt een mail naar de klant zodra de admin een design-bestand
-// (styleguide / homepage / contactpagina) upload, zodat de klant weet dat hij
-// het mag beoordelen. Ondersteunt zowel een eerste upload als een nieuwe versie
-// na eerdere afkeuring. Alleen aanroepbaar door admins.
+// Mailt de klant dat een design (styleguide / homepage / contactpagina) klaarstaat,
+// met een link waarmee het zonder inloggen te bekijken en goed of af te keuren is
+// (/d/design/:token?type=...). Wordt alleen verstuurd als de admin op 'Mail
+// sturen' klikt; legt per design vast wanneer het gemaild is (custom_data.
+// design_sent_at). Ontvangers: gekoppelde klanten met 'Portaalmails' aan.
+// Alleen aanroepbaar door admins.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { publicDocumentUrl } from '../_shared/publicLink.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const PORTAL_URL = 'https://portal.designpixels.nl'
-
 const designLabels: Record<string, string> = {
   styleguide: 'Styleguide',
   homepage: 'Homepage',
   contactpage: 'Contactpagina',
+}
+
+const designFields: Record<string, string> = {
+  styleguide: 'design_image_styleguide',
+  homepage: 'design_image_homepage',
+  contactpage: 'design_image_tweede',
 }
 
 Deno.serve(async (req) => {
@@ -106,7 +113,21 @@ Deno.serve(async (req) => {
       )
     }
 
-    const deeplink = `${PORTAL_URL}/design/${design_type}/${project_id}`
+    const { data: designPhase } = await adminClient
+      .from('project_phases')
+      .select('id, custom_data')
+      .eq('project_id', project_id)
+      .eq('phase', 'design')
+      .maybeSingle()
+    const designImage = (designPhase?.custom_data as Record<string, unknown> | null)?.[designFields[design_type]]
+    if (!designPhase || typeof designImage !== 'string' || !designImage.trim()) {
+      return new Response(
+        JSON.stringify({ success: false, error: `Er is nog geen afbeelding voor de ${designLabel.toLowerCase()}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const deeplink = `${await publicDocumentUrl(adminClient, 'project_phases', designPhase.id)}?type=${design_type}`
     const subject = newVersion
       ? `Nieuwe versie van je ${designLabel.toLowerCase()} staat klaar`
       : `Je ${designLabel.toLowerCase()} staat klaar voor beoordeling`
@@ -133,8 +154,9 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 24px;font-size:14px;color:#888;">DesignPixels</p>
 <p style="margin:0 0 16px;">Hoi ${r.name},</p>
 <p style="margin:0 0 16px;">${introHtml}</p>
-<p style="margin:0 0 24px;">Open het ontwerp in je portaal om het te bekijken, feedback te geven of goed te keuren:</p>
-<p style="margin:0 0 24px;"><a href="${deeplink}" style="color:#6b46c1;">${deeplink}</a></p>
+<p style="margin:0 0 24px;">Via de knop hieronder bekijk je het ontwerp en keur je het goed of geef je feedback. Inloggen is niet nodig.</p>
+<p style="margin:0 0 24px;"><a href="${deeplink}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Ontwerp bekijken</a></p>
+<p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${deeplink}" style="color:#6b46c1;word-break:break-all;">${deeplink}</a></p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
@@ -144,7 +166,7 @@ Deno.serve(async (req) => {
 
 ${introText}
 
-Open het ontwerp in je portaal om het te bekijken, feedback te geven of goed te keuren:
+Via deze link bekijk je het ontwerp en keur je het goed of geef je feedback (inloggen is niet nodig):
 ${deeplink}
 
 Met vriendelijke groet,
@@ -173,8 +195,21 @@ DesignPixels`
       sentTo.push(r.email)
     }
 
+    // Vastleggen wanneer dit design gemaild is (vers ophalen: de klant kan intussen gereageerd hebben)
+    let sentAt: string | null = null
+    if (sentTo.length > 0) {
+      sentAt = new Date().toISOString()
+      const { data: fresh } = await adminClient.from('project_phases').select('custom_data').eq('id', designPhase.id).single()
+      const cd = (fresh?.custom_data || {}) as Record<string, unknown>
+      const sentMap = (cd.design_sent_at || {}) as Record<string, string>
+      await adminClient
+        .from('project_phases')
+        .update({ custom_data: { ...cd, design_sent_at: { ...sentMap, [design_type]: sentAt } } })
+        .eq('id', designPhase.id)
+    }
+
     return new Response(
-      JSON.stringify({ success: true, sent_to: sentTo }),
+      JSON.stringify({ success: true, sent_to: sentTo, sent_at: sentAt }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

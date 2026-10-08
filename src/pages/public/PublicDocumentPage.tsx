@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import ClientQuotePage from '../client/QuotePage'
 import ClientInvoicePage from '../client/InvoicePage'
 import ClientAssignmentPage from '../client/AssignmentPage'
+import PublicDesignPage from './PublicDesignPage'
 import type { PublicDocType } from '../../lib/publicDocument'
 
 // Zet een <meta> zolang deze pagina open is en herstelt daarna de oude waarde
@@ -27,6 +28,7 @@ function useMeta(name: string, content: string) {
 // Offerte, factuur of opdracht via de link in de mail — zonder inloggen
 export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
   const { token } = useParams<{ token: string }>()
+  const [searchParams] = useSearchParams()
 
   // De geheime code staat in de URL: niet doorgeven aan andere sites en niet laten indexeren
   useMeta('referrer', 'no-referrer')
@@ -45,6 +47,10 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
 
       {type === 'assignment' ? (
         <ClientAssignmentPage key={token} publicToken={token || ''} />
+      ) : type === 'design' ? (
+        <div className="py-8 px-4">
+          <PublicDesignPage key={token} token={token || ''} focusType={searchParams.get('type')} />
+        </div>
       ) : (
         <div className="py-8 px-4">
           {type === 'quote'

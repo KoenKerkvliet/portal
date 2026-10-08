@@ -15,7 +15,7 @@ import DomainIntake, { type IntakeDocKind } from '../../components/domain/Domain
 import DomainDesign from '../../components/domain/DomainDesign'
 import DomainOnderhoud from '../../components/domain/DomainOnderhoud'
 import {
-  phases, phaseLabels, phaseColors, phaseDots, withHttps, emptyIntakeLinks, emptyDesignImages,
+  phases, phaseLabels, phaseColors, phaseDots, withHttps, emptyIntakeLinks, emptyDesignImages, designFields,
   type ProjectPhaseInstance, type PhaseCustomData, type IntakeLinks, type DesignImages, type DesignImageKey,
 } from '../../components/domain/domainShared'
 
@@ -66,6 +66,8 @@ export default function DomainDetail() {
   const [designImages, setDesignImages] = useState<DesignImages>(emptyDesignImages)
   const [savingDesignImages, setSavingDesignImages] = useState(false)
   const [uploadingDesignImage, setUploadingDesignImage] = useState<DesignImageKey | null>(null)
+  const [sendingDesign, setSendingDesign] = useState<DesignImageKey | null>(null)
+  const [designSendResults, setDesignSendResults] = useState<Partial<Record<DesignImageKey, string>>>({})
 
   const [phaseChangeModal, setPhaseChangeModal] = useState<{ newPhase: ProjectPhase; silent: boolean } | null>(null)
   const [phaseMenuOpen, setPhaseMenuOpen] = useState(false)
@@ -182,22 +184,6 @@ export default function DomainDetail() {
     await supabase.from('projects').update(updates).eq('id', project.id)
     await fetchProject()
   }
-
-  const createNotification = useCallback(async (type: string, title: string, message: string, linkUrl?: string) => {
-    if (!project?.client_id) {
-      console.warn('createNotification: no client_id found for project', project?.id)
-      return
-    }
-    const { error } = await supabase.from('client_notifications').insert({
-      project_id: project.id,
-      client_id: project.client_id,
-      type,
-      title,
-      message,
-      link_url: linkUrl || null,
-    })
-    if (error) console.error('Error creating notification:', error)
-  }, [project?.id, project?.client_id])
 
   // ── Fase wisselen ──
 
@@ -409,10 +395,9 @@ export default function DomainDetail() {
     const { data: freshPhase } = await supabase.from('project_phases').select('custom_data').eq('id', instance.id).single()
     const customData: PhaseCustomData = (freshPhase?.custom_data as PhaseCustomData | null) || instance.custom_data || { content: '', steps: [] }
 
-    // Reset declined approvals when new image is saved for that field
+    // Beoordelingen bijwerken voor designs die een nieuwe afbeelding krijgen
     const updatedApprovals = { ...(customData.design_approvals || {}) }
     const fieldToType: Record<DesignImageKey, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
-    const fieldToLabel: Record<DesignImageKey, string> = { styleguide: 'Styleguide', homepage: 'Homepage', tweede: 'Contactpagina' }
     const oldImages: DesignImages = {
       styleguide: customData.design_image_styleguide || '',
       homepage: customData.design_image_homepage || '',
@@ -424,22 +409,15 @@ export default function DomainDetail() {
       const hadOldImage = !!oldImages[field]?.trim()
       const imageChanged = imgs[field] !== oldImages[field]
 
-      if (hasNewImage && updatedApprovals[approvalType]?.status === 'declined') {
-        updatedApprovals[approvalType] = { status: 'new_version' }
-        createNotification('card_update', `Nieuwe versie: ${fieldToLabel[field]}`, `Er is een nieuwe versie van het design "${fieldToLabel[field]}" beschikbaar op basis van je feedback.`, `/design/${approvalType}/${project.id}`)
-        // Branded mail naar de klant via EmailIt — non-blocking, fouten loggen we alleen.
-        void supabase.functions.invoke('send-design-ready-email', {
-          body: { project_id: project.id, design_type: approvalType, is_new_version: true },
-        }).then(({ data, error }) => {
-          if (error || (data && !data.success)) console.error('[Design] send-design-ready-email failed:', error || data?.error)
-        }).catch(e => console.error('[Design] send-design-ready-email exception:', e))
-      } else if (hasNewImage && !hadOldImage && imageChanged) {
-        createNotification('card_update', `Design beschikbaar: ${fieldToLabel[field]}`, `Het design "${fieldToLabel[field]}" staat klaar voor je beoordeling.`, `/design/${approvalType}/${project.id}`)
-        void supabase.functions.invoke('send-design-ready-email', {
-          body: { project_id: project.id, design_type: approvalType, is_new_version: false },
-        }).then(({ data, error }) => {
-          if (error || (data && !data.success)) console.error('[Design] send-design-ready-email failed:', error || data?.error)
-        }).catch(e => console.error('[Design] send-design-ready-email exception:', e))
+      // Uploaden is stil: de klant krijgt pas iets via 'Mail sturen'.
+      if (hasNewImage && imageChanged) {
+        if (!hadOldImage) {
+          // Nieuwe afbeelding op een leeg vak: nog geen beoordeling
+          delete updatedApprovals[approvalType]
+        } else if (updatedApprovals[approvalType]?.status) {
+          // Vervangen na een beoordeling: de klant moet de nieuwe versie opnieuw beoordelen
+          updatedApprovals[approvalType] = { status: 'new_version' }
+        }
       }
     }
 
@@ -514,6 +492,43 @@ export default function DomainDetail() {
     await saveDesignImages(next)
   }
 
+  // Bewust versturen: de klant krijgt een link om het design zonder inloggen te
+  // beoordelen. De Edge Function legt 'gemaild op' per design vast.
+  const sendDesign = async (key: DesignImageKey) => {
+    if (!project) return
+    const field = designFields.find(f => f.key === key)
+    if (!field) return
+    const approval = instances.design?.custom_data?.design_approvals?.[field.approvalType]
+    const lastSent = instances.design?.custom_data?.design_sent_at?.[field.approvalType]
+    const isNewVersion = approval?.status === 'new_version'
+    const again = lastSent && !isNewVersion ? `\n\nLet op: dit design is al eerder gemaild op ${new Date(lastSent).toLocaleString('nl-NL')}.` : ''
+    if (!confirm(`${isNewVersion ? 'De nieuwe versie van de' : 'De'} ${field.label.toLowerCase()} nu naar de klant mailen?${again}`)) return
+
+    setSendingDesign(key)
+    setDesignSendResults(prev => ({ ...prev, [key]: undefined }))
+    const { data, error } = await supabase.functions.invoke('send-design-ready-email', {
+      body: { project_id: project.id, design_type: field.approvalType, is_new_version: isNewVersion },
+    })
+    let failure = ''
+    if (error) {
+      failure = 'Versturen mislukt.'
+      if (error instanceof FunctionsHttpError) {
+        try { failure = (await error.context.json())?.error || failure } catch { /* standaardmelding */ }
+      }
+    } else if (!data?.success) {
+      failure = data?.error || 'Versturen mislukt.'
+    } else if (!data.sent_to?.length) {
+      failure = "er is geen klant met 'Portaalmails' aan. Zet dat aan bij een klant onder Algemeen."
+    }
+    setSendingDesign(null)
+    if (failure) {
+      alert(`De ${field.label.toLowerCase()} is niet verstuurd: ${failure}`)
+      return
+    }
+    setDesignSendResults(prev => ({ ...prev, [key]: `Gemaild naar ${data.sent_to.join(', ')}` }))
+    await fetchInstances()
+  }
+
   // ── Weergave ──
 
   const scrollToSection = (sectionId: string, phase?: ProjectPhase) => {
@@ -553,6 +568,17 @@ export default function DomainDetail() {
   ] as const)
     .filter(([, doc]) => doc)
     .map(([label, doc]) => `${label} ${statusWord[doc!.status] || doc!.status}`)
+    .join(' · ')
+
+  // Kop van de Design-sectie: per geüpload ontwerp de stand
+  const designWord: Record<string, string> = { accepted: 'goedgekeurd', declined: 'aanpassing gevraagd', new_version: 'nieuwe versie' }
+  const designSummary = designFields
+    .filter(f => designImages[f.key])
+    .map(f => {
+      const status = instances.design?.custom_data?.design_approvals?.[f.approvalType]?.status
+      const sent = instances.design?.custom_data?.design_sent_at?.[f.approvalType]
+      return `${f.label} ${status ? designWord[status] || status : sent ? 'gemaild' : 'nog niet gemaild'}`
+    })
     .join(' · ')
 
   return (
@@ -803,6 +829,8 @@ export default function DomainDetail() {
               )}
               {phase === 'intake' ? (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${intakeSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{intakeSummary || 'Nog niets gekoppeld'}</span>
+              ) : phase === 'design' ? (
+                <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${designSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{designSummary || 'Nog geen ontwerpen'}</span>
               ) : (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${instance ? 'text-gray-500' : 'text-gray-400 italic'}`}>{summarize(instance)}</span>
               )}
@@ -832,8 +860,11 @@ export default function DomainDetail() {
                   images={designImages}
                   uploadingKey={uploadingDesignImage}
                   saving={savingDesignImages}
+                  sendingKey={sendingDesign}
+                  sendResults={designSendResults}
                   onUpload={uploadDesignImage}
                   onRemove={removeDesignImage}
+                  onSend={sendDesign}
                 />
               )}
               {phase === 'development' && (
@@ -845,9 +876,9 @@ export default function DomainDetail() {
               )}
               {phase === 'onderhoud' && <DomainOnderhoud projectId={project.id} />}
 
-              {/* De intake loopt via mail met links zonder inloggen; geen cards of introtekst in het portaal.
-                  Bestaande intake-cards blijven bewaard in de database. */}
-              {phase !== 'intake' && (
+              {/* Intake en design lopen via mail met links zonder inloggen; geen cards of introtekst in
+                  het portaal. Bestaande cards blijven bewaard in de database. */}
+              {phase !== 'intake' && phase !== 'design' && (
               <div className={phase === 'oplevering' ? '' : 'pt-5 border-t border-gray-100'}>
                 {phase !== 'oplevering' && (
                   <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">

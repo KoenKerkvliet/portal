@@ -49,6 +49,7 @@ export interface PhaseCustomData {
   design_image_homepage?: string
   design_image_tweede?: string
   design_approvals?: Record<string, DesignApproval>
+  design_sent_at?: Record<string, string>
   show_file_footer?: boolean
   show_feedback_footer?: boolean
 }
@@ -60,6 +61,7 @@ export interface ProjectPhaseInstance {
   template_id: string | null
   custom_data: PhaseCustomData | null
   status: string
+  public_token?: string | null
 }
 
 export interface IntakeLinks {
@@ -76,6 +78,13 @@ export type DesignImages = Record<DesignImageKey, string>
 
 export const emptyDesignImages: DesignImages = { styleguide: '', homepage: '', tweede: '' }
 
+// De derde afbeelding heet in de data 'tweede', maar is de contactpagina
+export const designFields: { key: DesignImageKey; label: string; approvalType: string }[] = [
+  { key: 'styleguide', label: 'Styleguide', approvalType: 'styleguide' },
+  { key: 'homepage', label: 'Homepage', approvalType: 'homepage' },
+  { key: 'tweede', label: 'Contactpagina', approvalType: 'contactpage' },
+]
+
 // Velden in custom_data die niet uit een template komen en dus een template-herlaad moeten overleven
 export const preservedCustomDataKeys: (keyof PhaseCustomData)[] = [
   'linked_quote_id',
@@ -89,6 +98,7 @@ export const preservedCustomDataKeys: (keyof PhaseCustomData)[] = [
   'design_image_homepage',
   'design_image_tweede',
   'design_approvals',
+  'design_sent_at',
 ]
 
 export const withHttps = (url: string | null | undefined) => {

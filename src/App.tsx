@@ -74,6 +74,7 @@ function AppRoutes() {
       <Route path="/d/offerte/:token" element={<PublicDocumentPage type="quote" />} />
       <Route path="/d/factuur/:token" element={<PublicDocumentPage type="invoice" />} />
       <Route path="/d/opdracht/:token" element={<PublicDocumentPage type="assignment" />} />
+      <Route path="/d/design/:token" element={<PublicDocumentPage type="design" />} />
 
       {/* Admin routes */}
       <Route path="/admin" element={

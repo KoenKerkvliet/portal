@@ -1,13 +1,15 @@
-// Publieke toegang tot één offerte, factuur of opdracht via de geheime code
-// (public_token) uit de mail, zonder inloggen. De database blijft dicht voor
-// anonieme bezoekers: deze function draait met service_role en geeft alleen het
-// document terug waar de code bij hoort.
+// Publieke toegang tot één offerte, factuur, opdracht of de designs van een
+// domein via de geheime code (public_token) uit de mail, zonder inloggen. De
+// database blijft dicht voor anonieme bezoekers: deze function draait met
+// service_role en geeft alleen het document terug waar de code bij hoort.
 //
 // Acties (POST, JSON):
 //   { action: 'get',        type, token }
 //   { action: 'accept',     type, token, name, signature, remarks?, terms: true }   — offerte/opdracht
 //   { action: 'decline',    type, token, reason }                                     — offerte/opdracht
 //   { action: 'attachment', type: 'quote', token, attachment_id }                     — tijdelijke downloadlink
+//   { action: 'accept',     type: 'design', token, design_type, name }               — design goedkeuren
+//   { action: 'decline',    type: 'design', token, design_type, reason, name? }      — design afkeuren
 //
 // verify_jwt = false (zie supabase/config.toml): de geheime code ís de autorisatie.
 
@@ -83,8 +85,7 @@ function labelFor(type: DocType, doc: Record<string, unknown>) {
 }
 
 // Zet de stap met de knop naar dit document op voltooid (zelfde gedrag als in het portaal)
-async function markStepCompleted(db: SupabaseClient, type: 'quote' | 'assignment', projectId: string, docId: string) {
-  const idField = type === 'quote' ? 'quoteId' : 'assignmentId'
+async function markStepCompleted(db: SupabaseClient, projectId: string, matches: (data: Record<string, string>) => boolean) {
   const { data: phaseRecords } = await db.from('project_phases').select('id, custom_data').eq('project_id', projectId)
   for (const record of phaseRecords || []) {
     const customData = record.custom_data as { steps?: Array<{ completed?: boolean; elements?: Array<{ type: string; data: Record<string, string> }> }> } | null
@@ -92,7 +93,7 @@ async function markStepCompleted(db: SupabaseClient, type: 'quote' | 'assignment
     let changed = false
     for (const step of customData.steps) {
       if (step.completed) continue
-      if (step.elements?.some(el => el.type === 'button' && el.data?.action === type && el.data?.[idField] === docId)) {
+      if (step.elements?.some(el => el.type === 'button' && el.data && matches(el.data))) {
         step.completed = true
         changed = true
       }
@@ -229,7 +230,8 @@ async function handleAccept(db: SupabaseClient, type: DocType, token: string, bo
   if (error) throw new Error(`Accepteren mislukt: ${error.message}`)
   if (!updated || updated.length === 0) throw new HttpError(409, 'Hier is al op gereageerd.')
 
-  if (doc.project_id) await markStepCompleted(db, type, doc.project_id, doc.id)
+  const idField = type === 'quote' ? 'quoteId' : 'assignmentId'
+  if (doc.project_id) await markStepCompleted(db, doc.project_id, data => data.action === type && data[idField] === doc.id)
 
   const itemLabel = labelFor(type, doc)
   const clientName = doc.client?.name || name
@@ -300,6 +302,112 @@ async function handleAttachment(db: SupabaseClient, type: DocType, token: string
   return json({ success: true, url: data.signedUrl })
 }
 
+// ── Designs ──
+// De code hoort bij de Design-fase van een domein en geeft toegang tot alle
+// designs daarvan; goedkeuren/afkeuren gaat per design.
+
+const DESIGNS = [
+  { type: 'styleguide', title: 'Styleguide', field: 'design_image_styleguide' },
+  { type: 'homepage', title: 'Homepage', field: 'design_image_homepage' },
+  { type: 'contactpage', title: 'Contactpagina', field: 'design_image_tweede' },
+] as const
+
+type DesignApproval = {
+  status?: string
+  accepted_at?: string
+  accepted_name?: string
+  declined_at?: string
+  declined_name?: string
+  declined_reason?: string
+}
+
+async function loadDesignPhase(db: SupabaseClient, token: string) {
+  const { data, error } = await db
+    .from('project_phases')
+    .select('id, project_id, custom_data, project:projects(name, client:clients(name))')
+    .eq('public_token', token)
+    .eq('phase', 'design')
+    .maybeSingle()
+  if (error) throw new Error(`Designs laden mislukt: ${error.message}`)
+  if (!data) throw notFound()
+  return data as unknown as {
+    id: string
+    project_id: string
+    custom_data: Record<string, unknown> | null
+    project: { name: string; client: { name: string | null } | null } | null
+  }
+}
+
+function designView(customData: Record<string, unknown> | null) {
+  const cd = customData || {}
+  const approvals = (cd.design_approvals || {}) as Record<string, DesignApproval>
+  return DESIGNS
+    .filter(d => typeof cd[d.field] === 'string' && (cd[d.field] as string).trim())
+    .map(d => ({ type: d.type, title: d.title, image_url: cd[d.field] as string, approval: approvals[d.type] || null }))
+}
+
+async function handleDesignGet(db: SupabaseClient, token: string) {
+  const phase = await loadDesignPhase(db, token)
+  return json({
+    success: true,
+    type: 'design',
+    document: { designs: designView(phase.custom_data) },
+    project_name: phase.project?.name || '',
+    client_name: phase.project?.client?.name || '',
+    client_company: '',
+    settings: null,
+    attachments: [],
+  })
+}
+
+async function handleDesignResponse(db: SupabaseClient, token: string, body: Record<string, unknown>, accepted: boolean) {
+  const design = DESIGNS.find(d => d.type === body.design_type)
+  if (!design) throw new HttpError(400, 'Onbekend design.')
+  const name = asText(body.name, MAX_NAME)
+  const reason = asText(body.reason, MAX_TEXT)
+  if (accepted && !name) throw new HttpError(400, 'Vul je naam in.')
+  if (!accepted && !reason) throw new HttpError(400, 'Geef aan wat er anders moet.')
+
+  const phase = await loadDesignPhase(db, token)
+  const cd = phase.custom_data || {}
+  if (!(typeof cd[design.field] === 'string' && (cd[design.field] as string).trim())) throw notFound()
+  const approvals = (cd.design_approvals || {}) as Record<string, DesignApproval>
+  const current = approvals[design.type]?.status
+  if (current === 'accepted' || current === 'declined') throw new HttpError(409, 'Op dit design is al gereageerd.')
+
+  const now = new Date().toISOString()
+  const approval: DesignApproval = accepted
+    ? { status: 'accepted', accepted_at: now, accepted_name: name }
+    : { status: 'declined', declined_at: now, declined_name: name || undefined, declined_reason: reason }
+  const { error } = await db
+    .from('project_phases')
+    .update({ custom_data: { ...cd, design_approvals: { ...approvals, [design.type]: approval } } })
+    .eq('id', phase.id)
+  if (error) throw new Error(`Opslaan mislukt: ${error.message}`)
+
+  if (accepted) await markStepCompleted(db, phase.project_id, data => data.action === design.type)
+
+  const clientName = name || phase.project?.client?.name || ''
+  await db.from('admin_notifications').insert({
+    type: accepted ? 'quote_accepted' : 'quote_declined',
+    title: `Design "${design.title}" ${accepted ? 'goedgekeurd' : 'afgekeurd'}`,
+    message: accepted
+      ? `${clientName || 'De klant'} heeft het design "${design.title}" goedgekeurd via de link in de mail.`
+      : `${clientName || 'De klant'} heeft het design "${design.title}" afgekeurd via de link in de mail. Reden: "${reason}"`,
+    project_id: phase.project_id,
+    client_id: null,
+  })
+  await sendAdminMail({
+    accepted,
+    itemLabel: `Design: ${design.title}`,
+    clientName,
+    projectName: phase.project?.name || '',
+    declineReason: accepted ? undefined : reason,
+  })
+
+  return handleDesignGet(db, token)
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ success: false, error: 'Methode niet toegestaan' }, 405)
@@ -313,12 +421,21 @@ Deno.serve(async (req) => {
     }
 
     const action = body.action
-    const type = body.type as DocType
+    const type = body.type as DocType | 'design'
     const token = typeof body.token === 'string' ? body.token : ''
-    if (!(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
+    if (type !== 'design' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
     if (!TOKEN_PATTERN.test(token)) throw notFound()
 
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+
+    if (type === 'design') {
+      switch (action) {
+        case 'get': return await handleDesignGet(db, token)
+        case 'accept': return await handleDesignResponse(db, token, body, true)
+        case 'decline': return await handleDesignResponse(db, token, body, false)
+        default: throw new HttpError(400, 'Onbekende actie.')
+      }
+    }
 
     switch (action) {
       case 'get': return await handleGet(db, type, token)
