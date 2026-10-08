@@ -20,8 +20,8 @@ export default function DomainDevelopment({
 }) {
   const hasUrl = Boolean(project.staging_url)
   return (
-    <div className="max-w-xl">
-      <div className="flex items-end gap-2">
+    <div>
+      <div className="flex items-end gap-3">
         <div className="flex-1 min-w-0">
           <FieldInput label="Stagingsite" type="url" placeholder="https://staging..." linkable
             value={project.staging_url || ''} onSave={onSaveUrl}
