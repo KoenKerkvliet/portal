@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceSettings, QuoteItem } from '../../types'
 import { generateInvoicePdfDoc } from '../../lib/invoicePdf'
+import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
 import { ArrowLeft, Download, Loader2, FileText, Calendar, Hash, Building2 } from 'lucide-react'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -11,7 +12,8 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   paid: { label: 'Betaald', color: 'bg-green-100 text-green-700' },
 }
 
-export default function InvoicePage() {
+// Met publicToken: geopend via de link in de mail, zonder inloggen
+export default function InvoicePage({ publicToken }: { publicToken?: string }) {
   const { invoiceId } = useParams()
   const navigate = useNavigate()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
@@ -20,9 +22,23 @@ export default function InvoicePage() {
   const [clientName, setClientName] = useState('')
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     const fetch = async () => {
+      if (publicToken) {
+        try {
+          const res = await callPublicDocument<PublicDocumentResult<Invoice>>({ action: 'get', type: 'invoice', token: publicToken })
+          setInvoice(res.document)
+          setSettings(res.settings)
+          setProjectName(res.project_name)
+          setClientName(res.client_name)
+        } catch (err) {
+          setLoadError(err instanceof Error ? err.message : '')
+        }
+        setLoading(false)
+        return
+      }
       if (!invoiceId) return
 
       const [invoiceRes, settingsRes] = await Promise.all([
@@ -40,7 +56,7 @@ export default function InvoicePage() {
       setLoading(false)
     }
     fetch()
-  }, [invoiceId])
+  }, [invoiceId, publicToken])
 
   const handleDownloadPdf = async () => {
     if (!invoice) return
@@ -63,9 +79,13 @@ export default function InvoicePage() {
       <div className="max-w-3xl mx-auto py-12 text-center">
         <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
         <h2 className="text-lg font-medium text-gray-900">Factuur niet gevonden</h2>
-        <button onClick={() => navigate('/')} className="mt-4 text-sm text-primary hover:underline">
-          Terug naar portaal
-        </button>
+        {publicToken ? (
+          <p className="mt-2 text-sm text-gray-500">{loadError || 'Deze link is ongeldig of niet meer actief.'}</p>
+        ) : (
+          <button onClick={() => navigate('/')} className="mt-4 text-sm text-primary hover:underline">
+            Terug naar portaal
+          </button>
+        )}
       </div>
     )
   }
@@ -83,14 +103,16 @@ export default function InvoicePage() {
   return (
     <div className="max-w-3xl mx-auto">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigate('/')}
-          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Terug naar portaal
-        </button>
+      <div className={`flex items-center mb-6 ${publicToken ? 'justify-end' : 'justify-between'}`}>
+        {!publicToken && (
+          <button
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Terug naar portaal
+          </button>
+        )}
         <button
           onClick={handleDownloadPdf}
           disabled={downloading}
@@ -154,7 +176,7 @@ export default function InvoicePage() {
 
         {/* Meta info */}
         <div className="px-8 py-5 bg-gray-50 border-b border-gray-100">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0">
                 <Building2 className="w-4 h-4 text-gray-400" />

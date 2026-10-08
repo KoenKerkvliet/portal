@@ -8,6 +8,7 @@ import ClientLayout from './layouts/ClientLayout'
 import Dashboard from './pages/admin/Dashboard'
 import Projects from './pages/admin/Projects'
 import DomainDetail from './pages/admin/DomainDetail'
+import PublicDocumentPage from './pages/public/PublicDocumentPage'
 import Clients from './pages/admin/Clients'
 import Invoices from './pages/admin/Invoices'
 // RecurringInvoices and InvoiceSettings are now integrated into Invoices and Settings pages
@@ -68,6 +69,11 @@ function AppRoutes() {
       <Route path="/bevestig" element={<Verify />} />
       <Route path="/wachtwoord-reset" element={<ResetPassword />} />
       <Route path="/account-instellen" element={<AccountInstellen />} />
+
+      {/* Documenten via de link in de mail — zonder inloggen (geheime code in de URL) */}
+      <Route path="/d/offerte/:token" element={<PublicDocumentPage type="quote" />} />
+      <Route path="/d/factuur/:token" element={<PublicDocumentPage type="invoice" />} />
+      <Route path="/d/opdracht/:token" element={<PublicDocumentPage type="assignment" />} />
 
       {/* Admin routes */}
       <Route path="/admin" element={

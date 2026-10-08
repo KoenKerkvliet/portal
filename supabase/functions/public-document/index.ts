@@ -68,9 +68,10 @@ async function loadDocument(db: SupabaseClient, type: DocType, token: string) {
   }
 }
 
-// De geheime code en interne velden gaan nooit terug naar de browser
+// De geheime code gaat nooit terug naar de browser. Klant (naam/bedrijf) en
+// domeinnaam wel: die staan op het document en in de PDF.
 function publicView(doc: Record<string, unknown>) {
-  const { public_token: _token, project: _project, client: _client, ...rest } = doc
+  const { public_token: _token, ...rest } = doc
   return rest
 }
 

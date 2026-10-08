@@ -6,6 +6,7 @@ import type { Assignment } from '../../types'
 import { ArrowLeft, Loader2, ClipboardCheck, Download, Check, PenLine, XCircle } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
+import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
 
 // Signature pad component (same as QuotePage)
 function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: string) => void }) {
@@ -100,13 +101,17 @@ function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: s
   )
 }
 
-export default function ClientAssignmentPage() {
+// Met publicToken: geopend via de link in de mail, zonder inloggen. Gegevens en
+// akkoord/afwijzen lopen dan via de Edge Function public-document.
+export default function ClientAssignmentPage({ publicToken }: { publicToken?: string }) {
   const { assignmentId } = useParams()
   const navigate = useNavigate()
   const { profile } = useAuth()
   const [assignment, setAssignment] = useState<Assignment | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [actionError, setActionError] = useState('')
 
   // Acceptance state
   const [acceptName, setAcceptName] = useState('')
@@ -130,6 +135,16 @@ export default function ClientAssignmentPage() {
 
   useEffect(() => {
     const fetchAssignment = async () => {
+      if (publicToken) {
+        try {
+          const res = await callPublicDocument<PublicDocumentResult<Assignment>>({ action: 'get', type: 'assignment', token: publicToken })
+          setAssignment(res.document)
+        } catch (err) {
+          setLoadError(err instanceof Error ? err.message : '')
+        }
+        setLoading(false)
+        return
+      }
       if (!assignmentId) return
       const { data } = await supabase
         .from('assignments')
@@ -140,7 +155,18 @@ export default function ClientAssignmentPage() {
       setLoading(false)
     }
     fetchAssignment()
-  }, [assignmentId])
+  }, [assignmentId, publicToken])
+
+  const runPublicAction = async (action: 'accept' | 'decline', fields: Record<string, unknown>, fallbackError: string) => {
+    if (!publicToken) return
+    setActionError('')
+    try {
+      const res = await callPublicDocument<PublicDocumentResult<Assignment>>({ ...fields, action, type: 'assignment', token: publicToken })
+      setAssignment(res.document)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : fallbackError)
+    }
+  }
 
   // Mark step with assignment button as completed
   const markAssignmentStepCompleted = useCallback(async () => {
@@ -183,6 +209,15 @@ export default function ClientAssignmentPage() {
   }, [assignment?.project_id, assignmentId])
 
   const handleAccept = async () => {
+    if (publicToken) {
+      if (!assignment || !acceptName.trim() || !acceptSignature || !acceptTerms) return
+      setAccepting(true)
+      await runPublicAction('accept', {
+        name: acceptName.trim(), signature: acceptSignature, remarks: acceptRemarks.trim(), terms: acceptTerms,
+      }, 'Accepteren mislukt.')
+      setAccepting(false)
+      return
+    }
     if (!assignment || !assignmentId || !acceptName.trim() || !acceptSignature || !acceptTerms) return
     setAccepting(true)
 
@@ -231,6 +266,13 @@ export default function ClientAssignmentPage() {
   }
 
   const handleDecline = async () => {
+    if (publicToken) {
+      if (!assignment || !declineReason.trim()) return
+      setDeclining(true)
+      await runPublicAction('decline', { reason: declineReason.trim() }, 'Afwijzen mislukt.')
+      setDeclining(false)
+      return
+    }
     if (!assignment || !assignmentId || !declineReason.trim()) return
     setDeclining(true)
 
@@ -399,10 +441,20 @@ export default function ClientAssignmentPage() {
     return (
       <div className="bg-[#f8f7fc] min-h-[calc(100vh-64px)]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
-            <ArrowLeft className="w-4 h-4" /> Terug
-          </button>
-          <p className="text-gray-500">Opdracht niet gevonden.</p>
+          {publicToken ? (
+            <div className="text-center py-4">
+              <ClipboardCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h2 className="text-lg font-medium text-gray-900">Opdracht niet gevonden</h2>
+              <p className="mt-2 text-sm text-gray-500">{loadError || 'Deze link is ongeldig of niet meer actief.'}</p>
+            </div>
+          ) : (
+            <>
+              <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
+                <ArrowLeft className="w-4 h-4" /> Terug
+              </button>
+              <p className="text-gray-500">Opdracht niet gevonden.</p>
+            </>
+          )}
         </div>
       </div>
     )
@@ -411,12 +463,14 @@ export default function ClientAssignmentPage() {
   return (
     <div className="bg-[#f8f7fc] min-h-[calc(100vh-64px)]">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" /> Terug
-        </button>
+        {!publicToken && (
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-6"
+          >
+            <ArrowLeft className="w-4 h-4" /> Terug
+          </button>
+        )}
 
         {/* Assignment card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -563,11 +617,19 @@ export default function ClientAssignmentPage() {
                   />
                   <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
                     Ik ga akkoord met de{' '}
-                    <Link to="/voorwaarden" target="_blank" className="text-primary hover:text-primary-600 underline font-medium">
-                      algemene voorwaarden
-                    </Link>
+                    {publicToken ? (
+                      <span className="font-medium">algemene voorwaarden</span>
+                    ) : (
+                      <Link to="/voorwaarden" target="_blank" className="text-primary hover:text-primary-600 underline font-medium">
+                        algemene voorwaarden
+                      </Link>
+                    )}
                   </span>
                 </label>
+
+                {actionError && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{actionError}</p>
+                )}
 
                 {/* Accept button */}
                 <button
@@ -609,6 +671,10 @@ export default function ClientAssignmentPage() {
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-300 focus:bg-white text-sm transition-all resize-none"
                   />
                 </div>
+
+                {actionError && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{actionError}</p>
+                )}
 
                 <div className="flex gap-3">
                   <button

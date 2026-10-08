@@ -3,8 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Quote, QuoteItem, QuoteAttachment, InvoiceSettings } from '../../types'
-import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle, Paperclip, FileText, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, FileCheck, Calendar, Hash, Building2, Check, PenLine, XCircle, Paperclip, FileText, ExternalLink, X } from 'lucide-react'
+import DOMPurify from 'dompurify'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
+import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
 import { renderRichTextToPdf } from '../../lib/richTextPdf'
 
 // Convert HTML to structured plain text for PDF
@@ -120,7 +122,9 @@ function SignatureCanvas({ onSignatureChange }: { onSignatureChange: (dataUrl: s
   )
 }
 
-export default function QuotePage() {
+// Met publicToken: geopend via de link in de mail, zonder inloggen. Gegevens en
+// akkoord/afwijzen lopen dan via de Edge Function public-document.
+export default function QuotePage({ publicToken }: { publicToken?: string }) {
   const { quoteId } = useParams()
   const navigate = useNavigate()
   const { profile } = useAuth()
@@ -132,6 +136,9 @@ export default function QuotePage() {
   const [downloading, setDownloading] = useState(false)
   const [attachments, setAttachments] = useState<QuoteAttachment[]>([])
   const [openingAttachment, setOpeningAttachment] = useState('')
+  const [viewingAttachment, setViewingAttachment] = useState<QuoteAttachment | null>(null)
+  const [loadError, setLoadError] = useState('')
+  const [actionError, setActionError] = useState('')
 
   // Acceptance state
   const [acceptName, setAcceptName] = useState('')
@@ -153,8 +160,25 @@ export default function QuotePage() {
   const [declineReason, setDeclineReason] = useState('')
   const [declining, setDeclining] = useState(false)
 
+  const applyPublicResult = (res: PublicDocumentResult<Quote>) => {
+    setQuote(res.document)
+    setSettings(res.settings)
+    setProjectName(res.project_name)
+    setClientName(res.client_name)
+    setAttachments(res.attachments || [])
+  }
+
   useEffect(() => {
     const fetch = async () => {
+      if (publicToken) {
+        try {
+          applyPublicResult(await callPublicDocument<PublicDocumentResult<Quote>>({ action: 'get', type: 'quote', token: publicToken }))
+        } catch (err) {
+          setLoadError(err instanceof Error ? err.message : '')
+        }
+        setLoading(false)
+        return
+      }
       if (!quoteId) return
 
       const [quoteRes, settingsRes] = await Promise.all([
@@ -185,11 +209,28 @@ export default function QuotePage() {
       setLoading(false)
     }
     fetch()
-  }, [quoteId])
+  }, [quoteId, publicToken])
 
   // Content-bijlages openen als leespagina, geuploade bestanden via een tijdelijke
   // signed URL (de bucket is niet publiek).
   const handleOpenAttachment = async (attachment: QuoteAttachment) => {
+    if (publicToken) {
+      // Zonder inloggen: tekst in een venster op deze pagina, bestanden via de Edge Function
+      if (attachment.kind === 'content') {
+        setViewingAttachment(attachment)
+        return
+      }
+      setOpeningAttachment(attachment.id)
+      try {
+        const { url } = await callPublicDocument<{ url: string }>({ action: 'attachment', type: 'quote', token: publicToken, attachment_id: attachment.id })
+        // Downloadlink (Content-Disposition: attachment): de klant blijft op deze pagina
+        window.location.href = url
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Bijlage openen mislukt.')
+      }
+      setOpeningAttachment('')
+      return
+    }
     if (attachment.kind === 'content') {
       navigate(`/bijlage/${attachment.id}`)
       return
@@ -509,6 +550,22 @@ export default function QuotePage() {
   }
 
   const handleAccept = async () => {
+    if (publicToken) {
+      if (!quote || !acceptName.trim() || !acceptSignature || !acceptTerms) return
+      setAccepting(true)
+      setActionError('')
+      try {
+        applyPublicResult(await callPublicDocument<PublicDocumentResult<Quote>>({
+          action: 'accept', type: 'quote', token: publicToken,
+          name: acceptName.trim(), signature: acceptSignature, remarks: acceptRemarks.trim(), terms: acceptTerms,
+        }))
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Accepteren mislukt.')
+      } finally {
+        setAccepting(false)
+      }
+      return
+    }
     if (!quote || !quoteId || !acceptName.trim() || !acceptSignature || !acceptTerms) return
     setAccepting(true)
 
@@ -555,6 +612,21 @@ export default function QuotePage() {
   }
 
   const handleDecline = async () => {
+    if (publicToken) {
+      if (!quote || !declineReason.trim()) return
+      setDeclining(true)
+      setActionError('')
+      try {
+        applyPublicResult(await callPublicDocument<PublicDocumentResult<Quote>>({
+          action: 'decline', type: 'quote', token: publicToken, reason: declineReason.trim(),
+        }))
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : 'Afwijzen mislukt.')
+      } finally {
+        setDeclining(false)
+      }
+      return
+    }
     if (!quote || !quoteId || !declineReason.trim()) return
     setDeclining(true)
 
@@ -657,9 +729,13 @@ export default function QuotePage() {
       <div className="max-w-3xl mx-auto py-12 text-center">
         <FileCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
         <h2 className="text-lg font-medium text-gray-900">Offerte niet gevonden</h2>
-        <button onClick={() => navigate('/')} className="mt-4 text-sm text-primary hover:underline">
-          Terug naar portaal
-        </button>
+        {publicToken ? (
+          <p className="mt-2 text-sm text-gray-500">{loadError || 'Deze link is ongeldig of niet meer actief.'}</p>
+        ) : (
+          <button onClick={() => navigate('/')} className="mt-4 text-sm text-primary hover:underline">
+            Terug naar portaal
+          </button>
+        )}
       </div>
     )
   }
@@ -675,14 +751,16 @@ export default function QuotePage() {
   return (
     <div className="max-w-3xl mx-auto">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={() => navigate('/')}
-          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Terug naar portaal
-        </button>
+      <div className={`flex items-center mb-6 ${publicToken ? 'justify-end' : 'justify-between'}`}>
+        {!publicToken && (
+          <button
+            onClick={() => navigate('/')}
+            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Terug naar portaal
+          </button>
+        )}
         <button
           onClick={handleDownloadPdf}
           disabled={downloading}
@@ -717,7 +795,7 @@ export default function QuotePage() {
 
         {/* Meta info */}
         <div className="px-8 py-5 bg-gray-50 border-b border-gray-100">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0">
                 <Building2 className="w-4 h-4 text-gray-400" />
@@ -1014,11 +1092,19 @@ export default function QuotePage() {
                 />
                 <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">
                   Ik ga akkoord met de{' '}
-                  <Link to="/voorwaarden" target="_blank" className="text-primary hover:text-primary-600 underline font-medium">
-                    algemene voorwaarden
-                  </Link>
+                  {publicToken ? (
+                    <span className="font-medium">algemene voorwaarden</span>
+                  ) : (
+                    <Link to="/voorwaarden" target="_blank" className="text-primary hover:text-primary-600 underline font-medium">
+                      algemene voorwaarden
+                    </Link>
+                  )}
                 </span>
               </label>
+
+              {actionError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{actionError}</p>
+              )}
 
               {/* Accept button */}
               <button
@@ -1065,6 +1151,10 @@ export default function QuotePage() {
                 />
               </div>
 
+              {actionError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">{actionError}</p>
+              )}
+
               <div className="flex gap-3">
                 <button
                   type="button"
@@ -1089,6 +1179,26 @@ export default function QuotePage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tekstbijlage lezen (publieke link, zonder inloggen) */}
+      {viewingAttachment && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setViewingAttachment(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-gray-100">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-gray-900">{viewingAttachment.title}</h2>
+                {viewingAttachment.description && <p className="text-sm text-gray-500 mt-0.5">{viewingAttachment.description}</p>}
+              </div>
+              <button onClick={() => setViewingAttachment(null)} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Sluiten">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 overflow-y-auto">
+              <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(viewingAttachment.content || '') }} />
+            </div>
+          </div>
         </div>
       )}
     </div>
