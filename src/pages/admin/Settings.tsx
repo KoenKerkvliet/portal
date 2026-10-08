@@ -56,6 +56,7 @@ const defaultInvoiceSettings: Omit<InvoiceSettings, 'id' | 'created_at' | 'updat
   invoice_prefix: 'INV',
   year_format: 'YY',
   start_number: 1,
+  review_url: '',
 }
 
 const defaultQuoteSettings: Omit<QuoteSettings, 'id' | 'created_at' | 'updated_at'> = {
@@ -117,6 +118,7 @@ export default function AdminSettings() {
           invoice_prefix: data.invoice_prefix || 'INV',
           year_format: data.year_format || 'YY',
           start_number: data.start_number ?? 1,
+          review_url: data.review_url || '',
         })
       }
       setInvoiceLoading(false)
@@ -329,6 +331,11 @@ export default function AdminSettings() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Land</label>
                     <input type="text" value={invoiceSettings.country} onChange={(e) => updateInvoice('country', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all" placeholder="Nederland" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reviewlink <span className="text-gray-400 font-normal">(optioneel)</span></label>
+                    <input type="url" value={invoiceSettings.review_url || ''} onChange={(e) => updateInvoice('review_url', e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all" placeholder="https://g.page/r/.../review" />
+                    <p className="text-xs text-gray-500 mt-1">De link waar klanten een review achterlaten, bijv. je Google-reviewlink. Wordt gebruikt bij 'Review-verzoek' in de Oplevering-fase van een domein.</p>
                   </div>
                 </div>
               </section>

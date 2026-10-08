@@ -40,7 +40,7 @@ function docStatus(doc: Quote | Invoice | Assignment): DocStatus {
 
 const publicPath: Record<IntakeDocKind, string> = { assignment: 'opdracht', quote: 'offerte', invoice: 'factuur' }
 
-function DocRow({
+export function DocRow({
   kind,
   label,
   help,
@@ -50,6 +50,7 @@ function DocRow({
   doc,
   sending,
   sendResult,
+  sendBlockedReason,
   onSelect,
   onSend,
 }: {
@@ -62,6 +63,7 @@ function DocRow({
   doc: Quote | Invoice | Assignment | undefined
   sending: boolean
   sendResult?: string
+  sendBlockedReason?: string
   onSelect: (id: string) => void
   onSend: () => void
 }) {
@@ -79,7 +81,7 @@ function DocRow({
           <option value="">Niet gekoppeld</option>
           {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </select>
-        <button type="button" onClick={onSend} disabled={!doc || sending}
+        <button type="button" onClick={onSend} disabled={!doc || sending || !!sendBlockedReason} title={sendBlockedReason}
           className="flex-shrink-0 inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-primary hover:bg-primary-600 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
           {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           {doc?.last_sent_at ? 'Opnieuw mailen' : 'Mail sturen'}
@@ -99,6 +101,7 @@ function DocRow({
           )}
         </div>
       )}
+      {doc && sendBlockedReason && <p className="mt-1 text-[11px] text-amber-600">{sendBlockedReason}</p>}
       {sendResult && <p className="mt-1 text-[11px] text-green-600">{sendResult}</p>}
     </div>
   )

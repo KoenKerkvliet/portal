@@ -51,6 +51,8 @@ export interface Project {
   feedback_url: string | null
   staging_url: string | null
   staging_sent_at?: string | null
+  live_sent_at?: string | null
+  review_requested_at?: string | null
   api_key: string | null
   created_at: string
   client?: Client
@@ -202,6 +204,7 @@ export interface InvoiceSettings {
   invoice_prefix: string
   year_format: YearFormat
   start_number: number
+  review_url?: string | null
   created_at: string
   updated_at: string
 }

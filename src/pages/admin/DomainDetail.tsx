@@ -14,6 +14,7 @@ import PhaseCardsEditor from '../../components/domain/PhaseCardsEditor'
 import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
 import DomainDesign from '../../components/domain/DomainDesign'
 import DomainDevelopment from '../../components/domain/DomainDevelopment'
+import DomainOplevering, { type DeliveryKind } from '../../components/domain/DomainOplevering'
 import DomainOnderhoud from '../../components/domain/DomainOnderhoud'
 import {
   phases, phaseLabels, phaseColors, phaseDots, withHttps, emptyIntakeLinks, emptyDesignImages, designFields,
@@ -91,6 +92,10 @@ export default function DomainDetail() {
   const [designSendResults, setDesignSendResults] = useState<Partial<Record<DesignImageKey, string>>>({})
   const [sendingStaging, setSendingStaging] = useState(false)
   const [stagingSendResult, setStagingSendResult] = useState<string | undefined>()
+  const [reviewUrl, setReviewUrl] = useState<string | null>(null)
+  const [savingOplevering, setSavingOplevering] = useState(false)
+  const [sendingDelivery, setSendingDelivery] = useState<DeliveryKind | null>(null)
+  const [deliverySendResults, setDeliverySendResults] = useState<Partial<Record<DeliveryKind, string>>>({})
 
   const [phaseChangeModal, setPhaseChangeModal] = useState<{ newPhase: ProjectPhase; silent: boolean } | null>(null)
   const [phaseMenuOpen, setPhaseMenuOpen] = useState(false)
@@ -184,6 +189,7 @@ export default function DomainDetail() {
         fetchLinkables(),
         supabase.from('clients').select('id, name').order('name').then(({ data }) => setClients(data || [])),
         supabase.from('phase_templates').select('*').order('phase').then(({ data }) => setTemplates(data || [])),
+        supabase.from('invoice_settings').select('review_url').limit(1).maybeSingle().then(({ data }) => setReviewUrl(data?.review_url || null)),
       ])
       // Open: de huidige fase en alle fases die al zijn ingericht
       const open: Partial<Record<ProjectPhase, boolean>> = {}
@@ -532,6 +538,61 @@ export default function DomainDetail() {
     await fetchInstances()
   }
 
+  // ── Oplevering ──
+
+  // Koppelen van de (rest)factuur is stil, net als bij de intake; bewaard in de opleverfase
+  const saveOpleveringInvoice = async (invoiceId: string) => {
+    if (!project) return
+    setSavingOplevering(true)
+    const instance = instances.oplevering
+    if (!instance) {
+      await supabase.from('project_phases').insert({
+        project_id: project.id,
+        phase: 'oplevering',
+        template_id: null,
+        custom_data: { content: '', steps: [], linked_invoice_id: invoiceId || undefined },
+        status: 'active',
+      })
+    } else {
+      const { data: fresh } = await supabase.from('project_phases').select('custom_data').eq('id', instance.id).single()
+      const customData: PhaseCustomData = (fresh?.custom_data as PhaseCustomData | null) || instance.custom_data || {}
+      await supabase.from('project_phases').update({
+        custom_data: { ...customData, linked_invoice_id: invoiceId || undefined },
+      }).eq('id', instance.id)
+    }
+    await fetchInstances()
+    setSavingOplevering(false)
+  }
+
+  const sendDelivery = async (kind: DeliveryKind) => {
+    if (!project) return
+    const invoiceId = instances.oplevering?.custom_data?.linked_invoice_id
+    const invoice = invoices.find(i => i.id === invoiceId)
+    const question = {
+      live: `De mail "Je website staat live" nu naar de klant sturen?\n${project.url || ''}`,
+      invoice: `Factuur ${invoice?.number || ''} nu naar de klant mailen (met PDF)?`,
+      review: 'Het review-verzoek (met 6 gratis strippen als bedankje) nu naar de klant sturen?',
+    }[kind]
+    const earlier = { live: project.live_sent_at, invoice: invoice?.last_sent_at, review: project.review_requested_at }[kind]
+    const again = earlier ? `\n\nLet op: dit is al eerder gemaild op ${new Date(earlier).toLocaleString('nl-NL')}.` : ''
+    if (!confirm(`${question}${again}`)) return
+
+    setSendingDelivery(kind)
+    setDeliverySendResults(prev => ({ ...prev, [kind]: undefined }))
+    const { data, failure } = kind === 'invoice'
+      ? await invokeMail('send-invoice-email', { invoice_id: invoiceId })
+      : await invokeMail('send-delivery-email', { project_id: project.id, kind }, true)
+    setSendingDelivery(null)
+    if (!data) {
+      alert(`Niet verstuurd: ${failure}`)
+      return
+    }
+    const pdfNote = kind === 'invoice' ? (data.pdf_attached ? ' (met PDF)' : ' (zonder PDF — alleen de link)') : ''
+    setDeliverySendResults(prev => ({ ...prev, [kind]: `Gemaild naar ${[data.sent_to].flat().join(', ')}${pdfNote}` }))
+    if (kind === 'invoice') await fetchLinkables()
+    else await fetchProject()
+  }
+
   // Bewust versturen: de klant krijgt een mail met een knop naar de testsite
   const sendStaging = async () => {
     if (!project?.staging_url) return
@@ -590,6 +651,14 @@ export default function DomainDetail() {
     .filter(([, doc]) => doc)
     .map(([label, doc]) => `${label} ${statusWord[doc!.status] || doc!.status}`)
     .join(' · ')
+
+  // Kop van de Oplevering-sectie: wat er al gemaild is en de stand van de factuur
+  const opleveringInvoice = invoices.find(i => i.id === instances.oplevering?.custom_data?.linked_invoice_id)
+  const opleveringSummary = [
+    project.live_sent_at ? 'Live-mail verstuurd' : '',
+    opleveringInvoice ? `Factuur ${statusWord[opleveringInvoice.status] || opleveringInvoice.status}` : '',
+    project.review_requested_at ? 'Review gevraagd' : '',
+  ].filter(Boolean).join(' · ')
 
   // Kop van de Design-sectie: per geüpload ontwerp de stand
   const designWord: Record<string, string> = { accepted: 'goedgekeurd', declined: 'aanpassing gevraagd', new_version: 'nieuwe versie' }
@@ -856,6 +925,8 @@ export default function DomainDetail() {
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${project.staging_url ? 'text-gray-500' : 'text-gray-400 italic'}`}>
                   {!project.staging_url ? 'Nog geen testsite' : project.staging_sent_at ? 'Testsite gemaild' : 'Testsite nog niet gemaild'}
                 </span>
+              ) : phase === 'oplevering' ? (
+                <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${opleveringSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{opleveringSummary || 'Nog niets gemaild'}</span>
               ) : (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${instance ? 'text-gray-500' : 'text-gray-400 italic'}`}>{summarize(instance)}</span>
               )}
@@ -901,18 +972,30 @@ export default function DomainDetail() {
                   onSend={sendStaging}
                 />
               )}
+              {phase === 'oplevering' && (
+                <DomainOplevering
+                  project={project}
+                  invoices={invoices}
+                  linkedInvoiceId={instance?.custom_data?.linked_invoice_id || ''}
+                  reviewUrl={reviewUrl}
+                  saving={savingOplevering}
+                  sendingKind={sendingDelivery}
+                  sendResults={deliverySendResults}
+                  onSelectInvoice={saveOpleveringInvoice}
+                  onSend={sendDelivery}
+                />
+              )}
               {phase === 'onderhoud' && <DomainOnderhoud projectId={project.id} />}
 
-              {/* Intake, design en development lopen via mail met links zonder inloggen; geen cards of
-                  introtekst in het portaal. Bestaande cards blijven bewaard in de database. */}
-              {(phase === 'oplevering' || phase === 'onderhoud') && (
-              <div className={phase === 'oplevering' ? '' : 'pt-5 border-t border-gray-100'}>
-                {phase !== 'oplevering' && (
-                  <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                    <Info className="w-3.5 h-3.5" />
-                    Klantportaal
-                  </h3>
-                )}
+              {/* Intake t/m oplevering lopen via mail met links zonder inloggen; geen cards of introtekst
+                  in het portaal. Bestaande cards blijven bewaard in de database. Onderhoud houdt het
+                  portaal (o.a. strippenkaart) voor klanten die inloggen. */}
+              {phase === 'onderhoud' && (
+              <div className="pt-5 border-t border-gray-100">
+                <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  <Info className="w-3.5 h-3.5" />
+                  Klantportaal
+                </h3>
                 <PhaseCardsEditor
                   projectId={project.id}
                   phase={phase}
