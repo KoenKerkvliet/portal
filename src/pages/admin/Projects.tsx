@@ -270,7 +270,7 @@ export default function Projects() {
       alert('Vul eerst de URL voor bestandsdeling in op het tabblad Algemeen — die is nodig voor je het project verder kunt brengen.')
       return
     }
-    setPhaseChangeModal({ project, newPhase, silent: false })
+    setPhaseChangeModal({ project, newPhase, silent: true })
   }
 
   const confirmPhaseChange = async () => {
