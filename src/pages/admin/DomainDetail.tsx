@@ -2,15 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
-import type { Project, ProjectPhase, PhaseTemplate, ProjectClient, Quote, Invoice, Assignment } from '../../types'
+import type { Project, ProjectPhase, ProjectClient, Quote, Invoice, Assignment } from '../../types'
 import {
   ArrowLeft, ChevronDown, Globe, ExternalLink, FileText, FileCheck, Users, UserPlus, Bell,
-  MessageSquare, Ticket, Trash2, Settings, Key, Copy, Archive, ArchiveRestore, Loader2, Info, X,
+  MessageSquare, Ticket, Trash2, Settings, Key, Copy, Archive, ArchiveRestore, Loader2, X,
 } from 'lucide-react'
 import InlineEdit from '../../components/InlineEdit'
 import FieldInput from '../../components/FieldInput'
 import HelpTip, { Tooltip } from '../../components/HelpTip'
-import PhaseCardsEditor from '../../components/domain/PhaseCardsEditor'
+import DomainPortalAccess from '../../components/domain/DomainPortalAccess'
 import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
 import DomainDesign from '../../components/domain/DomainDesign'
 import LinkMailField from '../../components/domain/LinkMailField'
@@ -56,17 +56,6 @@ async function invokeMail(fn: string, body: Record<string, unknown>, viaPortalRe
   return { data: data as MailResult, failure: '' }
 }
 
-const summarize = (instance: ProjectPhaseInstance | undefined) => {
-  if (!instance) return 'Niet ingericht'
-  const steps = instance.custom_data?.steps || []
-  const parts = [`${steps.length} ${steps.length === 1 ? 'card' : 'cards'}`]
-  const done = steps.filter(s => s.completed).length
-  const hidden = steps.filter(s => s.faded).length
-  if (done) parts.push(`${done} voltooid`)
-  if (hidden) parts.push(`${hidden} verborgen`)
-  return parts.join(' · ')
-}
-
 export default function DomainDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -75,7 +64,6 @@ export default function DomainDetail() {
   const [loading, setLoading] = useState(true)
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [projectClients, setProjectClients] = useState<ProjectClient[]>([])
-  const [templates, setTemplates] = useState<PhaseTemplate[]>([])
   const [instances, setInstances] = useState<Partial<Record<ProjectPhase, ProjectPhaseInstance>>>({})
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -104,7 +92,6 @@ export default function DomainDetail() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [clientMenuOpen, setClientMenuOpen] = useState(false)
   const [openSections, setOpenSections] = useState<Partial<Record<ProjectPhase, boolean>>>({})
-  const [dirtyPhases, setDirtyPhases] = useState<Partial<Record<ProjectPhase, boolean>>>({})
 
   const phaseMenuRef = useRef<HTMLDivElement>(null)
   const settingsRef = useRef<HTMLDivElement>(null)
@@ -119,15 +106,6 @@ export default function DomainDetail() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  // Waarschuwen bij verlaten van de pagina met onopgeslagen fase-wijzigingen
-  const hasDirty = Object.values(dirtyPhases).some(Boolean)
-  useEffect(() => {
-    if (!hasDirty) return
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [hasDirty])
 
   const fetchProject = useCallback(async () => {
     if (!id) return null
@@ -190,7 +168,6 @@ export default function DomainDetail() {
         fetchProjectClients(),
         fetchLinkables(),
         supabase.from('clients').select('id, name').order('name').then(({ data }) => setClients(data || [])),
-        supabase.from('phase_templates').select('*').order('phase').then(({ data }) => setTemplates(data || [])),
         supabase.from('invoice_settings').select('review_url').limit(1).maybeSingle().then(({ data }) => setReviewUrl(data?.review_url || null)),
       ])
       // Open: de huidige fase en alle fases die al zijn ingericht
@@ -203,12 +180,6 @@ export default function DomainDetail() {
     }
     load()
   }, [fetchProject, fetchInstances, fetchProjectClients, fetchLinkables])
-
-  const handleDirtyChange = useCallback((phase: ProjectPhase, dirty: boolean) => {
-    setDirtyPhases(prev => (prev[phase] === dirty ? prev : { ...prev, [phase]: dirty }))
-  }, [])
-
-  const reloadInstances = useCallback(async () => { await fetchInstances() }, [fetchInstances])
 
   const updateProject = async (updates: Partial<Project>) => {
     if (!project) return
@@ -809,7 +780,6 @@ export default function DomainDetail() {
               }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${instances[phase] ? phaseDots[phase] : 'bg-gray-300'}`} />
               {phaseLabels[phase]}
-              {dirtyPhases[phase] && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Niet opgeslagen" />}
             </button>
           ))}
         </div>
@@ -930,9 +900,6 @@ export default function DomainDetail() {
               {isCurrent && (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${phaseColors[phase]}`}>Huidige fase</span>
               )}
-              {dirtyPhases[phase] && (
-                <span className="text-[11px] font-medium text-amber-600">Niet opgeslagen</span>
-              )}
               {phase === 'intake' ? (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${intakeSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{intakeSummary || 'Nog niets gekoppeld'}</span>
               ) : phase === 'design' ? (
@@ -944,7 +911,7 @@ export default function DomainDetail() {
               ) : phase === 'oplevering' ? (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${opleveringSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{opleveringSummary || 'Nog niets gemaild'}</span>
               ) : (
-                <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${instance ? 'text-gray-500' : 'text-gray-400 italic'}`}>{summarize(instance)}</span>
+                <span className="ml-auto" />
               )}
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 max-sm:ml-auto ${isOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -1020,24 +987,12 @@ export default function DomainDetail() {
               )}
               {phase === 'onderhoud' && <DomainOnderhoud projectId={project.id} />}
 
-              {/* Intake t/m oplevering lopen via mail met links zonder inloggen; geen cards of introtekst
-                  in het portaal. Bestaande cards blijven bewaard in de database. Onderhoud houdt het
-                  portaal (o.a. strippenkaart) voor klanten die inloggen. */}
+              {/* Intake t/m oplevering lopen via mail met links zonder inloggen. In onderhoud loggen
+                  klanten in (o.a. voor de strippenkaart); hier zie je wie dat kan. */}
               {phase === 'onderhoud' && (
-              <div className="pt-5 border-t border-gray-100">
-                <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  <Info className="w-3.5 h-3.5" />
-                  Klantportaal
-                </h3>
-                <PhaseCardsEditor
-                  projectId={project.id}
-                  phase={phase}
-                  instance={instance || null}
-                  templates={templates.filter(t => t.phase === phase)}
-                  onChanged={reloadInstances}
-                  onDirtyChange={handleDirtyChange}
-                />
-              </div>
+                <div className="pt-5 border-t border-gray-100">
+                  <DomainPortalAccess projectId={project.id} projectClients={projectClients} />
+                </div>
               )}
             </div>
           </section>

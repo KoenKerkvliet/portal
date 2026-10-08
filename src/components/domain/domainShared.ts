@@ -85,22 +85,6 @@ export const designFields: { key: DesignImageKey; label: string; approvalType: s
   { key: 'tweede', label: 'Contactpagina', approvalType: 'contactpage' },
 ]
 
-// Velden in custom_data die niet uit een template komen en dus een template-herlaad moeten overleven
-export const preservedCustomDataKeys: (keyof PhaseCustomData)[] = [
-  'linked_quote_id',
-  'linked_invoice_id',
-  'linked_assignment_id',
-  'design_html',
-  'design_html_styleguide',
-  'design_html_homepage',
-  'design_html_tweede',
-  'design_image_styleguide',
-  'design_image_homepage',
-  'design_image_tweede',
-  'design_approvals',
-  'design_sent_at',
-]
-
 export const withHttps = (url: string | null | undefined) => {
   const trimmed = url?.trim() || null
   if (trimmed && !trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return `https://${trimmed}`
