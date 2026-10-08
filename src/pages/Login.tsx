@@ -1,10 +1,23 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Lock, Mail, Eye, EyeOff, User, CheckCircle } from 'lucide-react'
+import { Lock, Mail, Eye, EyeOff, User, CheckCircle, KeyRound } from 'lucide-react'
 
-type Mode = 'login' | 'register' | 'forgot'
+type Mode = 'login' | 'register' | 'forgot' | 'code'
+
+// Foutmelding uit een Edge Function (ook bij een 4xx-status) leesbaar maken
+async function functionErrorMessage(fnError: unknown, data: { error?: string } | null, fallback: string) {
+  if (data?.error) return data.error
+  if (fnError instanceof FunctionsHttpError) {
+    try {
+      const body = await fnError.context.json()
+      if (body?.error) return body.error as string
+    } catch { /* standaardmelding */ }
+  }
+  return fallback
+}
 
 export default function Login() {
   const [searchParams] = useSearchParams()
@@ -17,6 +30,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [registered, setRegistered] = useState(false)
   const [resetSent, setResetSent] = useState(false)
+  const [code, setCode] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
   const [successMessage] = useState(() => {
     // Show success message if redirected after email verification
     if (searchParams.get('verified') === 'true') {
@@ -32,12 +47,60 @@ export default function Login() {
     setError('')
     setRegistered(false)
     setResetSent(false)
+    setCode('')
+    setCodeSent(false)
+  }
+
+  // Inloggen met een code: eerst een code per mail aanvragen, dan de code controleren
+  const requestCode = async () => {
+    const { data, error: fnError } = await supabase.functions.invoke('login-code', {
+      body: { action: 'request', email },
+    })
+    if (fnError || !data?.success) {
+      setError(await functionErrorMessage(fnError, data, 'Versturen mislukt. Probeer het opnieuw.'))
+      return false
+    }
+    setCode('')
+    setCodeSent(true)
+    return true
+  }
+
+  const verifyCode = async () => {
+    const { data, error: fnError } = await supabase.functions.invoke('login-code', {
+      body: { action: 'verify', email, code },
+    })
+    if (fnError || !data?.success || !data.token_hash) {
+      setError(await functionErrorMessage(fnError, data, 'Inloggen mislukt. Probeer het opnieuw.'))
+      return false
+    }
+    const { error: otpError } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' })
+    if (otpError) {
+      setError('Inloggen mislukt. Vraag een nieuwe code aan.')
+      return false
+    }
+    return true
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
+
+    if (mode === 'code') {
+      if (!codeSent) {
+        await requestCode()
+        setLoading(false)
+        return
+      }
+      if (!(await verifyCode())) {
+        setLoading(false)
+        return
+      }
+      setTimeout(() => {
+        navigate('/', { replace: true })
+      }, 100)
+      return
+    }
 
     if (mode === 'forgot') {
       const { data, error: fnError } = await supabase.functions.invoke('send-password-reset-email', {
@@ -194,19 +257,23 @@ export default function Login() {
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/25">
               {mode === 'login' ? (
                 <Lock className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+              ) : mode === 'code' ? (
+                <KeyRound className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               ) : (
                 <User className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
               )}
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-              {mode === 'login' ? 'Welkom terug' : mode === 'register' ? 'Account aanmaken' : 'Wachtwoord vergeten?'}
+              {mode === 'login' ? 'Welkom terug' : mode === 'register' ? 'Account aanmaken' : mode === 'code' ? 'Inloggen met een code' : 'Wachtwoord vergeten?'}
             </h2>
             <p className="text-gray-400 mt-1 text-sm">
               {mode === 'login'
                 ? 'Log in op je portaal'
                 : mode === 'register'
                   ? 'Registreer je voor het portaal'
-                  : 'We sturen je een link om je wachtwoord opnieuw in te stellen'}
+                  : mode === 'code'
+                    ? (codeSent ? 'Vul de code uit de mail in' : 'We sturen je een code per mail')
+                    : 'We sturen je een link om je wachtwoord opnieuw in te stellen'}
             </p>
           </div>
 
@@ -256,14 +323,41 @@ export default function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm"
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-sm disabled:text-gray-500"
                   placeholder="naam@voorbeeld.nl"
                   required
+                  disabled={mode === 'code' && codeSent}
                 />
               </div>
             </div>
 
-            {mode !== 'forgot' && (
+            {/* Code uit de mail — alleen bij inloggen met een code, na het versturen */}
+            {mode === 'code' && codeSent && (
+              <div>
+                <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Code
+                </label>
+                <input
+                  id="code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all text-center text-2xl font-semibold tracking-[0.5em] font-mono"
+                  placeholder="000000"
+                  required
+                  autoFocus
+                />
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Als er een account is voor dit adres, staat de code in je mail. Hij is 10 minuten geldig. Check ook je spammap.
+                </p>
+              </div>
+            )}
+
+            {mode !== 'forgot' && mode !== 'code' && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700">
@@ -313,12 +407,43 @@ export default function Login() {
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  {mode === 'login' ? 'Bezig met inloggen...' : mode === 'register' ? 'Account aanmaken...' : 'Versturen...'}
+                  {mode === 'login' || (mode === 'code' && codeSent) ? 'Bezig met inloggen...' : mode === 'register' ? 'Account aanmaken...' : 'Versturen...'}
                 </span>
               ) : (
-                mode === 'login' ? 'Inloggen' : mode === 'register' ? 'Registreren' : 'Stuur reset-link'
+                mode === 'login' ? 'Inloggen' : mode === 'register' ? 'Registreren' : mode === 'code' ? (codeSent ? 'Inloggen' : 'Stuur code') : 'Stuur reset-link'
               )}
             </button>
+
+            {mode === 'login' && (
+              <button
+                type="button"
+                onClick={() => switchMode('code')}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <KeyRound className="w-4 h-4 text-gray-400" />
+                Inloggen met een code per mail
+              </button>
+            )}
+
+            {mode === 'code' && codeSent && (
+              <div className="flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  onClick={() => { setCodeSent(false); setCode(''); setError('') }}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Ander e-mailadres
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => { setError(''); setLoading(true); await requestCode(); setLoading(false) }}
+                  className="text-primary hover:text-primary-600 font-medium transition-colors disabled:opacity-50"
+                >
+                  Nieuwe code sturen
+                </button>
+              </div>
+            )}
           </form>
 
           {/* Toggle login/register */}
@@ -342,6 +467,17 @@ export default function Login() {
                   className="text-primary hover:text-primary-600 font-semibold transition-colors"
                 >
                   Log hier in
+                </button>
+              </p>
+            )}
+            {mode === 'code' && (
+              <p className="text-sm text-gray-500">
+                Liever met je wachtwoord?{' '}
+                <button
+                  onClick={() => switchMode('login')}
+                  className="text-primary hover:text-primary-600 font-semibold transition-colors"
+                >
+                  Terug naar inloggen
                 </button>
               </p>
             )}

@@ -32,6 +32,11 @@ verify_jwt = false
 # inloggen. Auth zit in de geheime code (public_token) van het document zelf.
 verify_jwt = false
 
+[functions.login-code]
+# Inloggen met een code uit de mail (bezoeker is nog niet ingelogd). Eigen
+# beveiliging in de function: gehashte codes, verlooptijd, pogingen en limieten.
+verify_jwt = false
+
 [functions.mcp]
 # Connector voor Claude (claude.ai, desktop, mobiel, Code). Claude stuurt een
 # eigen sleutel mee als "Authorization: Bearer <MCP_TOKEN>", geen Supabase-JWT;
