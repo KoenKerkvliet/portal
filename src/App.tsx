@@ -7,6 +7,7 @@ import AdminLayout from './layouts/AdminLayout'
 import ClientLayout from './layouts/ClientLayout'
 import Dashboard from './pages/admin/Dashboard'
 import Projects from './pages/admin/Projects'
+import DomainDetail from './pages/admin/DomainDetail'
 import Clients from './pages/admin/Clients'
 import Invoices from './pages/admin/Invoices'
 // RecurringInvoices and InvoiceSettings are now integrated into Invoices and Settings pages
@@ -76,6 +77,7 @@ function AppRoutes() {
       }>
         <Route index element={<Dashboard />} />
         <Route path="projecten" element={<Projects />} />
+        <Route path="projecten/:id" element={<DomainDetail />} />
         <Route path="klanten" element={<Clients />} />
         <Route path="facturen" element={<Invoices />} />
         <Route path="facturen/nieuw" element={<InvoiceBuilder />} />

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { applyDefaultTemplates } from '../../lib/applyDefaultTemplates'
 import type { Project, ProjectPhase, PhaseTemplate, PhaseStep, CardElement, ProjectClient, Quote, Invoice, Assignment } from '../../types'
@@ -1227,6 +1228,11 @@ export default function Projects() {
                       <InlineEdit value={project.name} onSave={(name) => updateProject(project.id, { name })} displayValue={project.name} placeholder="Domeinnaam" />
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <Link to={`/admin/projecten/${project.id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-primary bg-primary/10 hover:bg-primary/15 transition-colors">
+                        Openen
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
                       <div className="relative" ref={phaseDropdownId === project.id ? phaseDropdownRef : undefined}>
                         <button onClick={() => setPhaseDropdownId(phaseDropdownId === project.id ? null : project.id)}
                           className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${phaseColors[project.current_phase]}`}>
