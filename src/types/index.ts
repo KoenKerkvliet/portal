@@ -51,6 +51,7 @@ export interface Project {
   feedback_url: string | null
   staging_url: string | null
   staging_sent_at?: string | null
+  files_sent_at?: string | null
   live_sent_at?: string | null
   review_requested_at?: string | null
   api_key: string | null

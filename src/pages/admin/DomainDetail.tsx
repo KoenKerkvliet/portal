@@ -13,7 +13,7 @@ import HelpTip, { Tooltip } from '../../components/HelpTip'
 import PhaseCardsEditor from '../../components/domain/PhaseCardsEditor'
 import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
 import DomainDesign from '../../components/domain/DomainDesign'
-import DomainDevelopment from '../../components/domain/DomainDevelopment'
+import LinkMailField from '../../components/domain/LinkMailField'
 import DomainOplevering, { type DeliveryKind } from '../../components/domain/DomainOplevering'
 import DomainOnderhoud from '../../components/domain/DomainOnderhoud'
 import {
@@ -92,6 +92,8 @@ export default function DomainDetail() {
   const [designSendResults, setDesignSendResults] = useState<Partial<Record<DesignImageKey, string>>>({})
   const [sendingStaging, setSendingStaging] = useState(false)
   const [stagingSendResult, setStagingSendResult] = useState<string | undefined>()
+  const [sendingFiles, setSendingFiles] = useState(false)
+  const [filesSendResult, setFilesSendResult] = useState<string | undefined>()
   const [reviewUrl, setReviewUrl] = useState<string | null>(null)
   const [savingOplevering, setSavingOplevering] = useState(false)
   const [sendingDelivery, setSendingDelivery] = useState<DeliveryKind | null>(null)
@@ -219,10 +221,9 @@ export default function DomainDetail() {
   const handlePhaseChange = (newPhase: ProjectPhase) => {
     setPhaseMenuOpen(false)
     if (!project || newPhase === project.current_phase) return
-    // Beveiligingscheck: zonder bestandsdeling-URL kun je niet verder.
-    if (!project.file_sharing_url?.trim()) {
-      document.getElementById('algemeen')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      alert('Vul eerst de URL voor bestandsdeling in bij Algemeen — die is nodig voor je het project verder kunt brengen.')
+    // Herinnering (geen blokkade): vanaf de designfase hoort er een link voor bestanden delen te zijn
+    if (newPhase !== 'intake' && !project.file_sharing_url?.trim()
+      && !confirm('Er is nog geen link voor bestanden delen (die staat bij Design). Toch de fase wijzigen?')) {
       return
     }
     setPhaseChangeModal({ newPhase, silent: true })
@@ -593,23 +594,40 @@ export default function DomainDetail() {
     else await fetchProject()
   }
 
-  // Bewust versturen: de klant krijgt een mail met een knop naar de testsite
-  const sendStaging = async () => {
-    if (!project?.staging_url) return
-    const again = project.staging_sent_at ? `\n\nLet op: de link is al eerder gemaild op ${new Date(project.staging_sent_at).toLocaleString('nl-NL')}.` : ''
-    if (!confirm(`De link naar de testsite nu naar de klant mailen?\n${project.staging_url}${again}`)) return
+  // Bewust versturen: de klant krijgt een mail met een knop naar de link
+  const sendLinkMail = async (opts: {
+    fn: string
+    url: string | null
+    sentAt: string | null | undefined
+    what: string
+    setSending: (sending: boolean) => void
+    setResult: (result: string | undefined) => void
+  }) => {
+    if (!project || !opts.url) return
+    const again = opts.sentAt ? `\n\nLet op: de link is al eerder gemaild op ${new Date(opts.sentAt).toLocaleString('nl-NL')}.` : ''
+    if (!confirm(`${opts.what} nu naar de klant mailen?\n${opts.url}${again}`)) return
 
-    setSendingStaging(true)
-    setStagingSendResult(undefined)
-    const { data, failure } = await invokeMail('send-staging-email', { project_id: project.id }, true)
-    setSendingStaging(false)
+    opts.setSending(true)
+    opts.setResult(undefined)
+    const { data, failure } = await invokeMail(opts.fn, { project_id: project.id }, true)
+    opts.setSending(false)
     if (!data) {
       alert(`De link is niet verstuurd: ${failure}`)
       return
     }
-    setStagingSendResult(`Gemaild naar ${[data.sent_to].flat().join(', ')}`)
+    opts.setResult(`Gemaild naar ${[data.sent_to].flat().join(', ')}`)
     await fetchProject()
   }
+
+  const sendStaging = () => sendLinkMail({
+    fn: 'send-staging-email', url: project?.staging_url || null, sentAt: project?.staging_sent_at,
+    what: 'De link naar de testsite', setSending: setSendingStaging, setResult: setStagingSendResult,
+  })
+
+  const sendFiles = () => sendLinkMail({
+    fn: 'send-files-email', url: project?.file_sharing_url || null, sentAt: project?.files_sent_at,
+    what: 'De link om bestanden te delen', setSending: setSendingFiles, setResult: setFilesSendResult,
+  })
 
   // ── Weergave ──
 
@@ -662,14 +680,16 @@ export default function DomainDetail() {
 
   // Kop van de Design-sectie: per geüpload ontwerp de stand
   const designWord: Record<string, string> = { accepted: 'goedgekeurd', declined: 'aanpassing gevraagd', new_version: 'nieuwe versie' }
-  const designSummary = designFields
-    .filter(f => designImages[f.key])
-    .map(f => {
-      const status = instances.design?.custom_data?.design_approvals?.[f.approvalType]?.status
-      const sent = instances.design?.custom_data?.design_sent_at?.[f.approvalType]
-      return `${f.label} ${status ? designWord[status] || status : sent ? 'gemaild' : 'nog niet gemaild'}`
-    })
-    .join(' · ')
+  const designSummary = [
+    project.file_sharing_url ? (project.files_sent_at ? 'Bestanden-link gemaild' : 'Bestanden-link nog niet gemaild') : '',
+    ...designFields
+      .filter(f => designImages[f.key])
+      .map(f => {
+        const status = instances.design?.custom_data?.design_approvals?.[f.approvalType]?.status
+        const sent = instances.design?.custom_data?.design_sent_at?.[f.approvalType]
+        return `${f.label} ${status ? designWord[status] || status : sent ? 'gemaild' : 'nog niet gemaild'}`
+      }),
+  ].filter(Boolean).join(' · ')
 
   return (
     <div className="space-y-5">
@@ -805,17 +825,13 @@ export default function DomainDetail() {
             <FieldInput label="Website" type="url" placeholder="https://voorbeeld.nl" linkable
               value={project.url || ''} onSave={(v) => updateProject({ url: withHttps(v) })}
               help="Het adres van de live website. Alleen voor jouw overzicht, de klant ziet dit niet." />
-            <FieldInput label="Bestanden delen" type="url" placeholder="https://..." linkable helpAlign="right"
-              value={project.file_sharing_url || ''} onSave={(v) => updateProject({ file_sharing_url: withHttps(v) })}
-              help="Link naar een gedeelde map (bijv. Google Drive) waar de klant bestanden kan aanleveren. Verschijnt onderaan het klantportaal als 'Bestanden delen footer' aanstaat bij een fase. Verplicht voordat je de fase kunt wijzigen."
-              hint={!project.file_sharing_url && <span className="text-amber-600">Nodig om de fase te kunnen wijzigen.</span>} />
-            <FieldInput label="Factuurnaam" placeholder="Leeg = naam van de klant"
+            <FieldInput label="Factuurnaam" placeholder="Leeg = naam van de klant" helpAlign="right"
               value={project.invoice_name || ''} onSave={(v) => updateProject({ invoice_name: v.trim() || null })}
               help="Alleen invullen als facturen voor dit domein op een andere naam moeten dan die van de klant, bijv. een bedrijf of vereniging. Wordt ingevuld bij elke nieuwe factuur voor dit domein; bestaande facturen veranderen niet." />
-            <FieldInput label="Factuur-e-mail" type="email" placeholder="Leeg = e-mail van de klant" helpAlign="right"
+            <FieldInput label="Factuur-e-mail" type="email" placeholder="Leeg = e-mail van de klant"
               value={project.invoice_email || ''} onSave={(v) => updateProject({ invoice_email: v.trim() || null })}
               help="Alleen invullen als facturen voor dit domein naar een ander adres moeten, bijv. de penningmeester of administratie. Nieuwe facturen en herinneringen gaan dan naar dit adres; bestaande facturen veranderen niet." />
-            <FieldInput label="Opleverdatum" type="date"
+            <FieldInput label="Opleverdatum" type="date" helpAlign="right"
               value={project.due_date || ''} onSave={(v) => updateProject({ due_date: v || null })}
               help="Verwachte datum waarop de website klaar is. Staat ook in het domeinoverzicht. Klanten die inloggen zien deze datum in hun portaal." />
           </div>
@@ -951,6 +967,19 @@ export default function DomainDetail() {
                 />
               )}
               {phase === 'design' && (
+                <LinkMailField
+                  label="Bestanden delen"
+                  placeholder="https://..."
+                  help="Link naar een omgeving waar de klant bestanden kan aanleveren (bijv. een gedeelde map). De link invullen of wijzigen stuurt niets; met 'Mail sturen' krijgt de klant een mail met een knop ernaartoe. De klant kan de link meerdere keren gebruiken. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan."
+                  value={project.file_sharing_url}
+                  sentAt={project.files_sent_at}
+                  sending={sendingFiles}
+                  sendResult={filesSendResult}
+                  onSave={(v) => updateProject({ file_sharing_url: withHttps(v) })}
+                  onSend={sendFiles}
+                />
+              )}
+              {phase === 'design' && (
                 <DomainDesign
                   instance={instance || null}
                   images={designImages}
@@ -964,11 +993,15 @@ export default function DomainDetail() {
                 />
               )}
               {phase === 'development' && (
-                <DomainDevelopment
-                  project={project}
+                <LinkMailField
+                  label="Stagingsite"
+                  placeholder="https://staging..."
+                  help="Testomgeving waar je de site bouwt voordat hij live gaat. De link invullen of wijzigen stuurt niets; met 'Mail sturen' krijgt de klant een mail met een knop naar de testsite. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan."
+                  value={project.staging_url}
+                  sentAt={project.staging_sent_at}
                   sending={sendingStaging}
                   sendResult={stagingSendResult}
-                  onSaveUrl={(v) => updateProject({ staging_url: withHttps(v) })}
+                  onSave={(v) => updateProject({ staging_url: withHttps(v) })}
                   onSend={sendStaging}
                 />
               )}
