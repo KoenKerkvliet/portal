@@ -27,6 +27,11 @@ verify_jwt = false
 # invite-token zelf (32-byte random + expiry + used_at in client_invites).
 verify_jwt = false
 
+[functions.public-document]
+# Offerte/factuur/opdracht bekijken en accepteren via de link in de mail, zonder
+# inloggen. Auth zit in de geheime code (public_token) van het document zelf.
+verify_jwt = false
+
 [functions.mcp]
 # Connector voor Claude (claude.ai, desktop, mobiel, Code). Claude stuurt een
 # eigen sleutel mee als "Authorization: Bearer <MCP_TOKEN>", geen Supabase-JWT;
