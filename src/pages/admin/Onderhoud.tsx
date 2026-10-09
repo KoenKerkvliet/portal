@@ -2,8 +2,19 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Project, PunchCard } from '../../types'
-import { Wrench, Gift, Globe, ExternalLink, Loader2, Ticket, Clock, History, ChevronDown } from 'lucide-react'
+import { Wrench, Gift, Globe, ExternalLink, Loader2, Ticket, Clock, History, ChevronDown, Plus, Receipt } from 'lucide-react'
 import { groupUses, type HistoryEntry } from '../../lib/punchCardHistory'
+
+// Een kaart toevoegen kan als cadeau (bijv. voor een review, € 0) of omdat de klant
+// via een factuur heeft betaald: dan telt hij mee als verkochte kaart met de prijs.
+type AddKind = 'gift' | 'paid'
+
+// Dezelfde pakketten als in de strippenkaartwinkel
+const PAID_PACKAGES = [
+  { strips: 12, price: 40, label: '60 minuten (12 strippen) · € 40' },
+  { strips: 36, price: 100, label: '180 minuten (36 strippen) · € 100' },
+  { strips: 60, price: 160, label: '300 minuten (60 strippen) · € 160' },
+]
 
 export default function Onderhoud() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -12,6 +23,8 @@ export default function Onderhoud() {
   const navigate = useNavigate()
   const [gifting, setGifting] = useState<string | null>(null)
   const [giftPunches, setGiftPunches] = useState<Record<string, number>>({})
+  const [addKind, setAddKind] = useState<Record<string, AddKind>>({})
+  const [paidPackage, setPaidPackage] = useState<Record<string, number>>({})
   const [showGiftPicker, setShowGiftPicker] = useState<string | null>(null)
   const [openHistory, setOpenHistory] = useState<string | null>(null)
   const [history, setHistory] = useState<Record<string, HistoryEntry[]>>({})
@@ -49,25 +62,29 @@ export default function Onderhoud() {
 
   useEffect(() => { fetchData() }, [])
 
-  const giftCard = async (projectId: string) => {
-    const punches = giftPunches[projectId] || 6
+  const addCard = async (projectId: string) => {
+    const kind = addKind[projectId] || 'gift'
+    const pkg = PAID_PACKAGES[paidPackage[projectId] ?? 0]
+    const punches = kind === 'paid' ? pkg.strips : (giftPunches[projectId] || 6)
     setGifting(projectId)
     const existingCards = punchCards[projectId] || []
     const maxNumber = existingCards.length > 0
       ? Math.max(...existingCards.map(c => c.number))
       : 0
 
-    await supabase.from('punch_cards').insert({
+    // Vervaldatum: 2 jaar; de database haalt die weg als het domein bij DesignPixels host
+    const { error } = await supabase.from('punch_cards').insert({
       project_id: projectId,
       number: maxNumber + 1,
       total_punches: punches,
       used_punches: 0,
-      is_gift: true,
-      price: 0,
+      is_gift: kind === 'gift',
+      price: kind === 'paid' ? pkg.price : 0,
       status: 'active',
       purchased_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString(),
     })
+    if (error) alert('Strippenkaart toevoegen mislukt: ' + error.message)
 
     setGifting(null)
     setShowGiftPicker(null)
@@ -252,7 +269,7 @@ export default function Onderhoud() {
                 )}
 
                 {/* Footer actions */}
-                <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
+                <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => navigate(`/admin/onderhoud/${project.id}/timer`)}
@@ -272,23 +289,48 @@ export default function Onderhoud() {
                   </div>
                   <div>
                   {showGiftPicker === project.id ? (
-                    <div className="flex items-center gap-3">
-                      <select
-                        value={giftPunches[project.id] || 6}
-                        onChange={(e) => setGiftPunches(prev => ({ ...prev, [project.id]: Number(e.target.value) }))}
-                        className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-300"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
-                          <option key={n} value={n}>{n} strippen</option>
+                    <div className="flex items-center gap-3 flex-wrap justify-end">
+                      {/* Soort kaart */}
+                      <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+                        {([['gift', 'Cadeau', Gift], ['paid', 'Betaald via factuur', Receipt]] as const).map(([value, label, Icon]) => (
+                          <button key={value} type="button"
+                            onClick={() => setAddKind(prev => ({ ...prev, [project.id]: value }))}
+                            className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${
+                              (addKind[project.id] || 'gift') === value ? 'bg-purple-100 text-purple-700' : 'text-gray-500 hover:text-gray-700'
+                            }`}>
+                            <Icon className="w-3.5 h-3.5" />
+                            {label}
+                          </button>
                         ))}
-                      </select>
+                      </div>
+                      {(addKind[project.id] || 'gift') === 'gift' ? (
+                        <select
+                          value={giftPunches[project.id] || 6}
+                          onChange={(e) => setGiftPunches(prev => ({ ...prev, [project.id]: Number(e.target.value) }))}
+                          className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        >
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                            <option key={n} value={n}>{n} strippen</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          value={paidPackage[project.id] ?? 0}
+                          onChange={(e) => setPaidPackage(prev => ({ ...prev, [project.id]: Number(e.target.value) }))}
+                          className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                        >
+                          {PAID_PACKAGES.map((p, i) => (
+                            <option key={p.strips} value={i}>{p.label}</option>
+                          ))}
+                        </select>
+                      )}
                       <button
-                        onClick={() => giftCard(project.id)}
+                        onClick={() => addCard(project.id)}
                         disabled={isGifting}
                         className="flex items-center gap-1.5 text-xs font-medium bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
                       >
-                        {isGifting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gift className="w-3.5 h-3.5" />}
-                        Schenken
+                        {isGifting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (addKind[project.id] || 'gift') === 'gift' ? <Gift className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        {(addKind[project.id] || 'gift') === 'gift' ? 'Schenken' : 'Toevoegen'}
                       </button>
                       <button
                         onClick={() => setShowGiftPicker(null)}
@@ -302,8 +344,8 @@ export default function Onderhoud() {
                       onClick={() => setShowGiftPicker(project.id)}
                       className="flex items-center gap-1.5 text-xs font-medium text-purple-600 hover:text-purple-700 transition-colors"
                     >
-                      <Gift className="w-3.5 h-3.5" />
-                      Strippenkaart schenken
+                      <Plus className="w-3.5 h-3.5" />
+                      Strippenkaart toevoegen
                     </button>
                   )}
                   </div>
