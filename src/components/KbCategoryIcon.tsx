@@ -1,4 +1,4 @@
-import { BookOpenText, Cpu, FileText, KeyRound, LayoutDashboard, LifeBuoy, Mail, PartyPopper, PenLine, Rocket, Search, ShieldCheck, Ticket } from 'lucide-react'
+import { BookOpenText, Cpu, FileText, KeyRound, LayoutDashboard, LifeBuoy, Mail, MonitorSmartphone, PartyPopper, PenLine, Rocket, Search, ShieldCheck, ShoppingCart, Ticket } from 'lucide-react'
 
 const ICONS: Record<string, typeof BookOpenText> = {
   'Je project': Rocket,
@@ -10,6 +10,8 @@ const ICONS: Record<string, typeof BookOpenText> = {
   'Support': LifeBuoy,
   'E-mail': Mail,
   'Vindbaarheid': Search,
+  'Een goede website': MonitorSmartphone,
+  'Webshop': ShoppingCart,
   'Techniek uitgelegd': Cpu,
   'Veiligheid en privacy': ShieldCheck,
   'Wachtwoorden': KeyRound,

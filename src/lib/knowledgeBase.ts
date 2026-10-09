@@ -73,6 +73,8 @@ export const KB_CATEGORIES: { name: string; description: string }[] = [
   { name: 'Support', description: 'Een vraag stellen, bereikbaarheid en hulp bij problemen.' },
   { name: 'E-mail', description: 'Je mail instellen en berichten van je website.' },
   { name: 'Vindbaarheid', description: 'Beter gevonden worden in Google.' },
+  { name: 'Een goede website', description: 'Mobiel, snel en bruikbaar voor iedereen.' },
+  { name: 'Webshop', description: 'Online verkopen met je website.' },
   { name: 'Techniek uitgelegd', description: 'WordPress, hosting, back-ups en meer in gewone taal.' },
   { name: 'Veiligheid en privacy', description: 'Wachtwoorden, phishing, privacy en auteursrecht.' },
 ]

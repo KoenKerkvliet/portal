@@ -222,7 +222,7 @@ Houd antwoorden kort (max ~4 zinnen) tenzij de klant om uitleg vraagt.`
       .replace(/<\/(p|h[1-6]|li|div)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
       .replace(/\n{3,}/g, '\n\n').trim()
-    let kbBudget = 30000
+    let kbBudget = 120000
     const kbArticles: string[] = []
     for (const a of (kbData || []) as { title: string; slug: string; category: string; summary: string; content: string }[]) {
       const entry = `### ${a.title} (categorie: ${a.category}; knop: [[CTA:Lees het artikel|/kennisbank/${a.slug}]])\n${a.summary ? `${a.summary}\n` : ''}${stripHtml(a.content)}`
