@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { ArrowDown, CalendarClock, Check, Loader2, MessageSquare, Palette, RefreshCw, XCircle, ZoomIn } from 'lucide-react'
+import { ArrowDown, CalendarClock, Check, ChevronDown, Loader2, MessageSquare, Palette, RefreshCw, XCircle, ZoomIn } from 'lucide-react'
 import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
 import { todayDate } from '../../components/domain/domainShared'
 
@@ -214,18 +214,21 @@ export default function PublicDesignPage({ token, focusType }: { token: string; 
   const [result, setResult] = useState<DesignResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [mainTypes, setMainTypes] = useState<string[]>([])
 
   useEffect(() => {
     const load = async () => {
       try {
-        setResult(await callPublicDocument<DesignResult>({ action: 'get', type: 'design', token }))
+        const res = await callPublicDocument<DesignResult>({ action: 'get', type: 'design', token })
+        setResult(res)
+        setMainTypes(pickMainTypes(res.document.designs, focusType))
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : '')
       }
       setLoading(false)
     }
     load()
-  }, [token])
+  }, [token, focusType])
 
   if (loading) {
     return (
@@ -247,6 +250,10 @@ export default function PublicDesignPage({ token, focusType }: { token: string; 
 
   // Het design uit de mail eerst, daarna de rest in vaste volgorde
   const designs = [...result.document.designs].sort((a, b) => Number(b.type === focusType) - Number(a.type === focusType))
+  // Groot: wat nu aandacht vraagt (vastgelegd bij het openen, zodat een design niet
+  // wegspringt zodra de klant het goedkeurt). De rest compact onderaan als naslag.
+  const mainDesigns = designs.filter(d => mainTypes.includes(d.type))
+  const earlierDesigns = designs.filter(d => !mainTypes.includes(d.type))
   // In de monitor een pagina, geen styleguide: liefst het design uit de mail, anders de homepage
   const monitorDesign = designs.find(d => d.type === focusType && d.type !== 'styleguide')
     || designs.find(d => d.type === 'homepage')
@@ -262,15 +269,15 @@ export default function PublicDesignPage({ token, focusType }: { token: string; 
           <div>
             <p className="text-xs font-semibold text-primary uppercase tracking-wider">Ontwerp ter beoordeling</p>
             <h1 className="mt-3 text-3xl lg:text-4xl font-bold text-gray-900 leading-tight">
-              Welkom! Je ontwerp{designs.length > 1 ? 'en' : ''} voor {result.project_name} {designs.length > 1 ? 'staan' : 'staat'} klaar
+              Welkom! Je ontwerp{mainDesigns.length > 1 ? 'en' : ''} voor {result.project_name} {mainDesigns.length > 1 ? 'staan' : 'staat'} klaar
             </h1>
             <p className="mt-4 text-gray-600 leading-relaxed">
               Hieronder zie je het ontwerp op ware grootte, precies zoals je website eruit gaat zien. Bekijk het rustig
               en keur het goed, of laat weten wat er anders moet. Inloggen is niet nodig.
             </p>
-            {designs.length > 0 && (
+            {mainDesigns.length > 0 && (
               <button type="button"
-                onClick={() => document.getElementById(`design-${designs[0].type}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                onClick={() => document.getElementById(`design-${mainDesigns[0].type}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-600 text-white text-sm font-semibold rounded-xl transition-colors">
                 Bekijk het ontwerp
                 <ArrowDown className="w-4 h-4" />
@@ -291,10 +298,72 @@ export default function PublicDesignPage({ token, focusType }: { token: string; 
         <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-sm text-gray-500">
           Er staan op dit moment geen ontwerpen klaar.
         </div>
-      ) : designs.map((design) => (
-        <DesignCard key={design.type} design={design} token={token} highlighted={design.type === focusType && designs.length > 1}
+      ) : mainDesigns.map((design) => (
+        <DesignCard key={design.type} design={design} token={token} highlighted={design.type === focusType && mainDesigns.length > 1}
           onUpdated={setResult} />
       ))}
+      {earlierDesigns.length > 0 && (
+        <EarlierDesigns designs={earlierDesigns} token={token} onUpdated={setResult} />
+      )}
     </div>
+  )
+}
+
+const isAwaitingReply = (d: PublicDesign) => !d.approval?.status || d.approval.status === 'new_version'
+
+// Welke designs groot getoond worden: het design uit de mail plus alles waar nog een
+// reactie op nodig is. Staat er niets open, dan alles (als overzicht).
+function pickMainTypes(designs: PublicDesign[], focusType: string | null) {
+  const main = designs.filter(d => d.type === focusType || isAwaitingReply(d)).map(d => d.type)
+  return main.length > 0 ? main : designs.map(d => d.type)
+}
+
+// Strook onderaan met eerder beoordeelde designs; openklikken toont het design groot
+function EarlierDesigns({ designs, token, onUpdated }: {
+  designs: PublicDesign[]
+  token: string
+  onUpdated: (res: DesignResult) => void
+}) {
+  const [openType, setOpenType] = useState<string | null>(null)
+  const allApproved = designs.every(d => d.approval?.status === 'accepted')
+  return (
+    <>
+    <section className="max-w-3xl mx-auto pt-4 space-y-3">
+      <div className="flex items-center gap-3">
+        <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          {allApproved ? 'Eerder goedgekeurd' : 'Eerder beoordeeld'}
+        </span>
+        <span className="flex-1 h-px bg-gray-200" />
+      </div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100">
+        {designs.map((d) => {
+          const accepted = d.approval?.status === 'accepted'
+          const date = accepted ? d.approval?.accepted_at : d.approval?.declined_at
+          const isOpen = openType === d.type
+          return (
+            <div key={d.type} className="flex items-center gap-4 p-3">
+              <img src={d.image_url} alt="" className="w-20 h-12 flex-shrink-0 rounded-md border border-gray-200 object-cover object-top" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900">{d.title}</p>
+                <p className={`text-xs ${accepted ? 'text-green-700' : 'text-amber-700'}`}>
+                  {accepted ? 'Goedgekeurd' : 'Feedback gegeven'}
+                  {date ? ` op ${new Date(date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' })}` : ''}
+                </p>
+              </div>
+              <button type="button" onClick={() => setOpenType(isOpen ? null : d.type)} aria-expanded={isOpen}
+                className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                {isOpen ? 'Verbergen' : 'Bekijken'}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+    {/* Openklikken toont het design op volle breedte, net als hierboven */}
+    {openType && designs.some(d => d.type === openType) && (
+      <DesignCard design={designs.find(d => d.type === openType)!} token={token} highlighted={false} onUpdated={onUpdated} />
+    )}
+    </>
   )
 }
