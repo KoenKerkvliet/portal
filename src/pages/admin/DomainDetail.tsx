@@ -198,11 +198,6 @@ export default function DomainDetail() {
   const handlePhaseChange = (newPhase: ProjectPhase) => {
     setPhaseMenuOpen(false)
     if (!project || newPhase === project.current_phase) return
-    // Herinnering (geen blokkade): vanaf de designfase hoort er een link voor bestanden delen te zijn
-    if (newPhase !== 'intake' && !project.file_sharing_url?.trim()
-      && !confirm('Er is nog geen link voor bestanden delen (die staat bij Design). Toch de fase wijzigen?')) {
-      return
-    }
     setPhaseChangeModal({ newPhase, silent: true })
   }
 
