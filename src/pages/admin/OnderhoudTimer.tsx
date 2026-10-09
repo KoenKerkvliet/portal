@@ -168,7 +168,7 @@ export default function OnderhoudTimer() {
     </table>
     <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
       ${hasAccount
-        ? `Je kunt het volledige overzicht van je strippenkaart bekijken in het <a href="${portalUrl}" style="color:#7c3aed;text-decoration:underline;">klantportaal</a>.`
+        ? `Je kunt het volledige overzicht van je strippenkaart bekijken in het <a href="${portalUrl}" style="color:#7c3aed;text-decoration:underline;">klantportaal</a>. Inloggen kan zonder wachtwoord: vul je e-mailadres in en kies <strong>Inloggen met een code per mail</strong>.`
         : 'Heb je vragen over deze werkzaamheden of je tegoed? Laat het me gerust weten.'}
     </p>
     <p style="color:#9ca3af;font-size:13px;margin:0;">
@@ -189,7 +189,8 @@ Gebruikt: ${stripsToUse} strip${stripsToUse !== 1 ? 's' : ''}
 Resterend tegoed: ${newTotalRemaining} strip${newTotalRemaining !== 1 ? 's' : ''}
 
 ${hasAccount
-  ? `Je kunt het volledige overzicht van je strippenkaart bekijken in het klantportaal: ${portalUrl}`
+  ? `Je kunt het volledige overzicht van je strippenkaart bekijken in het klantportaal: ${portalUrl}
+Inloggen kan zonder wachtwoord: vul je e-mailadres in en kies "Inloggen met een code per mail".`
   : 'Heb je vragen over deze werkzaamheden of je tegoed? Laat het me gerust weten.'}
 
 Met vriendelijke groet,

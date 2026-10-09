@@ -2,6 +2,8 @@
 // koppelt clients.profile_id, en stuurt een welkomstmail. Daarin staat hoe de klant
 // zonder wachtwoord inlogt (code per mail, zie login-code), met als optie een link om
 // toch een vast wachtwoord in te stellen.
+// Met { send_email: false } wordt alleen het account aangemaakt, zonder mail: de klant
+// kan dan meteen met een code per mail inloggen als hij zelf naar het portaal gaat.
 //
 // I.p.v. een Supabase recovery-link (max 1 uur geldig) gebruiken we een eigen invite-token
 // dat INVITE_EXPIRY_DAYS geldig blijft. De klant landt op /account-instellen?token=… en kiest
@@ -73,7 +75,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    const { client_id } = await req.json()
+    const { client_id, send_email } = await req.json()
+    const sendEmail = send_email !== false
     if (!client_id || typeof client_id !== 'string') {
       return new Response(
         JSON.stringify({ success: false, error: 'client_id ontbreekt' }),
@@ -140,6 +143,14 @@ Deno.serve(async (req) => {
       // Rollback: verwijder de zojuist aangemaakte auth-user, anders blijft 'ie hangen.
       await adminClient.auth.admin.deleteUser(created.user.id)
       throw new Error(`Klant koppelen mislukt: ${updErr.message}`)
+    }
+
+    // Zonder uitnodiging: klaar. Geen invite-token nodig (inloggen gaat met een code).
+    if (!sendEmail) {
+      return new Response(
+        JSON.stringify({ success: true, email_sent: false }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
     }
 
     // Genereer een eigen invite-token (los van Supabase' recovery-token, dat max 1 uur leeft)
@@ -232,7 +243,7 @@ DesignPixels`
     }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, email_sent: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
