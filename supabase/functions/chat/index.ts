@@ -54,9 +54,7 @@ ${block('Antwoord van de assistent', opts.reply, '#f6f6f6')}
 ${mailButton(url, 'Bekijk het gesprek')}
 </div></body></html>`
   const text = `${who}${opts.projectName ? ` (${opts.projectName})` : ''} heeft een vraag gesteld in het klantportaal.
-${opts.unresolved ? '
-De assistent kon deze vraag niet goed beantwoorden.
-' : ''}
+${opts.unresolved ? '\nDe assistent kon deze vraag niet goed beantwoorden.\n' : ''}
 Vraag:
 ${opts.question}
 
