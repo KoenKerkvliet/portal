@@ -33,11 +33,12 @@ export async function downloadFormAnswersPdf(opts: {
   write('DesignPixels', 9, 'normal', [140, 140, 150], 5)
   y += 2
   write(opts.form.title, 18, 'bold', [20, 20, 30], 8)
-  const meta = [
-    opts.projectName && `Domein: ${opts.projectName}`,
-    opts.submittedAt && `Ingevuld op ${new Date(opts.submittedAt).toLocaleString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
-  ].filter(Boolean).join('  ·  ')
-  if (meta) write(meta, 10, 'normal', [110, 110, 120], 5)
+  // Alleen tekens uit de standaardfont van de PDF (geen · of —)
+  if (opts.projectName) write(`Domein: ${opts.projectName}`, 10, 'normal', [110, 110, 120], 5)
+  if (opts.submittedAt) {
+    const when = new Date(opts.submittedAt).toLocaleString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    write(`Ingevuld op ${when}`, 10, 'normal', [110, 110, 120], 5)
+  }
   y += 3
   doc.setDrawColor(225, 225, 230)
   doc.line(margin, y, pageWidth - margin, y)
@@ -60,7 +61,7 @@ export async function downloadFormAnswersPdf(opts: {
       ensure(12)
       write(field.label, 10, 'bold', [60, 60, 70], 5)
       const answer = answerText(field, opts.answers[field.id])
-      write(answer || '—', 10, 'normal', answer ? [30, 30, 35] : [170, 170, 175], 5)
+      write(answer || '(niet ingevuld)', 10, 'normal', answer ? [30, 30, 35] : [170, 170, 175], 5)
       y += 3
     }
     y += 3
