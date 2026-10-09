@@ -3,19 +3,13 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { groupUses, type HistoryEntry } from '../../lib/punchCardHistory'
 import type { PunchCard, WorkLog } from '../../types'
-import { Gift, Ticket, Clock, ClipboardList, Loader2, ArrowRight } from 'lucide-react'
+import { Gift, Ticket, Clock, ClipboardList, Loader2, ArrowRight, Plus } from 'lucide-react'
+import AddPunchCard from '../AddPunchCard'
+import WorkLogForm from '../WorkLogForm'
+import { formatDuration } from '../../lib/workLogs'
 
 const HISTORY_LIMIT = 8
 const WORK_LOG_LIMIT = 5
-
-const formatDuration = (minutes: number) => {
-  if (!minutes) return '—'
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  if (h && m) return `${h}u ${m}m`
-  if (h) return `${h}u`
-  return `${m}m`
-}
 
 const formatDate = (iso: string) =>
   new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -28,6 +22,10 @@ export default function DomainOnderhoud({ projectId }: { projectId: string }) {
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [workLogs, setWorkLogs] = useState<WorkLog[]>([])
   const [workLogCount, setWorkLogCount] = useState(0)
+  // Na toevoegen opnieuw laden; telt op zodat de effect opnieuw draait
+  const [reloadKey, setReloadKey] = useState(0)
+  const reload = () => setReloadKey(k => k + 1)
+  const [showWorkLogForm, setShowWorkLogForm] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,7 +55,7 @@ export default function DomainOnderhoud({ projectId }: { projectId: string }) {
       setLoading(false)
     }
     fetchData()
-  }, [projectId])
+  }, [projectId, reloadKey])
 
   if (loading) {
     return (
@@ -158,6 +156,11 @@ export default function DomainOnderhoud({ projectId }: { projectId: string }) {
             <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
+        <div className="pt-1">
+          <AddPunchCard projectId={projectId} align="start"
+            nextNumber={cards.length > 0 ? Math.max(...cards.map(c => c.number)) + 1 : 1}
+            onAdded={reload} />
+        </div>
       </div>
 
       {/* Werkzaamheden */}
@@ -184,12 +187,31 @@ export default function DomainOnderhoud({ projectId }: { projectId: string }) {
           </ul>
         )}
 
-        <Link to="/admin/werkzaamheden"
-          className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors pt-1 w-fit">
-          Alle werkzaamheden
-          <ArrowRight className="w-3 h-3" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+          <button type="button" onClick={() => setShowWorkLogForm(true)}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-600 transition-colors">
+            <Plus className="w-3.5 h-3.5" />
+            Werkzaamheid toevoegen
+          </button>
+          <Link to="/admin/werkzaamheden"
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors">
+            Alle werkzaamheden
+            <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </div>
+
+      {/* Werkzaamheid vastleggen voor dit domein, zonder de pagina te verlaten */}
+      {showWorkLogForm && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start justify-center p-4 pt-[5vh] overflow-y-auto"
+          onClick={() => setShowWorkLogForm(false)}>
+          <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <WorkLogForm projectId={projectId}
+              onSaved={() => { setShowWorkLogForm(false); reload() }}
+              onCancel={() => setShowWorkLogForm(false)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

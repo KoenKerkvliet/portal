@@ -1,24 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import type { Project, WorkLog, WorkLogCategory } from '../../types'
-import { Plus, X, Pencil, Trash2, Search, ClipboardList, Clock, Globe, Calendar, Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
+import type { Project, WorkLog } from '../../types'
+import { Plus, Pencil, Trash2, Search, ClipboardList, Clock, Globe, Calendar, Receipt, ChevronLeft, ChevronRight } from 'lucide-react'
 import DOMPurify from 'dompurify'
-import RichTextEditor from '../../components/RichTextEditor'
+import WorkLogForm from '../../components/WorkLogForm'
+import { WORK_LOG_CATEGORIES as CATEGORIES, formatDuration, htmlToText, isHtml, todayISO } from '../../lib/workLogs'
 
-const CATEGORIES: { value: WorkLogCategory; label: string; className: string }[] = [
-  { value: 'onderhoud', label: 'Onderhoud', className: 'bg-emerald-50 text-emerald-700' },
-  { value: 'update', label: 'Update', className: 'bg-blue-50 text-blue-700' },
-  { value: 'bugfix', label: 'Bugfix', className: 'bg-red-50 text-red-600' },
-  { value: 'content', label: 'Content', className: 'bg-amber-50 text-amber-700' },
-  { value: 'design', label: 'Design', className: 'bg-pink-50 text-pink-700' },
-  { value: 'development', label: 'Development', className: 'bg-indigo-50 text-indigo-700' },
-  { value: 'seo', label: 'SEO', className: 'bg-teal-50 text-teal-700' },
-  { value: 'beveiliging', label: 'Beveiliging', className: 'bg-orange-50 text-orange-700' },
-  { value: 'overleg', label: 'Overleg', className: 'bg-purple-50 text-purple-700' },
-  { value: 'overig', label: 'Overig', className: 'bg-gray-100 text-gray-600' },
-]
-
-const DURATION_PRESETS = [15, 30, 45, 60, 90, 120]
 
 const PAGE_SIZES = [10, 20, 50]
 const PAGE_SIZE_STORAGE_KEY = 'werkzaamheden-page-size'
@@ -32,49 +19,8 @@ const readPageSize = () => {
   }
 }
 
-const todayISO = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-const emptyForm = {
-  project_id: '',
-  performed_at: todayISO(),
-  title: '',
-  description: '',
-  duration_minutes: '30',
-  category: 'onderhoud' as WorkLogCategory,
-  billable: false,
-}
-
-const formatDuration = (minutes: number) => {
-  if (!minutes) return '—'
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  if (h && m) return `${h}u ${m}m`
-  if (h) return `${h}u`
-  return `${m}m`
-}
-
 const formatDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
-
-// Oudere logs zijn als platte tekst opgeslagen; nieuwe als HTML uit de editor
-const isHtml = (text: string) => /<\/?[a-z][\s\S]*>/i.test(text)
-
-const escapeHtml = (text: string) =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-const toEditorHtml = (text: string) => {
-  if (!text || isHtml(text)) return text
-  return text
-    .split('\n')
-    .map((line) => `<p>${escapeHtml(line)}</p>`)
-    .join('')
-}
-
-const htmlToText = (html: string) =>
-  isHtml(html) ? new DOMParser().parseFromString(html, 'text/html').body.textContent || '' : html
 
 const monthKey = (iso: string) => iso.slice(0, 7)
 
@@ -85,11 +31,9 @@ export default function Werkzaamheden() {
   const [logs, setLogs] = useState<WorkLog[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState(emptyForm)
-  // De editor neemt zijn inhoud alleen bij mount over; bij elk nieuw formulier opnieuw mounten
+  const [editingLog, setEditingLog] = useState<WorkLog | null>(null)
+  // Het formulier (en de editor) bij elke nieuwe invoer opnieuw mounten
   const [formKey, setFormKey] = useState(0)
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
@@ -114,23 +58,13 @@ export default function Werkzaamheden() {
   useEffect(() => { fetchData() }, [])
 
   const openNew = () => {
-    setFormData({ ...emptyForm, performed_at: todayISO(), project_id: projectFilter || '' })
-    setEditingId(null)
+    setEditingLog(null)
     setFormKey((k) => k + 1)
     setShowForm(true)
   }
 
   const handleEdit = (log: WorkLog) => {
-    setFormData({
-      project_id: log.project_id,
-      performed_at: log.performed_at,
-      title: log.title,
-      description: toEditorHtml(log.description),
-      duration_minutes: String(log.duration_minutes),
-      category: log.category,
-      billable: log.billable,
-    })
-    setEditingId(log.id)
+    setEditingLog(log)
     setFormKey((k) => k + 1)
     setShowForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -138,32 +72,10 @@ export default function Werkzaamheden() {
 
   const handleCancel = () => {
     setShowForm(false)
-    setEditingId(null)
-    setFormData(emptyForm)
+    setEditingLog(null)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData.project_id || !formData.title.trim()) return
-    setSaving(true)
-
-    const payload = {
-      project_id: formData.project_id,
-      performed_at: formData.performed_at,
-      title: formData.title.trim(),
-      description: htmlToText(formData.description).trim() ? formData.description : '',
-      duration_minutes: parseInt(formData.duration_minutes) || 0,
-      category: formData.category,
-      billable: formData.billable,
-    }
-
-    if (editingId) {
-      await supabase.from('work_logs').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editingId)
-    } else {
-      await supabase.from('work_logs').insert(payload)
-    }
-
-    setSaving(false)
+  const handleSaved = () => {
     handleCancel()
     fetchData()
   }
@@ -226,8 +138,6 @@ export default function Werkzaamheden() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const inputClass = 'w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all'
-
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -246,147 +156,10 @@ export default function Werkzaamheden() {
 
       {/* Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-700">
-              {editingId ? 'Werkzaamheid bewerken' : 'Nieuwe werkzaamheid vastleggen'}
-            </h2>
-            <button type="button" onClick={handleCancel} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Domein</label>
-              <select
-                value={formData.project_id}
-                onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
-                className={inputClass}
-                required
-              >
-                <option value="">Kies een domein...</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}{p.status === 'archived' ? ' (gearchiveerd)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Datum</label>
-              <input
-                type="date"
-                value={formData.performed_at}
-                onChange={(e) => setFormData({ ...formData, performed_at: e.target.value })}
-                className={inputClass}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Categorie</label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value as WorkLogCategory })}
-                className={inputClass}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="lg:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Titel</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className={inputClass}
-                placeholder="Plugins bijgewerkt en cache geleegd"
-                required
-              />
-            </div>
-
-            <div className="lg:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Uitgevoerde werkzaamheden</label>
-              <RichTextEditor
-                key={formKey}
-                value={formData.description}
-                onChange={(html) => setFormData((prev) => ({ ...prev, description: html }))}
-                placeholder="Wat heb je precies gedaan? Denk aan wat je over een jaar nog wilt weten."
-              />
-            </div>
-
-            <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tijdsduur (minuten)</label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  step={5}
-                  value={formData.duration_minutes}
-                  onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
-                  className="w-28 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-                />
-                <div className="flex flex-wrap gap-1.5">
-                  {DURATION_PRESETS.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, duration_minutes: String(m) })}
-                      className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
-                        formData.duration_minutes === String(m)
-                          ? 'bg-primary/10 border-primary/30 text-primary'
-                          : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
-                      }`}
-                    >
-                      {formatDuration(m)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Facturabel</label>
-              <div className="flex gap-2 mt-0.5">
-                {[
-                  { value: false, label: 'Nee' },
-                  { value: true, label: 'Ja' },
-                ].map((opt) => (
-                  <button
-                    type="button"
-                    key={String(opt.value)}
-                    onClick={() => setFormData({ ...formData, billable: opt.value })}
-                    className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
-                      formData.billable === opt.value
-                        ? 'bg-primary/10 border-primary/30 text-primary'
-                        : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 mt-5">
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex items-center gap-2 bg-primary hover:bg-primary-600 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-medium transition-colors text-sm"
-            >
-              {saving ? 'Bezig...' : editingId ? 'Opslaan' : 'Vastleggen'}
-            </button>
-            <button type="button" onClick={handleCancel} className="px-5 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
-              Annuleren
-            </button>
-          </div>
-        </form>
+        <div className="mb-6">
+          <WorkLogForm key={formKey} projects={projects} defaultProjectId={projectFilter} log={editingLog}
+            onSaved={handleSaved} onCancel={handleCancel} />
+        </div>
       )}
 
       {/* Stats */}
