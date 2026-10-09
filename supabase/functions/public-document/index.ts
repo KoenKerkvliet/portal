@@ -341,9 +341,13 @@ async function loadDesignPhase(db: SupabaseClient, token: string) {
 function designView(customData: Record<string, unknown> | null) {
   const cd = customData || {}
   const approvals = (cd.design_approvals || {}) as Record<string, DesignApproval>
+  const deadlines = (cd.design_deadlines || {}) as Record<string, string>
   return DESIGNS
     .filter(d => typeof cd[d.field] === 'string' && (cd[d.field] as string).trim())
-    .map(d => ({ type: d.type, title: d.title, image_url: cd[d.field] as string, approval: approvals[d.type] || null }))
+    .map(d => ({
+      type: d.type, title: d.title, image_url: cd[d.field] as string, approval: approvals[d.type] || null,
+      feedback_deadline: deadlines[d.type] || null, // uiterlijke reactiedatum (YYYY-MM-DD)
+    }))
 }
 
 async function handleDesignGet(db: SupabaseClient, token: string) {

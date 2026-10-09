@@ -127,6 +127,20 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Uiterlijke reactiedatum (custom_data.design_deadlines, YYYY-MM-DD). Alleen noemen
+    // als die nog niet voorbij is; zonder reactie gaat de admin daarna verder.
+    const deadline = ((designPhase.custom_data as Record<string, unknown> | null)?.design_deadlines as Record<string, string> | undefined)?.[design_type]
+    const todayAms = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' })
+    const deadlineLabel = deadline && /^\d{4}-\d{2}-\d{2}$/.test(deadline) && deadline >= todayAms
+      ? new Date(`${deadline}T12:00:00Z`).toLocaleDateString('nl-NL', { timeZone: 'Europe/Amsterdam', weekday: 'long', day: 'numeric', month: 'long' })
+      : null
+    const deadlineHtml = deadlineLabel
+      ? `<p style="margin:0 0 24px;">Graag je reactie uiterlijk <strong>${deadlineLabel}</strong>. Hebben we vóór die datum niets van je gehoord, dan gaan we ervan uit dat het ontwerp akkoord is en gaan we verder met de volgende stap.</p>\n`
+      : ''
+    const deadlineText = deadlineLabel
+      ? `Graag je reactie uiterlijk ${deadlineLabel}. Hebben we vóór die datum niets van je gehoord, dan gaan we ervan uit dat het ontwerp akkoord is en gaan we verder met de volgende stap.\n\n`
+      : ''
+
     const deeplink = `${await publicDocumentUrl(adminClient, 'project_phases', designPhase.id)}?type=${design_type}`
     const subject = newVersion
       ? `Nieuwe versie van je ${designLabel.toLowerCase()} staat klaar`
@@ -155,7 +169,7 @@ Deno.serve(async (req) => {
 <p style="margin:0 0 16px;">Hoi ${r.name},</p>
 <p style="margin:0 0 16px;">${introHtml}</p>
 <p style="margin:0 0 24px;">Via de knop hieronder bekijk je het ontwerp en keur je het goed of geef je feedback. Inloggen is niet nodig.</p>
-<p style="margin:0 0 24px;"><a href="${deeplink}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Ontwerp bekijken</a></p>
+${deadlineHtml}<p style="margin:0 0 24px;"><a href="${deeplink}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Ontwerp bekijken</a></p>
 <p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${deeplink}" style="color:#6b46c1;word-break:break-all;">${deeplink}</a></p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
@@ -169,7 +183,7 @@ ${introText}
 Via deze link bekijk je het ontwerp en keur je het goed of geef je feedback (inloggen is niet nodig):
 ${deeplink}
 
-Met vriendelijke groet,
+${deadlineText}Met vriendelijke groet,
 DesignPixels`
 
       const emailResponse = await fetch('https://api.emailit.com/v2/emails', {

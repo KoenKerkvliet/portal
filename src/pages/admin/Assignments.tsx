@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import type { Assignment } from '../../types'
 import { Plus, ClipboardCheck, Trash2, Pencil, X, Save, Loader2 } from 'lucide-react'
 import RichTextEditor from '../../components/RichTextEditor'
+import { FEEDBACK_TERMS_HTML, hasFeedbackTerms, stripFeedbackTerms, withFeedbackTerms } from '../../lib/assignmentTerms'
 
 export default function Assignments() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -17,6 +18,7 @@ export default function Assignments() {
   const [formProjectId, setFormProjectId] = useState('')
   const [formClientId, setFormClientId] = useState('')
   const [formContent, setFormContent] = useState('')
+  const [formFeedbackTerms, setFormFeedbackTerms] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const fetchAssignments = async () => {
@@ -63,6 +65,7 @@ export default function Assignments() {
     setFormProjectId('')
     setFormClientId('')
     setFormContent('')
+    setFormFeedbackTerms(true)
   }
 
   const handleEdit = (a: Assignment) => {
@@ -70,7 +73,9 @@ export default function Assignments() {
     setFormTitle(a.title)
     setFormProjectId(a.project_id)
     setFormClientId(a.client_id)
-    setFormContent(a.content || '')
+    // De standaardparagraaf staat niet in de editor maar achter het vinkje
+    setFormContent(stripFeedbackTerms(a.content || ''))
+    setFormFeedbackTerms(hasFeedbackTerms(a.content || ''))
     setShowForm(true)
   }
 
@@ -82,7 +87,7 @@ export default function Assignments() {
       title: formTitle.trim(),
       project_id: formProjectId,
       client_id: formClientId,
-      content: formContent,
+      content: withFeedbackTerms(formContent, formFeedbackTerms),
     }
 
     if (editingId) {
@@ -196,6 +201,22 @@ export default function Assignments() {
                     onChange={setFormContent}
                     placeholder="Beschrijf de opdracht..."
                   />
+                </div>
+
+                {/* Standaardparagraaf over de reactietermijn op ontwerpen */}
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={formFeedbackTerms} onChange={(e) => setFormFeedbackTerms(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                    <span>
+                      <span className="block text-sm font-medium text-gray-800">Reactietermijn op ontwerpen opnemen</span>
+                      <span className="block text-xs text-gray-500 mt-0.5">Deze paragraaf komt onderaan de opdracht te staan:</span>
+                    </span>
+                  </label>
+                  {formFeedbackTerms && (
+                    <div className="mt-3 ml-6.5 pl-3 border-l-2 border-primary/20 text-xs text-gray-600 space-y-1 [&_strong]:text-gray-800"
+                      dangerouslySetInnerHTML={{ __html: FEEDBACK_TERMS_HTML }} />
+                  )}
                 </div>
               </div>
 

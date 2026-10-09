@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Check, Loader2, MessageSquare, Palette, RefreshCw, XCircle, ZoomIn } from 'lucide-react'
+import { CalendarClock, Check, Loader2, MessageSquare, Palette, RefreshCw, XCircle, ZoomIn } from 'lucide-react'
 import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
+import { todayDate } from '../../components/domain/domainShared'
 
 interface DesignApproval {
   status?: string
@@ -16,6 +17,7 @@ interface PublicDesign {
   title: string
   image_url: string
   approval: DesignApproval | null
+  feedback_deadline?: string | null
 }
 
 type DesignResult = PublicDocumentResult<{ designs: PublicDesign[] }>
@@ -37,6 +39,10 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
 
   const status = design.approval?.status
   const isOpen = !status || status === 'new_version'
+  // Alleen tonen zolang de datum nog niet voorbij is
+  const deadline = design.feedback_deadline && design.feedback_deadline >= todayDate()
+    ? new Date(`${design.feedback_deadline}T12:00:00`).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+    : null
 
   const respond = async (accepted: boolean) => {
     setBusy(true)
@@ -111,6 +117,15 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
           {!showFeedback ? (
             <>
               <p className="text-sm text-gray-600">Ben je tevreden met dit ontwerp? Keur het dan goed. Wil je iets anders zien, vraag dan een aanpassing aan.</p>
+              {deadline && (
+                <div className="flex items-start gap-2.5 text-sm text-gray-700 bg-primary/5 border border-primary/10 rounded-xl px-4 py-3">
+                  <CalendarClock className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                  <p>
+                    Graag je reactie uiterlijk <strong>{deadline}</strong>. Hebben we vóór die datum niets van je gehoord,
+                    dan gaan we ervan uit dat het ontwerp akkoord is en gaan we verder met de volgende stap.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Je naam</label>
                 <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Vul je naam in"

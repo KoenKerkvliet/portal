@@ -18,6 +18,7 @@ import DomainOplevering, { type DeliveryKind } from '../../components/domain/Dom
 import DomainOnderhoud from '../../components/domain/DomainOnderhoud'
 import {
   phases, phaseLabels, phaseColors, phaseDots, withHttps, emptyIntakeLinks, emptyDesignImages, designFields,
+  workdaysFromToday, todayDate, DESIGN_FEEDBACK_WORKDAYS,
   type ProjectPhaseInstance, type PhaseCustomData, type IntakeLinks, type DesignImages, type DesignImageKey,
 } from '../../components/domain/domainShared'
 
@@ -391,8 +392,14 @@ export default function DomainDetail() {
     setSavingDesignImages(true)
     const instance = instances.design
 
+    const fieldToType: Record<DesignImageKey, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
+
     // Design-fase aanmaken als die nog niet bestaat
     if (!instance) {
+      const deadlines: Record<string, string> = {}
+      for (const field of Object.keys(fieldToType) as DesignImageKey[]) {
+        if (imgs[field]?.trim()) deadlines[fieldToType[field]] = workdaysFromToday(DESIGN_FEEDBACK_WORKDAYS)
+      }
       await supabase.from('project_phases').insert({
         project_id: project.id,
         phase: 'design',
@@ -403,6 +410,7 @@ export default function DomainDetail() {
           design_image_styleguide: imgs.styleguide,
           design_image_homepage: imgs.homepage,
           design_image_tweede: imgs.tweede,
+          design_deadlines: deadlines,
         },
         status: 'active',
       })
@@ -417,7 +425,7 @@ export default function DomainDetail() {
 
     // Beoordelingen bijwerken voor designs die een nieuwe afbeelding krijgen
     const updatedApprovals = { ...(customData.design_approvals || {}) }
-    const fieldToType: Record<DesignImageKey, string> = { styleguide: 'styleguide', homepage: 'homepage', tweede: 'contactpage' }
+    const updatedDeadlines = { ...(customData.design_deadlines || {}) }
     const oldImages: DesignImages = {
       styleguide: customData.design_image_styleguide || '',
       homepage: customData.design_image_homepage || '',
@@ -428,6 +436,10 @@ export default function DomainDetail() {
       const hasNewImage = !!imgs[field]?.trim()
       const hadOldImage = !!oldImages[field]?.trim()
       const imageChanged = imgs[field] !== oldImages[field]
+
+      // Reactietermijn: elke (nieuwe) upload krijgt standaard 5 werkdagen, daarna aan te passen
+      if (hasNewImage && imageChanged) updatedDeadlines[approvalType] = workdaysFromToday(DESIGN_FEEDBACK_WORKDAYS)
+      if (!hasNewImage) delete updatedDeadlines[approvalType]
 
       // Uploaden is stil: de klant krijgt pas iets via 'Mail sturen'.
       if (hasNewImage && imageChanged) {
@@ -447,6 +459,7 @@ export default function DomainDetail() {
       design_image_homepage: imgs.homepage,
       design_image_tweede: imgs.tweede,
       design_approvals: updatedApprovals,
+      design_deadlines: updatedDeadlines,
     }
     await supabase.from('project_phases').update({ custom_data: updatedData }).eq('id', instance.id)
 
@@ -506,6 +519,20 @@ export default function DomainDetail() {
     }
   }
 
+  // Reactiedatum van één design aanpassen (vers ophalen: de klant kan intussen gereageerd hebben)
+  const saveDesignDeadline = async (key: DesignImageKey, date: string) => {
+    const instance = instances.design
+    const field = designFields.find(f => f.key === key)
+    if (!instance || !field) return
+    const { data: freshPhase } = await supabase.from('project_phases').select('custom_data').eq('id', instance.id).single()
+    const customData: PhaseCustomData = (freshPhase?.custom_data as PhaseCustomData | null) || instance.custom_data || {}
+    const deadlines = { ...(customData.design_deadlines || {}) }
+    if (date) deadlines[field.approvalType] = date
+    else delete deadlines[field.approvalType]
+    await supabase.from('project_phases').update({ custom_data: { ...customData, design_deadlines: deadlines } }).eq('id', instance.id)
+    await fetchInstances()
+  }
+
   const removeDesignImage = async (key: DesignImageKey) => {
     const next = { ...designImages, [key]: '' }
     setDesignImages(next)
@@ -521,8 +548,16 @@ export default function DomainDetail() {
     const approval = instances.design?.custom_data?.design_approvals?.[field.approvalType]
     const lastSent = instances.design?.custom_data?.design_sent_at?.[field.approvalType]
     const isNewVersion = approval?.status === 'new_version'
+    const deadline = instances.design?.custom_data?.design_deadlines?.[field.approvalType]
+    if (deadline && deadline < todayDate()) {
+      alert(`De reactiedatum voor de ${field.label.toLowerCase()} ligt in het verleden. Pas hem eerst aan.`)
+      return
+    }
+    const deadlineLine = deadline
+      ? `\nReactie uiterlijk: ${new Date(`${deadline}T12:00:00`).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}`
+      : '\nZonder reactiedatum.'
     const again = lastSent && !isNewVersion ? `\n\nLet op: dit design is al eerder gemaild op ${new Date(lastSent).toLocaleString('nl-NL')}.` : ''
-    if (!confirm(`${isNewVersion ? 'De nieuwe versie van de' : 'De'} ${field.label.toLowerCase()} nu naar de klant mailen?${again}`)) return
+    if (!confirm(`${isNewVersion ? 'De nieuwe versie van de' : 'De'} ${field.label.toLowerCase()} nu naar de klant mailen?${deadlineLine}${again}`)) return
 
     setSendingDesign(key)
     setDesignSendResults(prev => ({ ...prev, [key]: undefined }))
@@ -1024,6 +1059,7 @@ export default function DomainDetail() {
                   sendResults={designSendResults}
                   onUpload={uploadDesignImage}
                   onRemove={removeDesignImage}
+                  onChangeDeadline={saveDesignDeadline}
                   onSend={sendDesign}
                 />
               )}

@@ -50,6 +50,7 @@ export interface PhaseCustomData {
   design_image_tweede?: string
   design_approvals?: Record<string, DesignApproval>
   design_sent_at?: Record<string, string>
+  design_deadlines?: Record<string, string> // uiterlijke reactiedatum per design (YYYY-MM-DD)
   show_file_footer?: boolean
   show_feedback_footer?: boolean
 }
@@ -91,7 +92,28 @@ export const withHttps = (url: string | null | undefined) => {
   return trimmed
 }
 
-export const toDatetimeLocal = (isoString: string | null) => {
+const toDateInput = (d: Date) => {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// Vandaag als YYYY-MM-DD (lokale tijd)
+export const todayDate = () => toDateInput(new Date())
+
+// Datum (YYYY-MM-DD) een aantal werkdagen na vandaag; zaterdag en zondag tellen niet mee
+export const workdaysFromToday = (workdays: number) => {
+  const d = new Date()
+  let added = 0
+  while (added < workdays) {
+    d.setDate(d.getDate() + 1)
+    if (d.getDay() !== 0 && d.getDay() !== 6) added++
+  }
+  return toDateInput(d)
+}
+
+export const DESIGN_FEEDBACK_WORKDAYS = 5
+
+export const toDatetimeLocal =(isoString: string | null) => {
   if (!isoString) return ''
   const d = new Date(isoString)
   const pad = (n: number) => n.toString().padStart(2, '0')

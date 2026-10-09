@@ -363,9 +363,12 @@ export default function ClientAssignmentPage({ publicToken }: { publicToken?: st
     y += 10
 
     if (assignment.content) {
+      // Alinea's, kopjes en regeleinden als nieuwe regel, anders plakt alle tekst aan elkaar
       const tempDiv = document.createElement('div')
-      tempDiv.innerHTML = assignment.content
-      const plainText = tempDiv.textContent || tempDiv.innerText || ''
+      tempDiv.innerHTML = DOMPurify.sanitize(assignment.content)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|h[1-6]|li|div)>/gi, '$&\n')
+      const plainText = (tempDiv.textContent || tempDiv.innerText || '').trim()
 
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')

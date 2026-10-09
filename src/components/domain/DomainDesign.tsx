@@ -1,9 +1,12 @@
-import { CheckCircle, ExternalLink, Loader2, Palette, RefreshCw, Send, Trash2, Upload, MessageSquare } from 'lucide-react'
+import { CheckCircle, ExternalLink, Loader2, Palette, RefreshCw, Send, Trash2, Upload, MessageSquare, CalendarClock } from 'lucide-react'
 import HelpTip from '../HelpTip'
-import { designFields, type DesignImageKey, type DesignImages, type ProjectPhaseInstance } from './domainShared'
+import { designFields, todayDate, type DesignImageKey, type DesignImages, type ProjectPhaseInstance } from './domainShared'
 
 const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+const formatDay = (date: string) =>
+  new Date(`${date}T12:00:00`).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })
 
 export default function DomainDesign({
   instance,
@@ -14,6 +17,7 @@ export default function DomainDesign({
   sendResults,
   onUpload,
   onRemove,
+  onChangeDeadline,
   onSend,
 }: {
   instance: ProjectPhaseInstance | null
@@ -24,10 +28,13 @@ export default function DomainDesign({
   sendResults: Partial<Record<DesignImageKey, string>>
   onUpload: (key: DesignImageKey, file: File) => void
   onRemove: (key: DesignImageKey) => void
+  onChangeDeadline: (key: DesignImageKey, date: string) => void
   onSend: (key: DesignImageKey) => void
 }) {
   const approvals = instance?.custom_data?.design_approvals || {}
   const sentAt = instance?.custom_data?.design_sent_at || {}
+  const deadlines = instance?.custom_data?.design_deadlines || {}
+  const today = todayDate()
 
   const fileInput = (key: DesignImageKey) => (
     <input
@@ -47,7 +54,7 @@ export default function DomainDesign({
     <div className="space-y-2">
       <div className="flex items-center gap-1.5">
         <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Ontwerpen</span>
-        <HelpTip text="Uploaden en vervangen gaat stil: de klant krijgt niets. Met 'Mail sturen' krijgt de klant een link om het ontwerp zonder inloggen te bekijken en goed te keuren of feedback te geven. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan." />
+        <HelpTip text="Uploaden en vervangen gaat stil: de klant krijgt niets. Bij elke upload staat 'Feedback uiterlijk' automatisch op 5 werkdagen later; die datum kun je aanpassen. Met 'Mail sturen' krijgt de klant een link om het ontwerp zonder inloggen te bekijken en goed te keuren of feedback te geven, met de reactiedatum erbij. Komt er vóór die datum geen reactie, dan zie je hier 'termijn verlopen' en kun je door naar de volgende stap. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan." />
       </div>
       <div className="divide-y divide-gray-100 border border-gray-200 rounded-lg">
         {designFields.map(({ key, label, approvalType }) => {
@@ -55,6 +62,10 @@ export default function DomainDesign({
           const status = approval?.status
           const imageUrl = images[key]
           const lastSent = sentAt[approvalType]
+          const deadline = deadlines[approvalType] || ''
+          const awaitingReply = !!imageUrl && (!status || status === 'new_version')
+          // Gemaild, geen reactie en de termijn is voorbij: doorgaan naar de volgende stap
+          const expired = awaitingReply && !!lastSent && !!deadline && deadline < today
           const isUploading = uploadingKey === key
           const canSend = !!imageUrl && status !== 'accepted' && status !== 'declined'
           const sendTitle = !imageUrl ? 'Upload eerst een afbeelding'
@@ -107,6 +118,19 @@ export default function DomainDesign({
                     <p className="flex items-center gap-1 text-blue-700"><RefreshCw className="w-3 h-3" />Nieuwe versie klaar</p>
                   ) : null}
                   {imageUrl && <p>{lastSent ? `Gemaild op ${formatDateTime(lastSent)}` : 'Nog niet gemaild'}</p>}
+                  {expired && (
+                    <p className="flex items-center gap-1 text-amber-600 font-medium">
+                      <CalendarClock className="w-3 h-3" />
+                      Geen reactie, termijn verlopen op {formatDay(deadline)}
+                    </p>
+                  )}
+                  {awaitingReply && (
+                    <label className="flex items-center gap-1.5 pt-0.5">
+                      <span>Feedback uiterlijk</span>
+                      <input type="date" value={deadline} onChange={(e) => onChangeDeadline(key, e.target.value)}
+                        className={`h-6 px-1.5 text-[11px] bg-white border rounded focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary ${expired ? 'border-amber-300 text-amber-700' : 'border-gray-200 text-gray-700'}`} />
+                    </label>
+                  )}
                   {imageUrl && instance?.public_token && (
                     <a href={`/d/design/${instance.public_token}?type=${approvalType}`} target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-primary hover:text-primary-600">
