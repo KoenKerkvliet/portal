@@ -5,6 +5,7 @@ import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileT
 import { supabase } from '../lib/supabase'
 import type { ClientNotification } from '../types'
 import ChatWidget from '../components/ChatWidget'
+import AbsenceBanner from '../components/AbsenceBanner'
 
 const notificationIcons: Record<string, typeof FileCheck> = {
   quote: FileCheck,
@@ -259,6 +260,7 @@ export default function ClientLayout() {
           </div>
         </div>
       </header>
+      <AbsenceBanner />
 
       {/* Notification banners */}
       {notifications.length > 0 && (

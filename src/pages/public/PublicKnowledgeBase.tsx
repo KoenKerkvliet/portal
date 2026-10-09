@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify'
 import { ArrowLeft, BookOpenText, LifeBuoy, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import KbSearch from '../../components/KbSearch'
+import AbsenceBanner from '../../components/AbsenceBanner'
 import { articlePath, type KbArticle } from '../../lib/knowledgeBase'
 
 // Openbare kennisbank, zonder inloggen: /kennisbank (zoeken + overzicht) en
@@ -32,6 +33,7 @@ export default function PublicKnowledgeBase() {
           <Link to="/" className="text-sm font-medium text-gray-500 hover:text-primary transition-colors">Naar het portaal</Link>
         </div>
       </header>
+      <AbsenceBanner />
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {slug ? <Article key={slug} slug={slug} /> : <Index />}
       </main>

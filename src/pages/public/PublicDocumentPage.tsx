@@ -5,6 +5,7 @@ import ClientInvoicePage from '../client/InvoicePage'
 import ClientAssignmentPage from '../client/AssignmentPage'
 import PublicDesignPage from './PublicDesignPage'
 import PublicFormPage from './PublicFormPage'
+import AbsenceBanner from '../../components/AbsenceBanner'
 import type { PublicDocType } from '../../lib/publicDocument'
 
 // Zet een <meta> zolang deze pagina open is en herstelt daarna de oude waarde
@@ -46,6 +47,7 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
           </span>
         </div>
       </header>
+      <AbsenceBanner width={type === 'design' ? 'max-w-[1920px]' : 'max-w-5xl'} />
 
       {type === 'assignment' ? (
         <ClientAssignmentPage key={token} publicToken={token || ''} />

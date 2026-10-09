@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { FolderKanban, Users, FileText, FileCheck, Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import AbsenceManager from '../../components/AbsenceManager'
 
 interface DashboardStats {
   projects: number
@@ -340,9 +341,12 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Overzicht van je portaal</p>
+      <div className="mb-6 sm:mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 mt-1">Overzicht van je portaal</p>
+        </div>
+        <AbsenceManager />
       </div>
 
       {loading ? (

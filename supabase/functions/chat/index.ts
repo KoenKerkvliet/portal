@@ -234,6 +234,18 @@ Houd antwoorden kort (max ~4 zinnen) tenzij de klant om uitleg vraagt.`
       ? `Kennisbank van DesignPixels (gebruik dit om vragen te beantwoorden; past een artikel bij de vraag, geef dan een kort antwoord en zet de knop van dat artikel op een eigen regel):\n\n${kbArticles.join('\n\n')}`
       : ''
 
+    // Geplande of lopende afwezigheid van DesignPixels (vakantie e.d.)
+    const todayAms = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' })
+    const { data: absenceData } = await admin
+      .from('absences')
+      .select('starts_on, ends_on, message, emergency')
+      .gte('ends_on', todayAms)
+      .order('starts_on')
+      .limit(3)
+    const absenceLines = ((absenceData || []) as { starts_on: string; ends_on: string; message: string; emergency: string }[])
+      .map((a) => `  - van ${a.starts_on} tot en met ${a.ends_on}${a.starts_on <= todayAms ? ' (NU afwezig)' : ''}${a.message ? `; toelichting: ${a.message}` : ''}${a.emergency ? `; bij spoed: ${a.emergency}` : ''}`)
+      .join('\n')
+
     const ticketLines = openTickets.length > 0
       ? openTickets.map((t) => `  - #${String(t.number).padStart(3, '0')} "${t.title}" (status: ${t.status})`).join('\n')
       : '  (geen open tickets)'
@@ -244,7 +256,10 @@ Houd antwoorden kort (max ~4 zinnen) tenzij de klant om uitleg vraagt.`
 - Actieve strippenkaart: ${hasActiveCard ? 'ja' : 'nee'}
 - Strippensaldo (resterende strippen): ${remainingStrips}
 - Open tickets:
-${ticketLines}`
+${ticketLines}
+- Vandaag: ${todayAms}
+- Afwezigheid van DesignPixels (noem dit als het relevant is, bijv. bij vragen over reactietijd of spoed):
+${absenceLines || '  (geen afwezigheid gepland)'}`
 
     // --- 5. Roep Anthropic aan ---------------------------------------------
     const anthropicResp = await fetch('https://api.anthropic.com/v1/messages', {
