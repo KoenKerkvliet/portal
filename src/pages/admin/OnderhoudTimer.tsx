@@ -124,17 +124,20 @@ export default function OnderhoudTimer() {
     try {
       const { data: projectClients } = await supabase
         .from('project_clients')
-        .select('client:clients(email, name)')
+        .select('client:clients(email, name, profile_id)')
         .eq('project_id', projectId)
         .eq('notify_punch_cards', true)
 
       if (projectClients) {
         const portalUrl = window.location.origin
+        const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         const dateStr = new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
 
         for (const pc of projectClients) {
-          const client = pc.client as unknown as { email: string; name: string }
+          const client = pc.client as unknown as { email: string; name: string; profile_id: string | null }
           if (!client?.email) continue
+          // Alleen wie een account heeft, kan in het portaal kijken; anders geen link
+          const hasAccount = !!client.profile_id
           const emailHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
@@ -147,12 +150,12 @@ export default function OnderhoudTimer() {
       Hoi${client.name ? ` ${client.name.split(' ')[0]}` : ''},
     </p>
     <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">
-      We hebben onderhoudswerkzaamheden uitgevoerd voor ${projectName}. Hieronder een overzicht.
+      Ik heb werkzaamheden uitgevoerd voor ${esc(projectName)}. Hieronder een overzicht.
     </p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
       <tr>
         <td style="color:#6b7280;font-size:14px;padding:8px 0;border-bottom:1px solid #f3f4f6;">Werkzaamheden</td>
-        <td style="color:#111827;font-size:14px;font-weight:500;text-align:right;padding:8px 0;border-bottom:1px solid #f3f4f6;">${workDescription}</td>
+        <td style="color:#111827;font-size:14px;font-weight:500;text-align:right;padding:8px 0;border-bottom:1px solid #f3f4f6;">${esc(workDescription)}</td>
       </tr>
       <tr>
         <td style="color:#6b7280;font-size:14px;padding:8px 0;border-bottom:1px solid #f3f4f6;">Gebruikt</td>
@@ -164,7 +167,9 @@ export default function OnderhoudTimer() {
       </tr>
     </table>
     <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 24px;">
-      Je kunt het volledige overzicht van je strippenkaart bekijken in het <a href="${portalUrl}" style="color:#7c3aed;text-decoration:underline;">klantportaal</a>.
+      ${hasAccount
+        ? `Je kunt het volledige overzicht van je strippenkaart bekijken in het <a href="${portalUrl}" style="color:#7c3aed;text-decoration:underline;">klantportaal</a>.`
+        : 'Heb je vragen over deze werkzaamheden of je tegoed? Laat het me gerust weten.'}
     </p>
     <p style="color:#9ca3af;font-size:13px;margin:0;">
       Met vriendelijke groet,<br>DesignPixels
@@ -177,13 +182,15 @@ export default function OnderhoudTimer() {
 </body></html>`
           const emailText = `Hoi${client.name ? ` ${client.name.split(' ')[0]}` : ''},
 
-We hebben onderhoudswerkzaamheden uitgevoerd voor ${projectName}. Hieronder een overzicht.
+Ik heb werkzaamheden uitgevoerd voor ${projectName}. Hieronder een overzicht.
 
 Werkzaamheden: ${workDescription}
 Gebruikt: ${stripsToUse} strip${stripsToUse !== 1 ? 's' : ''}
 Resterend tegoed: ${newTotalRemaining} strip${newTotalRemaining !== 1 ? 's' : ''}
 
-Je kunt het volledige overzicht van je strippenkaart bekijken in het klantportaal: ${portalUrl}
+${hasAccount
+  ? `Je kunt het volledige overzicht van je strippenkaart bekijken in het klantportaal: ${portalUrl}`
+  : 'Heb je vragen over deze werkzaamheden of je tegoed? Laat het me gerust weten.'}
 
 Met vriendelijke groet,
 DesignPixels`
@@ -191,7 +198,7 @@ DesignPixels`
           await supabase.functions.invoke('send-test-email', {
             body: {
               to: client.email,
-              subject: `Onderhoud ${projectName} — overzicht werkzaamheden`,
+              subject: `Werkzaamheden voor ${projectName} — overzicht strippen`,
               html: emailHtml,
               text: emailText,
             },
