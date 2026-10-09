@@ -65,8 +65,8 @@ const features = [
   },
   {
     title: 'Lange geldigheid',
-    description: 'Wordt je website bij ons gehost, dan blijven je strippen geldig zolang de hosting loopt. Anders zijn ze 2 jaar geldig: ruim de tijd om ze in te zetten voor wat jij nodig hebt.',
-    hostedDescription: 'Je website wordt bij ons gehost, dus je strippen blijven geldig zolang de hosting loopt. Geen haast: zet ze in wanneer het jou uitkomt.',
+    description: 'Wordt je website bij mij gehost, dan blijven je strippen geldig zolang de hosting loopt. Anders zijn ze 2 jaar geldig: ruim de tijd om ze in te zetten voor wat jij nodig hebt.',
+    hostedDescription: 'Je website wordt bij mij gehost, dus je strippen blijven geldig zolang de hosting loopt. Geen haast: zet ze in wanneer het jou uitkomt.',
     icon: Clock,
   },
   {
@@ -207,7 +207,7 @@ export default function PunchCardShop() {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Check className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">{hosted ? 'Geldig zolang je hosting bij ons loopt' : 'Geldig zolang je bij ons host (anders 2 jaar)'}</span>
+                    <span className="text-sm text-gray-700">{hosted ? 'Geldig zolang je hosting bij mij loopt' : 'Geldig zolang je bij mij host (anders 2 jaar)'}</span>
                   </div>
                 </div>
 

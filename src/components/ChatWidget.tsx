@@ -94,7 +94,7 @@ function generatePocReply(
       role: 'assistant',
       content:
         `Onderhoud reken je af met strippen. Een strippenkaart koop je vooraf en is ` +
-        `geldig zolang je website bij ons gehost wordt (anders 2 jaar) — zo betaal je ` +
+        `geldig zolang je website bij mij gehost wordt (anders 2 jaar) — zo betaal je ` +
         `alleen voor wat je daadwerkelijk gebruikt. ` +
         `Op de strippenkaart-pagina vind je de actuele pakketten en prijzen.`,
       cta: { label: 'Bekijk strippenkaarten', to: '/strippenkaart' },

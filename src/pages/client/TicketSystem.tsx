@@ -299,7 +299,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
           {/* Reply input */}
           {selectedTicket.status !== 'resolved' && (
             <div className="px-6 py-4 border-t border-gray-100">
-              <p className="text-[11px] text-gray-400 mb-2">Beschrijf alles in één bericht zodat we je zo goed mogelijk kunnen helpen.</p>
+              <p className="text-[11px] text-gray-400 mb-2">Beschrijf alles in één bericht zodat ik je zo goed mogelijk kan helpen.</p>
               <div className="flex gap-3">
                 <div className="flex-1">
                   <textarea

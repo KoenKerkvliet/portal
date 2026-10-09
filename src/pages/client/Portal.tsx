@@ -453,7 +453,7 @@ export default function ClientPortal() {
               Onderhoud
             </h2>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Jouw website is live! Wij zorgen voor onderhoud, updates en eventuele aanpassingen.
+              Jouw website is live! Ik zorg voor onderhoud, updates en eventuele aanpassingen.
             </p>
           </div>
         </section>
@@ -487,7 +487,7 @@ export default function ClientPortal() {
                         Geen actieve strippenkaart
                       </h3>
                       <p className="text-sm text-gray-500 leading-relaxed mb-6">
-                        Je hebt op dit moment geen actieve strippenkaart. Hierdoor kunnen wij geen onderhoud, updates of aanpassingen uitvoeren. Koop een nieuwe strippenkaart om weer gebruik te maken van onze ondersteuning.
+                        Je hebt op dit moment geen actieve strippenkaart. Hierdoor kan ik geen onderhoud, updates of aanpassingen uitvoeren. Koop een nieuwe strippenkaart om weer gebruik te maken van mijn ondersteuning.
                       </p>
                       <Link
                         to="/strippenkaart"
@@ -677,7 +677,7 @@ export default function ClientPortal() {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-800 mb-1">Bestanden delen</h3>
                     <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                      Heb je bestanden die je met ons wilt delen? Gebruik de onderstaande knop om je bestanden te uploaden.
+                      Heb je bestanden die je met mij wilt delen? Gebruik de onderstaande knop om je bestanden te uploaden.
                     </p>
                   </div>
                   <a

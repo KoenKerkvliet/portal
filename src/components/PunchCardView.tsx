@@ -57,7 +57,7 @@ export default function PunchCardView({ card, uses = [] }: Props) {
         <h3 className="text-white font-extrabold text-lg tracking-wider uppercase">Strippenkaart</h3>
         {/* Zonder vervaldatum: het domein wordt bij DesignPixels gehost */}
         <p className="text-purple-200 text-xs mt-0.5">
-          {expiresFormatted ? `Geldig tot: ${expiresFormatted}` : 'Geldig zolang je website bij ons gehost wordt'}
+          {expiresFormatted ? `Geldig tot: ${expiresFormatted}` : 'Geldig zolang je website bij mij gehost wordt'}
         </p>
       </div>
 
