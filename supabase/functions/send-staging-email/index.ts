@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 <div style="max-width:560px;margin:0 auto;padding:32px 24px;">
 <p style="margin:0 0 24px;font-size:14px;color:#888;">DesignPixels</p>
 <p style="margin:0 0 16px;">Hoi ${escapeHtml(r.name)},</p>
-<p style="margin:0 0 16px;">De website voor <strong>${escapeHtml(projectName)}</strong> is in ontwikkeling. Op onze testomgeving kun je alvast zien hoe hij eruitziet.</p>
+<p style="margin:0 0 16px;">De website voor <strong>${escapeHtml(projectName)}</strong> is in ontwikkeling. Op mijn testomgeving kun je alvast zien hoe hij eruitziet.</p>
 <p style="margin:0 0 24px;">Let op: dit is nog niet de live website, er kan dus nog van alles veranderen.</p>
 <p style="margin:0 0 24px;"><a href="${escapeHtml(stagingUrl)}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Testsite bekijken</a></p>
 <p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${escapeHtml(stagingUrl)}" style="color:#6b46c1;word-break:break-all;">${escapeHtml(stagingUrl)}</a></p>
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
 
       const text = `Hoi ${r.name},
 
-De website voor ${projectName} is in ontwikkeling. Op onze testomgeving kun je alvast zien hoe hij eruitziet.
+De website voor ${projectName} is in ontwikkeling. Op mijn testomgeving kun je alvast zien hoe hij eruitziet.
 
 Let op: dit is nog niet de live website, er kan dus nog van alles veranderen.
 

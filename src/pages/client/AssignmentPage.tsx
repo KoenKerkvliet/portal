@@ -661,7 +661,7 @@ export default function ClientAssignmentPage({ publicToken }: { publicToken?: st
               <div className="px-8 py-6 space-y-5">
                 <div className="bg-red-50 border border-red-100 rounded-xl p-4">
                   <p className="text-sm font-medium text-red-800">Opdracht afkeuren</p>
-                  <p className="text-xs text-red-600 mt-0.5">Laat ons weten waarom de opdracht niet akkoord is, zodat we een aangepaste opdracht kunnen opstellen.</p>
+                  <p className="text-xs text-red-600 mt-0.5">Laat me weten waarom de opdracht niet akkoord is, zodat ik een aangepaste opdracht kan opstellen.</p>
                 </div>
 
                 <div>

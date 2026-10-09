@@ -201,7 +201,10 @@ export default function DomainDetail() {
   const handlePhaseChange = (newPhase: ProjectPhase) => {
     setPhaseMenuOpen(false)
     if (!project || newPhase === project.current_phase) return
-    setPhaseChangeModal({ newPhase, silent: true })
+    // Naar development (vanuit een eerdere fase) standaard wél mailen: de klant moet
+    // weten dat het rustiger wordt, maar dat er hard gewerkt wordt. Overige wissels stil.
+    const toDevelopment = newPhase === 'development' && phases.indexOf(project.current_phase) < phases.indexOf('development')
+    setPhaseChangeModal({ newPhase, silent: !toDevelopment })
   }
 
   const confirmPhaseChange = async () => {

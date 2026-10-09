@@ -42,17 +42,17 @@ Deno.serve(async (req) => {
     const sentTo: string[] = []
     for (const r of recipients) {
       const html = mailLayout(subject, `<p style="margin:0 0 16px;">Hoi ${escapeHtml(r.name)},</p>
-<p style="margin:0 0 16px;">Leuk dat we aan de slag gaan met <strong>${escapeHtml(projectName)}</strong>! Hierbij de bevestiging van ons startgesprek:</p>
+<p style="margin:0 0 16px;">Leuk dat ik aan de slag mag met <strong>${escapeHtml(projectName)}</strong>! Hierbij de bevestiging van het startgesprek:</p>
 <p style="margin:0 0 24px;padding:14px 18px;background:#f5f3ff;border-radius:10px;font-weight:600;color:#4c1d95;">${escapeHtml(when)}${location && !locationUrl ? `<br><span style="font-weight:400;">${escapeHtml(location)}</span>` : ''}</p>
-${locationUrl ? `<p style="margin:0 0 12px;">We spreken elkaar online. Via deze knop doe je op het afgesproken moment mee:</p>\n${mailButton(locationUrl, 'Deelnemen aan het gesprek')}` : ''}
-<p style="margin:0 0 16px;">Komt dit moment toch niet goed uit? Laat het even weten, dan zoeken we samen een ander moment.</p>`)
+${locationUrl ? `<p style="margin:0 0 12px;">Het gesprek is online. Via deze knop doe je op het afgesproken moment mee:</p>\n${mailButton(locationUrl, 'Deelnemen aan het gesprek')}` : ''}
+<p style="margin:0 0 16px;">Komt dit moment toch niet goed uit? Laat het even weten, dan zoek ik met je een ander moment.</p>`)
       const text = `Hoi ${r.name},
 
-Leuk dat we aan de slag gaan met ${projectName}! Hierbij de bevestiging van ons startgesprek:
+Leuk dat ik aan de slag mag met ${projectName}! Hierbij de bevestiging van het startgesprek:
 
 ${when}${location && !locationUrl ? `\n${location}` : ''}
-${locationUrl ? `\nWe spreken elkaar online. Op het afgesproken moment doe je mee via:\n${locationUrl}\n` : ''}
-Komt dit moment toch niet goed uit? Laat het even weten, dan zoeken we samen een ander moment.
+${locationUrl ? `\nHet gesprek is online. Op het afgesproken moment doe je mee via:\n${locationUrl}\n` : ''}
+Komt dit moment toch niet goed uit? Laat het even weten, dan zoek ik met je een ander moment.
 
 Met vriendelijke groet,
 DesignPixels`

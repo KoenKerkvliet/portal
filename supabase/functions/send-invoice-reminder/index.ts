@@ -128,13 +128,13 @@ ${pdfContent ? '<p style="margin:0 0 16px;">De factuur is als PDF bijgevoegd.</p
 <p style="margin:0 0 24px;">Je kunt de factuur en de betalingsgegevens ook online bekijken. Inloggen is niet nodig.</p>
 <p style="margin:0 0 24px;"><a href="${invoiceUrl}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Factuur bekijken</a></p>
 <p style="margin:0 0 24px;font-size:13px;color:#888;">Werkt de knop niet? Kopieer dan deze link:<br><a href="${invoiceUrl}" style="color:#6b46c1;word-break:break-all;">${invoiceUrl}</a></p>
-<p style="margin:0 0 24px;color:#666;font-size:14px;">Heb je de betaling inmiddels al gedaan? Dan kun je dit bericht gerust negeren — onze administratie en jouw betaling kruisen elkaar soms even.</p>
+<p style="margin:0 0 24px;color:#666;font-size:14px;">Heb je de betaling inmiddels al gedaan? Dan kun je dit bericht gerust negeren — mijn administratie en jouw betaling kruisen elkaar soms even.</p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
 </html>`
 
-    const text = `Hoi ${recipientName},\n\nEen kleine vriendelijke herinnering: voor je domein ${projectName} staat nog een factuur open.\n\n${inv.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}\n${pdfContent ? '\nDe factuur is als PDF bijgevoegd.\n' : ''}\nJe kunt de factuur en de betalingsgegevens ook online bekijken (inloggen is niet nodig):\n${invoiceUrl}\n\nHeb je de betaling inmiddels al gedaan? Dan kun je dit bericht gerust negeren — onze administratie en jouw betaling kruisen elkaar soms even.\n\nMet vriendelijke groet,\nDesignPixels`
+    const text = `Hoi ${recipientName},\n\nEen kleine vriendelijke herinnering: voor je domein ${projectName} staat nog een factuur open.\n\n${inv.number} — ${amountFormatted}${dueDateText ? `\nVervaldatum: ${dueDateText}` : ''}\n${pdfContent ? '\nDe factuur is als PDF bijgevoegd.\n' : ''}\nJe kunt de factuur en de betalingsgegevens ook online bekijken (inloggen is niet nodig):\n${invoiceUrl}\n\nHeb je de betaling inmiddels al gedaan? Dan kun je dit bericht gerust negeren — mijn administratie en jouw betaling kruisen elkaar soms even.\n\nMet vriendelijke groet,\nDesignPixels`
 
     const emailResponse = await fetch('https://api.emailit.com/v2/emails', {
       method: 'POST',

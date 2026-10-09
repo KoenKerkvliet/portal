@@ -1137,7 +1137,7 @@ export default function QuotePage({ publicToken }: { publicToken?: string }) {
             <div className="px-8 py-6 space-y-5">
               <div className="bg-red-50 border border-red-100 rounded-xl p-4">
                 <p className="text-sm font-medium text-red-800">Offerte afkeuren</p>
-                <p className="text-xs text-red-600 mt-0.5">Laat ons weten waarom de offerte niet akkoord is, zodat we een nieuwe offerte kunnen opstellen.</p>
+                <p className="text-xs text-red-600 mt-0.5">Laat me weten waarom de offerte niet akkoord is, zodat ik een nieuwe offerte kan opstellen.</p>
               </div>
 
               <div>

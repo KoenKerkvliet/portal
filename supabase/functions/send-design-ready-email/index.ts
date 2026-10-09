@@ -135,10 +135,10 @@ Deno.serve(async (req) => {
       ? new Date(`${deadline}T12:00:00Z`).toLocaleDateString('nl-NL', { timeZone: 'Europe/Amsterdam', weekday: 'long', day: 'numeric', month: 'long' })
       : null
     const deadlineHtml = deadlineLabel
-      ? `<p style="margin:0 0 24px;">Graag je reactie uiterlijk <strong>${deadlineLabel}</strong>. Hebben we vóór die datum niets van je gehoord, dan gaan we ervan uit dat het ontwerp akkoord is en gaan we verder met de volgende stap.</p>\n`
+      ? `<p style="margin:0 0 24px;">Graag je reactie uiterlijk <strong>${deadlineLabel}</strong>. Heb ik vóór die datum niets van je gehoord, dan ga ik ervan uit dat het ontwerp akkoord is en ga ik verder met de volgende stap.</p>\n`
       : ''
     const deadlineText = deadlineLabel
-      ? `Graag je reactie uiterlijk ${deadlineLabel}. Hebben we vóór die datum niets van je gehoord, dan gaan we ervan uit dat het ontwerp akkoord is en gaan we verder met de volgende stap.\n\n`
+      ? `Graag je reactie uiterlijk ${deadlineLabel}. Heb ik vóór die datum niets van je gehoord, dan ga ik ervan uit dat het ontwerp akkoord is en ga ik verder met de volgende stap.\n\n`
       : ''
 
     const deeplink = `${await publicDocumentUrl(adminClient, 'project_phases', designPhase.id)}?type=${design_type}`
@@ -147,11 +147,11 @@ Deno.serve(async (req) => {
       : `Je ${designLabel.toLowerCase()} staat klaar voor beoordeling`
 
     const introHtml = newVersion
-      ? `Op basis van je feedback hebben we een nieuwe versie van de <strong>${designLabel.toLowerCase()}</strong> klaargezet voor je project <strong>${project.name}</strong>.`
+      ? `Op basis van je feedback heb ik een nieuwe versie van de <strong>${designLabel.toLowerCase()}</strong> klaargezet voor je project <strong>${project.name}</strong>.`
       : `De <strong>${designLabel.toLowerCase()}</strong> voor je project <strong>${project.name}</strong> staat klaar voor beoordeling.`
 
     const introText = newVersion
-      ? `Op basis van je feedback hebben we een nieuwe versie van de ${designLabel.toLowerCase()} klaargezet voor je project ${project.name}.`
+      ? `Op basis van je feedback heb ik een nieuwe versie van de ${designLabel.toLowerCase()} klaargezet voor je project ${project.name}.`
       : `De ${designLabel.toLowerCase()} voor je project ${project.name} staat klaar voor beoordeling.`
 
     const sentTo: string[] = []

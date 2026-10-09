@@ -33,7 +33,7 @@ function buildMail(kind: 'live' | 'review', name: string, projectName: string, u
       body: `${greeting}
 <p style="margin:0 0 16px;">Goed nieuws: de website van <strong>${escapeHtml(projectName)}</strong> staat live! Vanaf nu is hij voor iedereen te bezoeken.</p>
 ${button(url, 'Bekijk je website')}
-<p style="margin:0 0 16px;">Heb je vragen, of wil je later iets laten aanpassen? Laat het ons gerust weten.</p>
+<p style="margin:0 0 16px;">Heb je vragen, of wil je later iets laten aanpassen? Laat het me gerust weten.</p>
 ${closing}`,
       text: `Hoi ${name},
 
@@ -42,7 +42,7 @@ Goed nieuws: de website van ${projectName} staat live! Vanaf nu is hij voor iede
 Bekijk je website:
 ${url}
 
-Heb je vragen, of wil je later iets laten aanpassen? Laat het ons gerust weten.
+Heb je vragen, of wil je later iets laten aanpassen? Laat het me gerust weten.
 
 Met vriendelijke groet,
 DesignPixels`,
@@ -51,21 +51,21 @@ DesignPixels`,
   return {
     subject: `Wil je een review achterlaten? Je krijgt er 6 strippen voor`,
     body: `${greeting}
-<p style="margin:0 0 16px;">Wat fijn dat de website van <strong>${escapeHtml(projectName)}</strong> klaar is! Ben je tevreden? Dan zouden we het heel erg waarderen als je een korte review achterlaat. Daarmee help je andere ondernemers op weg.</p>
-<p style="margin:0 0 24px;">Als bedankje krijg je van ons <strong>6 gratis strippen</strong>, voor onderhoud of kleine aanpassingen aan je website.</p>
+<p style="margin:0 0 16px;">Wat fijn dat de website van <strong>${escapeHtml(projectName)}</strong> klaar is! Ben je tevreden? Dan zou ik het heel erg waarderen als je een korte review achterlaat. Daarmee help je andere ondernemers op weg.</p>
+<p style="margin:0 0 24px;">Als bedankje krijg je van mij <strong>6 gratis strippen</strong>, voor onderhoud of kleine aanpassingen aan je website.</p>
 ${button(url, 'Review achterlaten')}
-<p style="margin:0 0 16px;">Laat het ons even weten als je de review hebt geplaatst, dan zetten wij de strippen voor je klaar.</p>
+<p style="margin:0 0 16px;">Laat het me even weten als je de review hebt geplaatst, dan zet ik de strippen voor je klaar.</p>
 ${closing}`,
     text: `Hoi ${name},
 
-Wat fijn dat de website van ${projectName} klaar is! Ben je tevreden? Dan zouden we het heel erg waarderen als je een korte review achterlaat. Daarmee help je andere ondernemers op weg.
+Wat fijn dat de website van ${projectName} klaar is! Ben je tevreden? Dan zou ik het heel erg waarderen als je een korte review achterlaat. Daarmee help je andere ondernemers op weg.
 
-Als bedankje krijg je van ons 6 gratis strippen, voor onderhoud of kleine aanpassingen aan je website.
+Als bedankje krijg je van mij 6 gratis strippen, voor onderhoud of kleine aanpassingen aan je website.
 
 Review achterlaten:
 ${url}
 
-Laat het ons even weten als je de review hebt geplaatst, dan zetten wij de strippen voor je klaar.
+Laat het me even weten als je de review hebt geplaatst, dan zet ik de strippen voor je klaar.
 
 Met vriendelijke groet,
 DesignPixels`,

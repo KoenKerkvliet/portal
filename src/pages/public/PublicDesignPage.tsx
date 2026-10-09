@@ -104,7 +104,7 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
             </div>
             <div>
               <p className="font-semibold text-amber-900">Feedback ontvangen</p>
-              <p className="text-sm text-amber-700">We passen het ontwerp aan en laten je weten wanneer de nieuwe versie klaarstaat.</p>
+              <p className="text-sm text-amber-700">Ik pas het ontwerp aan en laat je weten wanneer de nieuwe versie klaarstaat.</p>
             </div>
           </div>
           {design.approval?.declined_reason && (
@@ -124,8 +124,8 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
                 <div className="flex items-start gap-2.5 text-sm text-gray-700 bg-primary/5 border border-primary/10 rounded-xl px-4 py-3">
                   <CalendarClock className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                   <p>
-                    Graag je reactie uiterlijk <strong>{deadline}</strong>. Hebben we vóór die datum niets van je gehoord,
-                    dan gaan we ervan uit dat het ontwerp akkoord is en gaan we verder met de volgende stap.
+                    Graag je reactie uiterlijk <strong>{deadline}</strong>. Heb ik vóór die datum niets van je gehoord,
+                    dan ga ik ervan uit dat het ontwerp akkoord is en ga ik verder met de volgende stap.
                   </p>
                 </div>
               )}

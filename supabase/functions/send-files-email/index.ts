@@ -26,16 +26,16 @@ Deno.serve(async (req) => {
     if (recipients.length === 0) return json({ success: true, sent_to: [], note: 'Geen klanten met notify_portal=true' })
 
     const projectName = project.name as string
-    const subject = `Je bestanden voor ${projectName} met ons delen`
+    const subject = `Je bestanden voor ${projectName} met mij delen`
     const sentTo: string[] = []
     for (const r of recipients) {
       const html = mailLayout(subject, `<p style="margin:0 0 16px;">Hoi ${escapeHtml(r.name)},</p>
-<p style="margin:0 0 16px;">We gaan aan de slag met <strong>${escapeHtml(projectName)}</strong>. Heb je teksten, foto's, een logo of andere bestanden voor je website? Via de knop hieronder kom je in een omgeving waar je ze met ons kunt delen.</p>
+<p style="margin:0 0 16px;">Ik ga aan de slag met <strong>${escapeHtml(projectName)}</strong>. Heb je teksten, foto's, een logo of andere bestanden voor je website? Via de knop hieronder kom je in een omgeving waar je ze met mij kunt delen.</p>
 ${mailButton(url, 'Bestanden delen')}
 <p style="margin:0 0 16px;">Je kunt deze link zo vaak gebruiken als je wilt, ook later nog. Bewaar deze mail dus even.</p>`)
       const text = `Hoi ${r.name},
 
-We gaan aan de slag met ${projectName}. Heb je teksten, foto's, een logo of andere bestanden voor je website? Via deze link kom je in een omgeving waar je ze met ons kunt delen:
+Ik ga aan de slag met ${projectName}. Heb je teksten, foto's, een logo of andere bestanden voor je website? Via deze link kom je in een omgeving waar je ze met mij kunt delen:
 ${url}
 
 Je kunt deze link zo vaak gebruiken als je wilt, ook later nog. Bewaar deze mail dus even.
