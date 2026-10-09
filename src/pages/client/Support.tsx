@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
-import { Search, BookOpen } from 'lucide-react'
+import { BookOpenText } from 'lucide-react'
+import KbSearch from '../../components/KbSearch'
 import TicketSystem from './TicketSystem'
 
 export default function SupportPage() {
@@ -53,22 +54,14 @@ export default function SupportPage() {
     <div className="bg-[#f8f7fc] min-h-[calc(100vh-64px)]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
 
-        {/* Kennisbank sectie (gereserveerd) */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-8 text-center">
-          <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <BookOpen className="w-7 h-7 text-primary/40" />
+        {/* Kennisbank: eerst zelf zoeken, daaronder een aanvraag doen */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 mb-8 text-center">
+          <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <BookOpenText className="w-7 h-7 text-primary" />
           </div>
           <h2 className="text-lg font-bold text-gray-900 mb-1">Kennisbank</h2>
-          <p className="text-sm text-gray-500 mb-4">Zoek antwoorden op veelgestelde vragen en handleidingen.</p>
-          <div className="max-w-md mx-auto relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              disabled
-              className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-400 cursor-not-allowed"
-              placeholder="Zoeken in kennisbank... (binnenkort beschikbaar)"
-            />
-          </div>
+          <p className="text-sm text-gray-500 mb-5">Zoek antwoorden op veelgestelde vragen en uitleg over je website.</p>
+          <KbSearch compact />
         </div>
 
         {/* Ticket systeem */}

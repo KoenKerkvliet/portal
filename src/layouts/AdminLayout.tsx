@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   BookOpen,
+  BookOpenText,
   ClipboardList,
   Package,
   ClipboardCheck,
@@ -47,6 +48,7 @@ const contentItems = [
 
 const supportItems = [
   { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
+  { to: '/admin/kennisbank', icon: BookOpenText, label: 'Kennisbank' },
   { to: '/admin/chatgesprekken', icon: MessageCircle, label: 'Chatgesprekken' },
   { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud' },
   { to: '/admin/werkzaamheden', icon: History, label: 'Werkzaamheden' },

@@ -31,6 +31,8 @@ import ClientAssignmentPage from './pages/client/AssignmentPage'
 import ClientInvoicePage from './pages/client/InvoicePage'
 import ClientStyleguidePage from './pages/client/StyleguidePage'
 import ContentPages from './pages/admin/ContentPages'
+import KnowledgeBase from './pages/admin/KnowledgeBase'
+import PublicKnowledgeBase from './pages/public/PublicKnowledgeBase'
 import Attachments from './pages/admin/Attachments'
 import Tickets from './pages/admin/Tickets'
 import ChatLogs from './pages/admin/ChatLogs'
@@ -76,6 +78,8 @@ function AppRoutes() {
       <Route path="/d/opdracht/:token" element={<PublicDocumentPage type="assignment" />} />
       <Route path="/d/design/:token" element={<PublicDocumentPage type="design" />} />
       <Route path="/d/vragenlijst/:token" element={<PublicDocumentPage type="form" />} />
+      <Route path="/kennisbank" element={<PublicKnowledgeBase />} />
+      <Route path="/kennisbank/:slug" element={<PublicKnowledgeBase />} />
 
       {/* Admin routes */}
       <Route path="/admin" element={
@@ -101,6 +105,7 @@ function AppRoutes() {
         <Route path="templates" element={<Templates />} />
         <Route path="formulieren" element={<Forms />} />
         <Route path="contentpaginas" element={<ContentPages />} />
+        <Route path="kennisbank" element={<KnowledgeBase />} />
         <Route path="bijlages" element={<Attachments />} />
         <Route path="tickets" element={<Tickets />} />
         <Route path="chatgesprekken" element={<ChatLogs />} />

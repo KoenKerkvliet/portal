@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           reply:
-            'De chat-assistent is op dit moment uitgeschakeld. Maak gerust een ticket aan, dan helpen we je persoonlijk verder.\n[[CTA:Ga naar support|/support]]',
+            'De chat-assistent is op dit moment uitgeschakeld. Maak gerust een ticket aan, dan help ik je persoonlijk verder.\n[[CTA:Ga naar support|/support]]',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
@@ -210,6 +210,30 @@ Verborgen markering (intern gebruik): kon je de vraag van de klant NIET inhoudel
 
 Houd antwoorden kort (max ~4 zinnen) tenzij de klant om uitleg vraagt.`
 
+    // Gepubliceerde kennisbankartikelen als naslag, met de link voor een knop.
+    // Begrensd, zodat de prompt niet onbeperkt groeit.
+    const { data: kbData } = await admin
+      .from('kb_articles')
+      .select('title, slug, category, summary, content')
+      .eq('published', true)
+      .order('category')
+      .order('title')
+    const stripHtml = (html: string) => html
+      .replace(/<\/(p|h[1-6]|li|div)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/\n{3,}/g, '\n\n').trim()
+    let kbBudget = 30000
+    const kbArticles: string[] = []
+    for (const a of (kbData || []) as { title: string; slug: string; category: string; summary: string; content: string }[]) {
+      const entry = `### ${a.title} (categorie: ${a.category}; knop: [[CTA:Lees het artikel|/kennisbank/${a.slug}]])\n${a.summary ? `${a.summary}\n` : ''}${stripHtml(a.content)}`
+      if (entry.length > kbBudget) break
+      kbBudget -= entry.length
+      kbArticles.push(entry)
+    }
+    const kbKnowledge = kbArticles.length > 0
+      ? `Kennisbank van DesignPixels (gebruik dit om vragen te beantwoorden; past een artikel bij de vraag, geef dan een kort antwoord en zet de knop van dat artikel op een eigen regel):\n\n${kbArticles.join('\n\n')}`
+      : ''
+
     const ticketLines = openTickets.length > 0
       ? openTickets.map((t) => `  - #${String(t.number).padStart(3, '0')} "${t.title}" (status: ${t.status})`).join('\n')
       : '  (geen open tickets)'
@@ -244,6 +268,8 @@ ${ticketLines}`
                   `Aanvullende kennis en richtlijnen (ingesteld door DesignPixels — volg deze nauwkeurig en laat ze voorgaan bij twijfel):\n\n${extraKnowledge}`,
               }]
             : []),
+          // Kennisbankartikelen (alleen gepubliceerde).
+          ...(kbKnowledge ? [{ type: 'text', text: kbKnowledge, cache_control: { type: 'ephemeral' } }] : []),
           // Dynamische klantcontext (verandert per gesprek).
           { type: 'text', text: context },
         ],
