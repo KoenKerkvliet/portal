@@ -4,6 +4,7 @@ import ClientQuotePage from '../client/QuotePage'
 import ClientInvoicePage from '../client/InvoicePage'
 import ClientAssignmentPage from '../client/AssignmentPage'
 import PublicDesignPage from './PublicDesignPage'
+import PublicFormPage from './PublicFormPage'
 import type { PublicDocType } from '../../lib/publicDocument'
 
 // Zet een <meta> zolang deze pagina open is en herstelt daarna de oude waarde
@@ -25,7 +26,7 @@ function useMeta(name: string, content: string) {
   }, [name, content])
 }
 
-// Offerte, factuur of opdracht via de link in de mail — zonder inloggen
+// Offerte, factuur, opdracht, designs of vragenlijst via de link in de mail — zonder inloggen
 export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
   const { token } = useParams<{ token: string }>()
   const [searchParams] = useSearchParams()
@@ -51,6 +52,10 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
       ) : type === 'design' ? (
         <div className="py-8 px-4">
           <PublicDesignPage key={token} token={token || ''} focusType={searchParams.get('type')} />
+        </div>
+      ) : type === 'form' ? (
+        <div className="py-8 px-4">
+          <PublicFormPage key={token} token={token || ''} />
         </div>
       ) : (
         <div className="py-8 px-4">

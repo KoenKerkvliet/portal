@@ -13,6 +13,7 @@ const PATHS = {
   invoices: 'factuur',
   assignments: 'opdracht',
   project_phases: 'design', // de Design-fase van een domein
+  form_submissions: 'vragenlijst', // een vragenlijst (formulier) voor een domein
 } as const
 
 export type PublicDocTable = keyof typeof PATHS

@@ -12,6 +12,7 @@ import FieldInput from '../../components/FieldInput'
 import HelpTip, { Tooltip } from '../../components/HelpTip'
 import DomainPortalAccess from '../../components/domain/DomainPortalAccess'
 import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
+import DomainForms from '../../components/domain/DomainForms'
 import DomainDesign from '../../components/domain/DomainDesign'
 import LinkMailField from '../../components/domain/LinkMailField'
 import DomainOplevering, { type DeliveryKind } from '../../components/domain/DomainOplevering'
@@ -1054,6 +1055,7 @@ export default function DomainDetail() {
                   updateProject={updateProject}
                 />
               )}
+              {phase === 'intake' && <DomainForms projectId={project.id} projectName={project.name} />}
               {phase === 'design' && (
                 <LinkMailField
                   label="Bestanden delen"

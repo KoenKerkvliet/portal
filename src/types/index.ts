@@ -190,6 +190,9 @@ export interface FormSubmission {
   project_id: string
   data: Record<string, string | string[] | boolean>
   submitted_at: string | null
+  public_token?: string | null
+  last_sent_at?: string | null
+  updated_at?: string | null
   created_at: string
 }
 

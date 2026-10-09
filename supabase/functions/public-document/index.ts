@@ -10,6 +10,9 @@
 //   { action: 'attachment', type: 'quote', token, attachment_id }                     — tijdelijke downloadlink
 //   { action: 'accept',     type: 'design', token, design_type, name }               — design goedkeuren
 //   { action: 'decline',    type: 'design', token, design_type, reason, name? }      — design afkeuren
+//   { action: 'get',        type: 'form', token }                                     — vragenlijst + antwoorden
+//   { action: 'save',       type: 'form', token, data }                               — tussentijds opslaan
+//   { action: 'submit',     type: 'form', token, data }                               — insturen
 //
 // verify_jwt = false (zie supabase/config.toml): de geheime code ís de autorisatie.
 
@@ -412,6 +415,135 @@ async function handleDesignResponse(db: SupabaseClient, token: string, body: Rec
   return handleDesignGet(db, token)
 }
 
+// ── Vragenlijsten ──
+// De code hoort bij één form_submissions-rij (vragenlijst x domein). De klant kan
+// tussentijds opslaan en later via dezelfde link verder; na insturen is hij alleen-lezen.
+
+type FormField = { id: string; type: string; label?: string; required?: boolean; options?: { id: string }[] }
+type FormStep = { id: string; title?: string; fields?: FormField[] }
+type Answer = string | string[] | boolean
+
+const MAX_ANSWER = 5000
+
+async function loadFormSubmission(db: SupabaseClient, token: string) {
+  const { data, error } = await db
+    .from('form_submissions')
+    .select('id, project_id, data, submitted_at, form:forms(id, title, description, steps), project:projects(name, client:clients(name))')
+    .eq('public_token', token)
+    .maybeSingle()
+  if (error) throw new Error(`Vragenlijst laden mislukt: ${error.message}`)
+  if (!data) throw notFound()
+  return data as unknown as {
+    id: string
+    project_id: string
+    data: Record<string, Answer> | null
+    submitted_at: string | null
+    form: { id: string; title: string; description: string | null; steps: FormStep[] | null } | null
+    project: { name: string; client: { name: string | null } | null } | null
+  }
+}
+
+// Alleen antwoorden op velden die in het formulier staan, met het juiste type en een maximale lengte
+function cleanAnswers(steps: FormStep[], raw: unknown): Record<string, Answer> {
+  const input = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const clean: Record<string, Answer> = {}
+  for (const step of steps) {
+    for (const field of step.fields || []) {
+      if (field.type === 'heading' || !(field.id in input)) continue
+      const value = input[field.id]
+      if (field.type === 'checkbox') {
+        const allowed = new Set((field.options || []).map(o => o.id))
+        if (Array.isArray(value)) clean[field.id] = value.filter((v): v is string => typeof v === 'string' && allowed.has(v))
+        else if (typeof value === 'boolean') clean[field.id] = value
+      } else if (typeof value === 'string') {
+        clean[field.id] = value.slice(0, MAX_ANSWER)
+      }
+    }
+  }
+  return clean
+}
+
+const isEmptyAnswer = (value: Answer | undefined) =>
+  value === undefined || value === '' || value === false || (Array.isArray(value) && value.length === 0)
+
+async function handleFormGet(db: SupabaseClient, token: string) {
+  const sub = await loadFormSubmission(db, token)
+  return json({
+    success: true,
+    type: 'form',
+    document: {
+      form: { title: sub.form?.title || 'Vragenlijst', description: sub.form?.description || '', steps: sub.form?.steps || [] },
+      data: sub.data || {},
+      submitted_at: sub.submitted_at,
+    },
+    project_name: sub.project?.name || '',
+    client_name: sub.project?.client?.name || '',
+    client_company: '',
+    settings: null,
+    attachments: [],
+  })
+}
+
+async function handleFormSave(db: SupabaseClient, token: string, body: Record<string, unknown>, submit: boolean) {
+  const sub = await loadFormSubmission(db, token)
+  if (sub.submitted_at) throw new HttpError(409, 'Deze vragenlijst is al ingestuurd.')
+  const steps = sub.form?.steps || []
+  const answers = cleanAnswers(steps, body.data)
+
+  if (submit) {
+    const missing = steps.flatMap(s => s.fields || []).filter(f => f.required && f.type !== 'heading' && isEmptyAnswer(answers[f.id]))
+    if (missing.length > 0) throw new HttpError(400, `Vul eerst alle verplichte vragen in (${missing.length} open).`)
+  }
+
+  const now = new Date().toISOString()
+  const { data: updated, error } = await db
+    .from('form_submissions')
+    .update({ data: answers, updated_at: now, ...(submit ? { submitted_at: now } : {}) })
+    .eq('id', sub.id)
+    .is('submitted_at', null)
+    .select('id')
+  if (error) throw new Error(`Opslaan mislukt: ${error.message}`)
+  if (!updated || updated.length === 0) throw new HttpError(409, 'Deze vragenlijst is al ingestuurd.')
+
+  if (submit) {
+    const formTitle = sub.form?.title || 'Vragenlijst'
+    const clientName = sub.project?.client?.name || ''
+    await markStepCompleted(db, sub.project_id, data => data.action === 'form' && data.formId === sub.form?.id)
+    await db.from('admin_notifications').insert({
+      type: 'assignment',
+      title: `Vragenlijst "${formTitle}" ingevuld`,
+      message: `${clientName || 'De klant'} heeft de vragenlijst "${formTitle}" voor ${sub.project?.name || 'het domein'} ingestuurd via de link in de mail.`,
+      project_id: sub.project_id,
+      client_id: null,
+    })
+    await sendFormAdminMail(formTitle, clientName, sub.project?.name || '')
+    return handleFormGet(db, token)
+  }
+  return json({ success: true, saved_at: now })
+}
+
+async function sendFormAdminMail(formTitle: string, clientName: string, projectName: string) {
+  const apiKey = Deno.env.get('EMAILIT_API_KEY')
+  if (!apiKey) return
+  const from = Deno.env.get('EMAILIT_FROM') || 'DesignPixels <noreply@designpixels.nl>'
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;padding:32px;">
+  <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">📝 Vragenlijst ingevuld</h2>
+  <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0;"><strong>${escapeHtml(clientName || 'De klant')}</strong> heeft de vragenlijst <strong>${escapeHtml(formTitle)}</strong> voor <strong>${escapeHtml(projectName || '-')}</strong> ingestuurd. Je kunt de antwoorden als PDF downloaden op de domeinpagina, bij de intake.</p>
+</div></body></html>`
+  try {
+    const res = await fetch('https://api.emailit.com/v2/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: ADMIN_EMAIL, subject: `Vragenlijst "${formTitle}" ingevuld door ${clientName || 'klant'}`, html }),
+    })
+    if (!res.ok) console.error(`[public-document] Adminmail vragenlijst mislukt: ${res.status} ${await res.text()}`)
+  } catch (e) {
+    console.error('[public-document] Adminmail vragenlijst exception:', e instanceof Error ? e.message : String(e))
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ success: false, error: 'Methode niet toegestaan' }, 405)
@@ -425,9 +557,9 @@ Deno.serve(async (req) => {
     }
 
     const action = body.action
-    const type = body.type as DocType | 'design'
+    const type = body.type as DocType | 'design' | 'form'
     const token = typeof body.token === 'string' ? body.token : ''
-    if (type !== 'design' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
+    if (type !== 'design' && type !== 'form' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
     if (!TOKEN_PATTERN.test(token)) throw notFound()
 
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
@@ -437,6 +569,15 @@ Deno.serve(async (req) => {
         case 'get': return await handleDesignGet(db, token)
         case 'accept': return await handleDesignResponse(db, token, body, true)
         case 'decline': return await handleDesignResponse(db, token, body, false)
+        default: throw new HttpError(400, 'Onbekende actie.')
+      }
+    }
+
+    if (type === 'form') {
+      switch (action) {
+        case 'get': return await handleFormGet(db, token)
+        case 'save': return await handleFormSave(db, token, body, false)
+        case 'submit': return await handleFormSave(db, token, body, true)
         default: throw new HttpError(400, 'Onbekende actie.')
       }
     }

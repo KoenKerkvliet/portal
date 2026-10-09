@@ -5,6 +5,7 @@ import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Form, FormSubmission } from '../../types'
 import { ChevronLeft, ChevronRight, Check, Loader2, ArrowLeft, Pencil } from 'lucide-react'
+import FormStepFields from '../../components/FormStepFields'
 
 export default function FormPage() {
   const { formId } = useParams<{ formId: string }>()
@@ -71,17 +72,6 @@ export default function FormPage() {
 
   const updateField = (fieldId: string, value: string | string[] | boolean) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }))
-    setSaved(false)
-  }
-
-  const toggleCheckboxOption = (fieldId: string, optionId: string) => {
-    setFormData(prev => {
-      const current = (prev[fieldId] as string[]) || []
-      const updated = current.includes(optionId)
-        ? current.filter(id => id !== optionId)
-        : [...current, optionId]
-      return { ...prev, [fieldId]: updated }
-    })
     setSaved(false)
   }
 
@@ -262,136 +252,7 @@ export default function FormPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-5">{step.title}</h2>
             )}
 
-            <div className="space-y-5">
-              {step.fields.map((field) => {
-                if (field.type === 'heading') {
-                  return (
-                    <h3 key={field.id} className="text-sm font-bold text-gray-700 pt-3 pb-1 border-b border-gray-100">
-                      {field.label}
-                    </h3>
-                  )
-                }
-
-                const value = formData[field.id] ?? ''
-
-                return (
-                  <div key={field.id}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      {field.label}
-                      {field.required && <span className="text-red-400 ml-0.5">*</span>}
-                    </label>
-
-                    {field.type === 'text' && (
-                      <input
-                        type="text"
-                        value={value as string}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        placeholder={field.placeholder || ''}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-                      />
-                    )}
-
-                    {field.type === 'textarea' && (
-                      <textarea
-                        value={value as string}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        placeholder={field.placeholder || ''}
-                        rows={4}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all resize-none"
-                      />
-                    )}
-
-                    {field.type === 'email' && (
-                      <input
-                        type="email"
-                        value={value as string}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        placeholder={field.placeholder || 'naam@voorbeeld.nl'}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-                      />
-                    )}
-
-                    {field.type === 'phone' && (
-                      <input
-                        type="tel"
-                        value={value as string}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        placeholder={field.placeholder || '06 12345678'}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-                      />
-                    )}
-
-                    {field.type === 'number' && (
-                      <input
-                        type="number"
-                        value={value as string}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        placeholder={field.placeholder || ''}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-                      />
-                    )}
-
-                    {field.type === 'date' && (
-                      <input
-                        type="date"
-                        value={value as string}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-                      />
-                    )}
-
-                    {field.type === 'select' && field.options && (
-                      <select
-                        value={value as string}
-                        onChange={(e) => updateField(field.id, e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-                      >
-                        <option value="">{field.placeholder || 'Maak een keuze...'}</option>
-                        {field.options.map((opt) => (
-                          <option key={opt.id} value={opt.id}>{opt.label}</option>
-                        ))}
-                      </select>
-                    )}
-
-                    {field.type === 'radio' && field.options && (
-                      <div className="space-y-2.5 mt-1">
-                        {field.options.map((opt) => (
-                          <label key={opt.id} className="flex items-center gap-3 cursor-pointer group">
-                            <input
-                              type="radio"
-                              name={field.id}
-                              checked={value === opt.id}
-                              onChange={() => updateField(field.id, opt.id)}
-                              className="w-4 h-4 text-primary border-gray-300 focus:ring-primary/30"
-                            />
-                            <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">{opt.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-
-                    {field.type === 'checkbox' && field.options && (
-                      <div className="space-y-2.5 mt-1">
-                        {field.options.map((opt) => {
-                          const checked = ((formData[field.id] as string[]) || []).includes(opt.id)
-                          return (
-                            <label key={opt.id} className="flex items-center gap-3 cursor-pointer group">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleCheckboxOption(field.id, opt.id)}
-                                className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30"
-                              />
-                              <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">{opt.label}</span>
-                            </label>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <FormStepFields fields={step.fields} values={formData} onChange={updateField} />
           </div>
 
           {/* Navigation footer */}

@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 import type { InvoiceSettings, QuoteAttachment } from '../types'
 
 // Offerte/factuur/opdracht via de geheime code uit de mail (Edge Function public-document)
-export type PublicDocType = 'quote' | 'invoice' | 'assignment' | 'design'
+export type PublicDocType = 'quote' | 'invoice' | 'assignment' | 'design' | 'form'
 
 export interface PublicDocumentResult<T> {
   success: true
