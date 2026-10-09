@@ -931,8 +931,10 @@ export default function DomainDetail() {
         </div>
       </section>
 
-      {/* ── Fases ── */}
-      {phases.map((phase) => {
+      {/* ── Fases ── huidige fase direct onder Algemeen, daarna de rest in volgorde.
+          Op key gesorteerd, dus bij een faseswitch verhuist de sectie zonder dat
+          onopgeslagen invoer verloren gaat. */}
+      {[project.current_phase, ...phases.filter(p => p !== project.current_phase)].map((phase) => {
         const instance = instances[phase]
         const isOpen = !!openSections[phase]
         const isCurrent = phase === project.current_phase
@@ -944,7 +946,7 @@ export default function DomainDetail() {
               <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${phaseDots[phase]}`} />
               <h2 className="text-sm font-semibold text-gray-900">{phaseLabels[phase]}</h2>
               {isCurrent && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${phaseColors[phase]}`}>Huidige fase</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${phaseColors[phase]}`}>Actieve fase</span>
               )}
               {phase === 'intake' ? (
                 <span className={`ml-auto hidden sm:block text-xs whitespace-nowrap ${intakeSummary ? 'text-gray-500' : 'text-gray-400 italic'}`}>{intakeSummary || 'Nog niets gekoppeld'}</span>
