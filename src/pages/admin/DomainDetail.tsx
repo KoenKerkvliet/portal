@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import type { Project, ProjectPhase, ProjectClient, Quote, Invoice, Assignment } from '../../types'
 import {
   ArrowLeft, ChevronDown, Globe, ExternalLink, FileText, FileCheck, Users, UserPlus, Bell,
-  MessageSquare, Ticket, Trash2, Settings, Key, Copy, Archive, ArchiveRestore, Loader2, X,
+  MessageSquare, Ticket, Trash2, Settings, Key, Copy, Archive, ArchiveRestore, Loader2, X, Plus,
 } from 'lucide-react'
 import InlineEdit from '../../components/InlineEdit'
 import FieldInput from '../../components/FieldInput'
@@ -36,7 +36,9 @@ const notifyOptions: { field: NotifyField; label: string; help: string; icon: Re
     help: 'Krijgt een mail als er strippen worden afgeschreven.' },
 ]
 
-type MailResult = { success: true; sent_to: string | string[]; pdf_attached?: boolean; sent_at?: string | null }
+const emptyNewClient = { name: '', email: '', phone: '', company: '' }
+
+type MailResult ={ success: true; sent_to: string | string[]; pdf_attached?: boolean; sent_at?: string | null }
 
 // Roept een mail-Edge Function aan en geeft de data terug, of een leesbare foutmelding.
 // Met viaPortalRecipients: mails naar klanten met 'Portaalmails' aan; niemand = fout.
@@ -64,6 +66,10 @@ export default function DomainDetail() {
   const [loading, setLoading] = useState(true)
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [projectClients, setProjectClients] = useState<ProjectClient[]>([])
+  const [newClientOpen, setNewClientOpen] = useState(false)
+  const [newClient, setNewClient] = useState(emptyNewClient)
+  const [newClientError, setNewClientError] = useState('')
+  const [savingNewClient, setSavingNewClient] = useState(false)
   const [instances, setInstances] = useState<Partial<Record<ProjectPhase, ProjectPhaseInstance>>>({})
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -240,6 +246,31 @@ export default function DomainDetail() {
     }
     if (isFirst) await updateProject({ client_id: clientId })
     fetchProjectClients()
+  }
+
+  // Nieuwe klant aanmaken en meteen aan dit domein koppelen. Er gaat geen mail uit:
+  // een portaaluitnodiging blijft een aparte actie op de klantenpagina.
+  const createClientForProject = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!project) return
+    setSavingNewClient(true)
+    setNewClientError('')
+    const { data, error } = await supabase.from('clients').insert({
+      name: newClient.name.trim(),
+      email: newClient.email.trim(),
+      email_extra: [],
+      phone: newClient.phone.trim() || null,
+      company: newClient.company.trim() || null,
+    }).select('id, name').single()
+    if (error || !data) {
+      setNewClientError('Klant aanmaken mislukt: ' + (error?.message || 'onbekende fout'))
+      setSavingNewClient(false)
+      return
+    }
+    setClients(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+    await addClientToProject(data.id)
+    setSavingNewClient(false)
+    setNewClientOpen(false)
   }
 
   const removeClientFromProject = async (projectClientId: string) => {
@@ -795,15 +826,15 @@ export default function DomainDetail() {
             <FieldInput label="Website" type="url" placeholder="https://voorbeeld.nl" linkable
               value={project.url || ''} onSave={(v) => updateProject({ url: withHttps(v) })}
               help="Het adres van de live website. Alleen voor jouw overzicht, de klant ziet dit niet." />
-            <FieldInput label="Factuurnaam" placeholder="Leeg = naam van de klant" helpAlign="right"
-              value={project.invoice_name || ''} onSave={(v) => updateProject({ invoice_name: v.trim() || null })}
-              help="Alleen invullen als facturen voor dit domein op een andere naam moeten dan die van de klant, bijv. een bedrijf of vereniging. Wordt ingevuld bij elke nieuwe factuur voor dit domein; bestaande facturen veranderen niet." />
-            <FieldInput label="Factuur-e-mail" type="email" placeholder="Leeg = e-mail van de klant"
-              value={project.invoice_email || ''} onSave={(v) => updateProject({ invoice_email: v.trim() || null })}
-              help="Alleen invullen als facturen voor dit domein naar een ander adres moeten, bijv. de penningmeester of administratie. Nieuwe facturen en herinneringen gaan dan naar dit adres; bestaande facturen veranderen niet." />
             <FieldInput label="Opleverdatum" type="date" helpAlign="right"
               value={project.due_date || ''} onSave={(v) => updateProject({ due_date: v || null })}
               help="Verwachte datum waarop de website klaar is. Staat ook in het domeinoverzicht. Klanten die inloggen zien deze datum in hun portaal." />
+            <FieldInput label="Factuurnaam" placeholder="Leeg = naam van de klant"
+              value={project.invoice_name || ''} onSave={(v) => updateProject({ invoice_name: v.trim() || null })}
+              help="Alleen invullen als facturen voor dit domein op een andere naam moeten dan die van de klant, bijv. een bedrijf of vereniging. Wordt ingevuld bij elke nieuwe factuur voor dit domein; bestaande facturen veranderen niet." />
+            <FieldInput label="Factuur-e-mail" type="email" placeholder="Leeg = e-mail van de klant" helpAlign="right"
+              value={project.invoice_email || ''} onSave={(v) => updateProject({ invoice_email: v.trim() || null })}
+              help="Alleen invullen als facturen voor dit domein naar een ander adres moeten, bijv. de penningmeester of administratie. Nieuwe facturen en herinneringen gaan dan naar dit adres; bestaande facturen veranderen niet." />
           </div>
 
           <label className="flex items-center gap-2 cursor-pointer w-fit">
@@ -820,11 +851,17 @@ export default function DomainDetail() {
                 <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Klanten</span>
                 <HelpTip text="Klanten die bij dit domein horen en kunnen inloggen in het portaal. Met de icoontjes rechts bepaal je per klant welke mails en rollen die krijgt; ga erop staan voor uitleg." />
               </div>
+              <div className="flex items-center gap-4">
+              <button onClick={() => { setNewClient(emptyNewClient); setNewClientError(''); setNewClientOpen(true) }}
+                className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-primary transition-colors">
+                <Plus className="w-3.5 h-3.5" />
+                Nieuwe klant
+              </button>
               <div className="relative" ref={clientMenuRef}>
                 <button onClick={() => setClientMenuOpen(!clientMenuOpen)}
                   className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-primary transition-colors">
                   <UserPlus className="w-3.5 h-3.5" />
-                  Klant toevoegen
+                  Bestaande klant
                 </button>
                 {clientMenuOpen && (
                   <div className="absolute top-full right-0 mt-1.5 bg-white rounded-xl shadow-xl shadow-gray-200/50 border border-gray-100 py-1 z-50 min-w-[200px] max-h-72 overflow-y-auto">
@@ -840,6 +877,7 @@ export default function DomainDetail() {
                     )}
                   </div>
                 )}
+              </div>
               </div>
             </div>
 
@@ -1006,6 +1044,53 @@ export default function DomainDetail() {
           </section>
         )
       })}
+
+      {/* Nieuwe klant */}
+      {newClientOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => !savingNewClient && setNewClientOpen(false)}>
+          <form onSubmit={createClientForProject} onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Nieuwe klant</h2>
+              <button type="button" onClick={() => setNewClientOpen(false)} aria-label="Sluiten"
+                className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              {([
+                { key: 'name', label: 'Naam *', type: 'text', required: true, placeholder: '' },
+                { key: 'email', label: 'E-mail *', type: 'email', required: true, placeholder: '' },
+                { key: 'phone', label: 'Telefoon', type: 'text', required: false, placeholder: '06-12345678' },
+                { key: 'company', label: 'Bedrijf', type: 'text', required: false, placeholder: '' },
+              ] as const).map(({ key, label, type, required, placeholder }) => (
+                <div key={key}>
+                  <label className="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
+                  <input type={type} required={required} placeholder={placeholder} autoFocus={key === 'name'}
+                    value={newClient[key]} onChange={(e) => setNewClient({ ...newClient, [key]: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                </div>
+              ))}
+              <p className="text-xs text-gray-400">
+                De klant wordt meteen aan {project.name} gekoppeld. Er gaat geen mail uit.
+              </p>
+              {newClientError && <p className="text-xs text-red-600">{newClientError}</p>}
+            </div>
+            <div className="flex justify-end gap-2 p-6 border-t border-gray-100">
+              <button type="button" onClick={() => setNewClientOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                Annuleren
+              </button>
+              <button type="submit" disabled={savingNewClient}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-600 rounded-lg transition-colors disabled:opacity-50">
+                {savingNewClient && <Loader2 className="w-4 h-4 animate-spin" />}
+                Aanmaken en koppelen
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Fase-wissel bevestiging */}
       {phaseChangeModal && (
