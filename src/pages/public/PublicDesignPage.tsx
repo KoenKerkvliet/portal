@@ -84,7 +84,7 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
       </a>
 
       {status === 'accepted' && design.approval?.accepted_at && (
-        <div className="flex items-center gap-3 px-6 py-5 bg-green-50 border-t border-green-100">
+        <div className="flex items-center justify-center gap-3 px-6 py-5 bg-green-50 border-t border-green-100">
           <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
             <Check className="w-4 h-4 text-green-600" />
           </div>
@@ -97,7 +97,7 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
 
       {status === 'declined' && (
         <div className="px-6 py-5 bg-amber-50 border-t border-amber-100">
-          <div className="max-w-3xl">
+          <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
               <MessageSquare className="w-4 h-4 text-amber-600" />
@@ -116,7 +116,7 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
 
       {isOpen && (
         <div className="border-t border-gray-100">
-        <div className="max-w-3xl px-6 py-5 space-y-4">
+        <div className="max-w-3xl mx-auto px-6 py-5 space-y-4">
           {!showFeedback ? (
             <>
               <p className="text-sm text-gray-600">Ben je tevreden met dit ontwerp? Keur het dan goed. Wil je iets anders zien, vraag dan een aanpassing aan.</p>
