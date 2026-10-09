@@ -1,6 +1,6 @@
 import { CheckCircle, ExternalLink, Loader2, Palette, RefreshCw, Send, Trash2, Upload, MessageSquare, CalendarClock } from 'lucide-react'
 import HelpTip from '../HelpTip'
-import { designFields, todayDate, type DesignImageKey, type DesignImages, type ProjectPhaseInstance } from './domainShared'
+import { designFields, designVersionMailed, todayDate, type DesignImageKey, type DesignImages, type ProjectPhaseInstance } from './domainShared'
 
 const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -62,10 +62,12 @@ export default function DomainDesign({
           const status = approval?.status
           const imageUrl = images[key]
           const lastSent = sentAt[approvalType]
+          // Is de versie die er nu staat al gemaild, of alleen een eerdere versie?
+          const versionMailed = designVersionMailed(instance?.custom_data, approvalType, imageUrl)
           const deadline = deadlines[approvalType] || ''
           const awaitingReply = !!imageUrl && (!status || status === 'new_version')
           // Gemaild, geen reactie en de termijn is voorbij: doorgaan naar de volgende stap
-          const expired = awaitingReply && !!lastSent && !!deadline && deadline < today
+          const expired = awaitingReply && versionMailed && !!deadline && deadline < today
           const isUploading = uploadingKey === key
           const canSend = !!imageUrl && status !== 'accepted' && status !== 'declined'
           const sendTitle = !imageUrl ? 'Upload eerst een afbeelding'
@@ -115,9 +117,20 @@ export default function DomainDesign({
                       {approval?.declined_reason && <p className="mt-0.5 text-gray-600 italic">"{approval.declined_reason}"</p>}
                     </div>
                   ) : status === 'new_version' ? (
-                    <p className="flex items-center gap-1 text-blue-700"><RefreshCw className="w-3 h-3" />Nieuwe versie klaar</p>
+                    <p className="flex items-center gap-1 text-blue-700">
+                      <RefreshCw className="w-3 h-3" />
+                      {versionMailed ? 'Nieuwe versie gemaild, wacht op reactie' : 'Nieuwe versie klaar'}
+                    </p>
                   ) : null}
-                  {imageUrl && <p>{lastSent ? `Gemaild op ${formatDateTime(lastSent)}` : 'Nog niet gemaild'}</p>}
+                  {imageUrl && (
+                    versionMailed ? (
+                      <p className="flex items-center gap-1"><Send className="w-3 h-3" />Gemaild op {formatDateTime(lastSent!)}</p>
+                    ) : (
+                      <p className="text-amber-600 font-medium">
+                        Deze versie is nog niet gemaild{lastSent ? ` (vorige versie op ${formatDateTime(lastSent)})` : ''}
+                      </p>
+                    )
+                  )}
                   {expired && (
                     <p className="flex items-center gap-1 text-amber-600 font-medium">
                       <CalendarClock className="w-3 h-3" />
@@ -158,7 +171,7 @@ export default function DomainDesign({
                 <button type="button" onClick={() => onSend(key)} disabled={!canSend || sendingKey === key} title={sendTitle}
                   className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-primary hover:bg-primary-600 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                   {sendingKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  {lastSent && status !== 'new_version' ? 'Opnieuw mailen' : 'Mail sturen'}
+                  {versionMailed ? 'Opnieuw mailen' : 'Mail sturen'}
                 </button>
               </div>
             </div>

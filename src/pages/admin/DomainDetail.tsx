@@ -18,7 +18,7 @@ import DomainOplevering, { type DeliveryKind } from '../../components/domain/Dom
 import DomainOnderhoud from '../../components/domain/DomainOnderhoud'
 import {
   phases, phaseLabels, phaseColors, phaseDots, withHttps, emptyIntakeLinks, emptyDesignImages, designFields,
-  workdaysFromToday, todayDate, DESIGN_FEEDBACK_WORKDAYS,
+  workdaysFromToday, todayDate, DESIGN_FEEDBACK_WORKDAYS, designVersionMailed,
   type ProjectPhaseInstance, type PhaseCustomData, type IntakeLinks, type DesignImages, type DesignImageKey,
 } from '../../components/domain/domainShared'
 
@@ -556,7 +556,9 @@ export default function DomainDetail() {
     const deadlineLine = deadline
       ? `\nReactie uiterlijk: ${new Date(`${deadline}T12:00:00`).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })}`
       : '\nZonder reactiedatum.'
-    const again = lastSent && !isNewVersion ? `\n\nLet op: dit design is al eerder gemaild op ${new Date(lastSent).toLocaleString('nl-NL')}.` : ''
+    // Alleen waarschuwen als déze versie al gemaild is
+    const mailed = designVersionMailed(instances.design?.custom_data, field.approvalType, designImages[key])
+    const again = mailed && lastSent ? `\n\nLet op: deze versie is al gemaild op ${new Date(lastSent).toLocaleString('nl-NL')}.` : ''
     if (!confirm(`${isNewVersion ? 'De nieuwe versie van de' : 'De'} ${field.label.toLowerCase()} nu naar de klant mailen?${deadlineLine}${again}`)) return
 
     setSendingDesign(key)

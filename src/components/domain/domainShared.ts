@@ -51,6 +51,7 @@ export interface PhaseCustomData {
   design_approvals?: Record<string, DesignApproval>
   design_sent_at?: Record<string, string>
   design_deadlines?: Record<string, string> // uiterlijke reactiedatum per design (YYYY-MM-DD)
+  design_sent_image?: Record<string, string> // welk bestand (URL) per design als laatste is gemaild
   show_file_footer?: boolean
   show_feedback_footer?: boolean
 }
@@ -112,6 +113,18 @@ export const workdaysFromToday = (workdays: number) => {
 }
 
 export const DESIGN_FEEDBACK_WORKDAYS = 5
+
+// Is de versie die er nu staat al gemaild? send-design-ready-email legt vast welk
+// bestand gemaild is. Bij mails van vóór die registratie vergelijken we de tijd: de
+// bestandsnaam bevat het uploadmoment (…/homepage_1791546503961.jpg).
+export const designVersionMailed = (data: PhaseCustomData | null | undefined, approvalType: string, imageUrl: string) => {
+  const sentAt = data?.design_sent_at?.[approvalType]
+  if (!sentAt || !imageUrl) return false
+  const sentImage = data?.design_sent_image?.[approvalType]
+  if (sentImage) return sentImage === imageUrl
+  const uploadedMs = imageUrl.match(/_(\d{13})\.\w+$/)?.[1]
+  return !uploadedMs || new Date(sentAt).getTime() >= Number(uploadedMs)
+}
 
 export const toDatetimeLocal =(isoString: string | null) => {
   if (!isoString) return ''

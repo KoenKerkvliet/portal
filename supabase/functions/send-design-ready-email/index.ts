@@ -216,9 +216,15 @@ DesignPixels`
       const { data: fresh } = await adminClient.from('project_phases').select('custom_data').eq('id', designPhase.id).single()
       const cd = (fresh?.custom_data || {}) as Record<string, unknown>
       const sentMap = (cd.design_sent_at || {}) as Record<string, string>
+      // Ook welk bestand gemaild is, zodat de admin ziet of een nieuwe versie al verstuurd is
+      const sentImageMap = (cd.design_sent_image || {}) as Record<string, string>
       await adminClient
         .from('project_phases')
-        .update({ custom_data: { ...cd, design_sent_at: { ...sentMap, [design_type]: sentAt } } })
+        .update({ custom_data: {
+          ...cd,
+          design_sent_at: { ...sentMap, [design_type]: sentAt },
+          design_sent_image: { ...sentImageMap, [design_type]: designImage },
+        } })
         .eq('id', designPhase.id)
     }
 
