@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Loader2, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { articlePath, groupByCategory, searchArticles, type KbArticle } from '../lib/knowledgeBase'
+import { articlePath, categoryPath, categorySummaries, searchArticles, type KbArticle } from '../lib/knowledgeBase'
+import KbCategoryIcon from './KbCategoryIcon'
 
-// Zoeken in de kennisbank, met daaronder de artikelen per categorie (of de zoekresultaten).
+// Zoeken in de kennisbank, met daaronder kaarten per categorie (of de zoekresultaten).
 // Gebruikt bij Support in het portaal en op de openbare pagina /kennisbank.
 export default function KbSearch({ autoFocus = false, compact = false }: { autoFocus?: boolean; compact?: boolean }) {
   const [articles, setArticles] = useState<KbArticle[]>([])
@@ -29,6 +30,7 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors">{a.title}</p>
         {a.summary && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{a.summary}</p>}
+        <p className="text-[11px] text-gray-400 mt-1">{a.category}</p>
       </div>
       <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary flex-shrink-0 transition-colors" />
     </Link>
@@ -66,12 +68,25 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
             </div>
           )
         ) : (
-          <div className={`grid gap-4 ${compact ? 'sm:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
-            {groupByCategory(articles).map(([category, items]) => (
-              <div key={category} className="rounded-xl border border-gray-100 overflow-hidden bg-white">
-                <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{category}</p>
-                <div className="divide-y divide-gray-100">{(compact ? items.slice(0, 4) : items).map(item)}</div>
-              </div>
+          // Categoriekaarten: titel, korte omschrijving en het aantal artikelen
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {categorySummaries(articles).map(c => (
+              <Link key={c.slug} to={categoryPath(c.name)}
+                className="group flex items-start gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
+                <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
+                  <KbCategoryIcon category={c.name} className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{c.name}</h3>
+                    <span className="flex-shrink-0 min-w-[1.75rem] h-6 px-2 rounded-full bg-gray-100 text-xs font-semibold text-gray-600 flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                      {c.count}
+                    </span>
+                  </div>
+                  {c.description && <p className="text-sm text-gray-500 mt-1 leading-snug">{c.description}</p>}
+                  <p className="text-xs text-gray-400 mt-2">{c.count} {c.count === 1 ? 'artikel' : 'artikelen'}</p>
+                </div>
+              </Link>
             ))}
           </div>
         )}
