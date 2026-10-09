@@ -43,6 +43,15 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
           className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all" />
       </div>
 
+      {/* Compact (bij Support): alleen zoeken, geen overzicht van alle artikelen */}
+      {compact && !searching ? (
+        articles.length > 0 && (
+          <Link to="/kennisbank" className="inline-flex items-center gap-1 mt-4 text-sm font-medium text-primary hover:text-primary-600">
+            Alle artikelen bekijken
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        )
+      ) : (
       <div className="mt-6 text-left">
         {loading ? (
           <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
@@ -67,6 +76,7 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
