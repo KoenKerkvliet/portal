@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
@@ -711,6 +711,11 @@ export default function DomainDetail() {
   }
 
   const isArchived = (project.status || 'active') === 'archived'
+  // Volgorde van de fasesecties: huidige en komende fases, daarna de afgeronde
+  const currentIndex = Math.max(0, phases.indexOf(project.current_phase))
+  const orderedPhases = [...phases.slice(currentIndex), ...phases.slice(0, currentIndex)]
+  const firstCompletedIndex = currentIndex > 0 ? phases.length - currentIndex : -1
+
   const availableClients = clients.filter(c => !projectClients.some(pc => pc.client_id === c.id))
 
   // Kop van de Intake-sectie: wat er gekoppeld is en hoe het ervoor staat
@@ -983,15 +988,23 @@ export default function DomainDetail() {
         </div>
       </section>
 
-      {/* ── Fases ── huidige fase direct onder Algemeen, daarna de rest in volgorde.
+      {/* ── Fases ── huidige fase direct onder Algemeen, daarna de komende fases en
+          onderaan, onder de balk 'Afgerond', de fases die al voorbij zijn.
           Op key gesorteerd, dus bij een faseswitch verhuist de sectie zonder dat
           onopgeslagen invoer verloren gaat. */}
-      {[project.current_phase, ...phases.filter(p => p !== project.current_phase)].map((phase) => {
+      {orderedPhases.map((phase, i) => {
         const instance = instances[phase]
         const isOpen = !!openSections[phase]
         const isCurrent = phase === project.current_phase
         return (
-          <section key={phase} id={`fase-${phase}`}
+          <Fragment key={phase}>
+          {i === firstCompletedIndex && (
+            <div className="flex items-center gap-3 pt-4">
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Afgerond</span>
+              <span className="flex-1 h-px bg-gray-200" />
+            </div>
+          )}
+          <section id={`fase-${phase}`}
             className={`bg-white rounded-xl shadow-sm border scroll-mt-4 ${isCurrent ? 'border-primary/30 ring-1 ring-primary/10' : 'border-gray-100'}`}>
             <button onClick={() => setOpenSections(prev => ({ ...prev, [phase]: !isOpen }))}
               className="w-full px-5 sm:px-6 py-4 flex items-center gap-3 text-left hover:bg-gray-50/60 transition-colors rounded-xl">
@@ -1100,6 +1113,7 @@ export default function DomainDetail() {
               )}
             </div>
           </section>
+          </Fragment>
         )
       })}
 
