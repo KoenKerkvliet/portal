@@ -18,20 +18,17 @@ const formatDate = (iso: string) =>
 
 type Status = { label: string; className: string; detail?: string }
 
+// Op inloggen gebaseerd, niet op een wachtwoord: klanten loggen standaard in met een
+// code per mail, dus een uitnodiging kan niet 'verlopen'.
 function accessStatus(row: AccessRow | undefined): Status {
   if (!row?.has_account) return { label: 'Geen toegang', className: 'bg-gray-100 text-gray-600' }
-  const pendingInvite = row.invited_at && !row.invite_used_at
-  if (pendingInvite && row.invite_expires_at && new Date(row.invite_expires_at) < new Date()) {
-    return { label: 'Uitnodiging verlopen', className: 'bg-amber-50 text-amber-700', detail: 'De klant kan via "Wachtwoord vergeten" op de inlogpagina alsnog een wachtwoord instellen.' }
+  if (row.last_sign_in_at) {
+    return { label: 'Actief', className: 'bg-green-50 text-green-700', detail: `Laatst ingelogd op ${formatDate(row.last_sign_in_at)}` }
   }
-  if (pendingInvite) {
-    return { label: 'Uitgenodigd', className: 'bg-blue-50 text-blue-700', detail: `Op ${formatDate(row.invited_at!)}; nog geen wachtwoord ingesteld.` }
+  if (row.invited_at) {
+    return { label: 'Uitgenodigd', className: 'bg-blue-50 text-blue-700', detail: `Op ${formatDate(row.invited_at)}; nog niet ingelogd.` }
   }
-  return {
-    label: 'Actief',
-    className: 'bg-green-50 text-green-700',
-    detail: row.last_sign_in_at ? `Laatst ingelogd op ${formatDate(row.last_sign_in_at)}` : 'Nog niet ingelogd',
-  }
+  return { label: 'Account', className: 'bg-blue-50 text-blue-700', detail: 'Nog niet ingelogd.' }
 }
 
 // Wie van de klanten van dit domein in het portaal kan (o.a. voor de strippenkaart)
@@ -60,7 +57,7 @@ export default function DomainPortalAccess({ projectId, projectClients }: { proj
       alert('Deze klant heeft geen e-mailadres. Voeg er eerst eentje toe op de Klanten-pagina.')
       return
     }
-    if (!confirm(`Stuur ${client.name} een uitnodiging voor het portaal?\n\nEr wordt een account aangemaakt op ${client.email} en de klant krijgt een mail met een link om een wachtwoord te kiezen.`)) return
+    if (!confirm(`Stuur ${client.name} een uitnodiging voor het portaal?\n\nEr wordt een account aangemaakt op ${client.email}. De klant krijgt een mail met uitleg hoe hij zonder wachtwoord inlogt (met een code per mail), en een link om eventueel toch een wachtwoord in te stellen.`)) return
 
     setInvitingId(pc.client_id)
     const { data, error } = await supabase.functions.invoke('invite-client', { body: { client_id: pc.client_id } })
@@ -77,7 +74,7 @@ export default function DomainPortalAccess({ projectId, projectClients }: { proj
       <div className="flex items-center gap-1.5 mb-2">
         <KeyRound className="w-3.5 h-3.5 text-gray-400" />
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Portaaltoegang</span>
-        <HelpTip text="In de onderhoudsfase loggen klanten in om hun strippenkaarten te bekijken en nieuwe te kopen. Hier zie je per klant van dit domein of dat kan, en stuur je een uitnodiging als er nog geen account is." />
+        <HelpTip text="In de onderhoudsfase loggen klanten in om hun strippenkaarten te bekijken en nieuwe te kopen. Hier zie je per klant van dit domein of dat kan, en stuur je een uitnodiging als er nog geen account is. De klant logt in met een code per mail (geen wachtwoord nodig), of stelt via de link in de uitnodiging toch een wachtwoord in. Klanten die al met een wachtwoord inloggen, merken hier niets van." />
       </div>
       {projectClients.length === 0 ? (
         <p className="text-xs text-gray-400">Er is nog geen klant aan dit domein gekoppeld (zie Algemeen).</p>

@@ -1,5 +1,7 @@
 // Geeft een handmatig aangemaakte klant portaaltoegang: maakt een auth-user aan,
-// koppelt clients.profile_id, en stuurt een welkomstmail met een wachtwoord-instel-link.
+// koppelt clients.profile_id, en stuurt een welkomstmail. Daarin staat hoe de klant
+// zonder wachtwoord inlogt (code per mail, zie login-code), met als optie een link om
+// toch een vast wachtwoord in te stellen.
 //
 // I.p.v. een Supabase recovery-link (max 1 uur geldig) gebruiken we een eigen invite-token
 // dat INVITE_EXPIRY_DAYS geldig blijft. De klant landt op /account-instellen?token=… en kiest
@@ -161,22 +163,34 @@ Deno.serve(async (req) => {
     }
 
     const setupUrl = `https://portal.designpixels.nl/account-instellen?token=${rawToken}`
+    const portalUrl = 'https://portal.designpixels.nl'
+
+    // Inloggen gaat standaard met een code per mail (login-code); het account bestaat al,
+    // dus dat werkt meteen. Een vast wachtwoord instellen blijft mogelijk via de setup-link.
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    const step = (n: number, html: string) =>
+      `<tr><td style="vertical-align:top;padding:0 12px 10px 0;"><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:12px;background:#f5f3ff;color:#6b46c1;font-weight:700;font-size:13px;">${n}</span></td><td style="padding:2px 0 10px;">${html}</td></tr>`
 
     const html = `<!DOCTYPE html>
 <html lang="nl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Welkom bij DesignPixels</title>
+<title>Je klantportaal staat klaar</title>
 </head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#222;font-size:15px;line-height:1.55;">
 <div style="max-width:560px;margin:0 auto;padding:32px 24px;">
 <p style="margin:0 0 24px;font-size:14px;color:#888;">DesignPixels</p>
-<p style="margin:0 0 16px;">Hoi ${fullName},</p>
-<p style="margin:0 0 16px;">Je portaal staat voor je klaar. Kies via onderstaande link een wachtwoord, daarna kun je direct inloggen op je klantportaal:</p>
-<p style="margin:0 0 24px;"><a href="${setupUrl}" style="color:#6b46c1;">${setupUrl}</a></p>
-<p style="margin:0 0 16px;">Log straks in met het e-mailadres waarop je deze mail hebt ontvangen (<strong>${email}</strong>) — daarmee is je account aan je klantgegevens gekoppeld.</p>
-<p style="margin:0 0 16px;color:#666;font-size:14px;">De link blijft ${INVITE_EXPIRY_DAYS} dagen geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.</p>
+<p style="margin:0 0 16px;">Hoi ${esc(fullName)},</p>
+<p style="margin:0 0 16px;">Je klantportaal staat voor je klaar. Daar vind je je strippenkaart, kun je nieuwe strippen kopen en zie je welke werkzaamheden ik voor je uitvoer.</p>
+<p style="margin:0 0 12px;"><strong>Inloggen gaat zonder wachtwoord:</strong></p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+${step(1, 'Ga naar je portaal via de knop hieronder.')}
+${step(2, `Vul je e-mailadres in: <strong>${esc(email)}</strong>`)}
+${step(3, 'Kies <strong>Inloggen met een code per mail</strong> en vul de code van 6 cijfers in die je dan ontvangt.')}
+</table>
+<p style="margin:0 0 24px;"><a href="${portalUrl}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:10px;">Naar je portaal</a></p>
+<p style="margin:0 0 16px;color:#666;font-size:14px;">Liever een vast wachtwoord? <a href="${setupUrl}" style="color:#6b46c1;">Stel het hier in</a>. Deze link is ${INVITE_EXPIRY_DAYS} dagen geldig; daarna kun je altijd nog met een code inloggen.</p>
 <p style="margin:32px 0 0;font-size:14px;color:#888;">Met vriendelijke groet,<br>DesignPixels</p>
 </div>
 </body>
@@ -184,13 +198,15 @@ Deno.serve(async (req) => {
 
     const text = `Hoi ${fullName},
 
-Je portaal staat voor je klaar. Kies via onderstaande link een wachtwoord, daarna kun je direct inloggen op je klantportaal:
+Je klantportaal staat voor je klaar. Daar vind je je strippenkaart, kun je nieuwe strippen kopen en zie je welke werkzaamheden ik voor je uitvoer.
 
+Inloggen gaat zonder wachtwoord:
+1. Ga naar je portaal: ${portalUrl}
+2. Vul je e-mailadres in: ${email}
+3. Kies "Inloggen met een code per mail" en vul de code van 6 cijfers in die je dan ontvangt.
+
+Liever een vast wachtwoord? Stel het hier in (${INVITE_EXPIRY_DAYS} dagen geldig; daarna kun je altijd nog met een code inloggen):
 ${setupUrl}
-
-Log straks in met het e-mailadres waarop je deze mail hebt ontvangen (${email}) — daarmee is je account aan je klantgegevens gekoppeld.
-
-De link blijft ${INVITE_EXPIRY_DAYS} dagen geldig. Lukt het niet op tijd? Vraag dan via de inlogpagina een nieuwe wachtwoord-link aan.
 
 Met vriendelijke groet,
 DesignPixels`
@@ -204,7 +220,7 @@ DesignPixels`
       body: JSON.stringify({
         from: EMAILIT_FROM,
         to: email,
-        subject: 'Welkom bij DesignPixels — kies je wachtwoord',
+        subject: 'Je klantportaal bij DesignPixels staat klaar',
         html,
         text,
       }),

@@ -274,7 +274,7 @@ export default function Clients() {
     }
     const ok = confirm(
       `Stuur ${client.name} een uitnodiging voor het portaal?\n\n` +
-      `Er wordt een account aangemaakt op ${client.email} en de klant krijgt een mail met een link om een wachtwoord te kiezen.`
+      `Er wordt een account aangemaakt op ${client.email}. De klant krijgt een mail met uitleg hoe hij zonder wachtwoord inlogt (met een code per mail), en een link om eventueel toch een wachtwoord in te stellen.`
     )
     if (!ok) return
 
