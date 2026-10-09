@@ -51,6 +51,8 @@ export interface Project {
   feedback_url: string | null
   staging_url: string | null
   hosted_by_us?: boolean
+  start_meeting_sent_at?: string | null
+  start_meeting_sent_for?: string | null
   staging_sent_at?: string | null
   files_sent_at?: string | null
   live_sent_at?: string | null

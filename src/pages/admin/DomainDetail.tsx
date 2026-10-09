@@ -88,6 +88,8 @@ export default function DomainDetail() {
   const [stagingSendResult, setStagingSendResult] = useState<string | undefined>()
   const [sendingFiles, setSendingFiles] = useState(false)
   const [filesSendResult, setFilesSendResult] = useState<string | undefined>()
+  const [sendingMeeting, setSendingMeeting] = useState(false)
+  const [meetingSendResult, setMeetingSendResult] = useState<string | undefined>()
   const [reviewUrl, setReviewUrl] = useState<string | null>(null)
   const [savingOplevering, setSavingOplevering] = useState(false)
   const [sendingDelivery, setSendingDelivery] = useState<DeliveryKind | null>(null)
@@ -626,6 +628,25 @@ export default function DomainDetail() {
     what: 'De link om bestanden te delen', setSending: setSendingFiles, setResult: setFilesSendResult,
   })
 
+  // Uitnodiging startgesprek, met agenda-uitnodiging als bijlage
+  const sendMeeting = async () => {
+    if (!project?.start_meeting_at) return
+    const when = new Date(project.start_meeting_at).toLocaleString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+    const again = project.start_meeting_sent_at ? `\n\nLet op: er is al eerder een uitnodiging gemaild op ${new Date(project.start_meeting_sent_at).toLocaleString('nl-NL')}.` : ''
+    if (!confirm(`Uitnodiging voor het startgesprek op ${when} naar de klant mailen?${again}`)) return
+
+    setSendingMeeting(true)
+    setMeetingSendResult(undefined)
+    const { data, failure } = await invokeMail('send-meeting-email', { project_id: project.id }, true)
+    setSendingMeeting(false)
+    if (!data) {
+      alert(`De uitnodiging is niet verstuurd: ${failure}`)
+      return
+    }
+    setMeetingSendResult(`Gemaild naar ${[data.sent_to].flat().join(', ')}`)
+    await fetchProject()
+  }
+
   // ── Weergave ──
 
   const scrollToSection = (sectionId: string, phase?: ProjectPhase) => {
@@ -973,6 +994,9 @@ export default function DomainDetail() {
                   sendResults={sendResults}
                   onChangeLinks={saveIntakeLinks}
                   onSend={sendIntakeDocument}
+                  sendingMeeting={sendingMeeting}
+                  meetingSendResult={meetingSendResult}
+                  onSendMeeting={sendMeeting}
                   updateProject={updateProject}
                 />
               )}

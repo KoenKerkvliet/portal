@@ -118,6 +118,9 @@ export default function DomainIntake({
   sendResults,
   onChangeLinks,
   onSend,
+  sendingMeeting,
+  meetingSendResult,
+  onSendMeeting,
   updateProject,
 }: {
   project: Project
@@ -130,23 +133,46 @@ export default function DomainIntake({
   sendResults: Partial<Record<IntakeDocKind, string>>
   onChangeLinks: (links: IntakeLinks) => void
   onSend: (kind: IntakeDocKind) => void
+  sendingMeeting: boolean
+  meetingSendResult?: string
+  onSendMeeting: () => void
   updateProject: (updates: Partial<Project>) => void
 }) {
+  const meetingAt = project.start_meeting_at
+  const meetingSentAt = project.start_meeting_sent_at
+  // Gemaild voor een ander tijdstip dan nu ingevuld: de klant heeft de oude datum
+  const meetingChanged = !!meetingSentAt && !!meetingAt && !!project.start_meeting_sent_for
+    && new Date(project.start_meeting_sent_for).getTime() !== new Date(meetingAt).getTime()
+
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="flex items-center gap-3 bg-gray-50 rounded-lg border border-gray-100 px-3 py-2">
-          <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Startgesprek</p>
-            <input type="datetime-local" value={toDatetimeLocal(project.start_meeting_at)}
-              onChange={(e) => updateProject({ start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
-              className="text-sm text-gray-700 bg-transparent border-none p-0 focus:outline-none focus:ring-0 cursor-pointer hover:text-primary transition-colors w-full" />
-          </div>
-        </div>
-      </div>
-
       <div className="divide-y divide-gray-100">
+        <div className="py-3 first:pt-0 last:pb-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Clock className="w-3.5 h-3.5 text-gray-400" />
+            <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Startgesprek</span>
+            <HelpTip text="Plan datum en tijd van het startgesprek. Invullen stuurt niets. Met 'Mail sturen' krijgt de klant een bevestiging met een agenda-uitnodiging (1 uur) als bijlage. Verzet je de afspraak, stuur dan opnieuw: de afspraak in de agenda van de klant wordt dan bijgewerkt. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan." />
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="datetime-local" value={toDatetimeLocal(meetingAt)}
+              onChange={(e) => updateProject({ start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+              className="flex-1 min-w-0 h-8 px-2 text-sm text-gray-800 bg-white border border-gray-200 rounded-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors" />
+            <button type="button" onClick={onSendMeeting} disabled={!meetingAt || sendingMeeting}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-primary hover:bg-primary-600 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              {sendingMeeting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {meetingChanged ? 'Wijziging mailen' : meetingSentAt ? 'Opnieuw mailen' : 'Mail sturen'}
+            </button>
+          </div>
+          {meetingAt && (
+            <p className={`mt-1.5 text-[11px] ${meetingChanged ? 'text-amber-600' : 'text-gray-500'}`}>
+              {meetingChanged
+                ? `Gemaild op ${formatDateTime(meetingSentAt!)} voor ${formatDateTime(project.start_meeting_sent_for!)}. De datum is daarna gewijzigd: mail de klant de nieuwe datum.`
+                : meetingSentAt ? `Uitnodiging gemaild op ${formatDateTime(meetingSentAt)}` : 'Nog niet gemaild'}
+            </p>
+          )}
+          {meetingSendResult && <p className="mt-1 text-[11px] text-green-600">{meetingSendResult}</p>}
+        </div>
+
         <DocRow
           kind="assignment"
           label="Opdracht"
