@@ -97,6 +97,7 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
 
       {status === 'declined' && (
         <div className="px-6 py-5 bg-amber-50 border-t border-amber-100">
+          <div className="max-w-3xl">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
               <MessageSquare className="w-4 h-4 text-amber-600" />
@@ -109,11 +110,13 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
           {design.approval?.declined_reason && (
             <p className="mt-3 text-sm text-gray-700 bg-white/70 rounded-xl px-4 py-3 whitespace-pre-wrap">{design.approval.declined_reason}</p>
           )}
+          </div>
         </div>
       )}
 
       {isOpen && (
-        <div className="px-6 py-5 border-t border-gray-100 space-y-4">
+        <div className="border-t border-gray-100">
+        <div className="max-w-3xl px-6 py-5 space-y-4">
           {!showFeedback ? (
             <>
               <p className="text-sm text-gray-600">Ben je tevreden met dit ontwerp? Keur het dan goed. Wil je iets anders zien, vraag dan een aanpassing aan.</p>
@@ -173,6 +176,7 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
             </>
           )}
         </div>
+        </div>
       )}
     </section>
   )
@@ -218,7 +222,9 @@ export default function PublicDesignPage({ token, focusType }: { token: string; 
   const designs = [...result.document.designs].sort((a, b) => Number(b.type === focusType) - Number(a.type === focusType))
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    // Breed: ontwerpen zijn 1920px breed en moeten zo groot mogelijk getoond worden,
+    // anders wordt de contentbreedte van het ontworpen site onnatuurlijk smal
+    <div className="max-w-[1920px] mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Ontwerp{designs.length === 1 ? '' : 'en'} voor {result.project_name}</h1>
         <p className="text-sm text-gray-500 mt-1">Bekijk het ontwerp en laat weten of het goed is. Klik op een afbeelding om hem op ware grootte te zien.</p>

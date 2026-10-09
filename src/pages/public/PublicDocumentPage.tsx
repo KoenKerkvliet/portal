@@ -37,7 +37,8 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center">
+        {/* Bij ontwerpen even breed als de (brede) ontwerpweergave eronder */}
+        <div className={`${type === 'design' ? 'max-w-[1920px] px-4' : 'max-w-3xl px-4 sm:px-6'} mx-auto h-14 sm:h-16 flex items-center`}>
           <span className="text-lg font-bold tracking-tight">
             <span className="text-primary">Design</span>
             <span className="text-gray-900">Pixels</span>
