@@ -60,7 +60,7 @@ const plans: PricingPlan[] = [
 const features = [
   {
     title: 'Flexibel gebruik',
-    description: 'Gebruik je strippen wanneer het jou uitkomt. Elk strip is 5 minuten service die je kunt inzetten voor support, updates of nieuwe features.',
+    description: 'Gebruik je strippen wanneer het jou uitkomt. Elke strip is 5 minuten werk die je kunt inzetten voor kleine aanpassingen, support of nieuwe functies.',
     icon: Zap,
   },
   {
@@ -169,7 +169,7 @@ export default function PunchCardShop() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-10 flex items-start gap-3">
           <Shield className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800 leading-relaxed">
-            <strong>Let op:</strong> Strippenkaarten zijn uitsluitend bedoeld voor onderhoud en aanpassingen aan je bestaande website.
+            <strong>Let op:</strong> Strippenkaarten zijn bedoeld voor kleine aanpassingen en extra werk aan je bestaande website.
             Het bouwen van een geheel nieuwe website valt hier niet onder en kan niet met een strippenkaart worden afgerekend.
           </p>
         </div>

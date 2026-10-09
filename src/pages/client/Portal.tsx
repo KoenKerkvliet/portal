@@ -453,7 +453,7 @@ export default function ClientPortal() {
               Onderhoud
             </h2>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Jouw website is live! Ik zorg voor onderhoud, updates en eventuele aanpassingen.
+              Jouw website is live! Wil je iets laten aanpassen of toevoegen? Daarvoor gebruik je je strippen. Hier zie je je strippenkaart en de werkzaamheden die ik voor je uitvoer.
             </p>
           </div>
         </section>
@@ -487,7 +487,7 @@ export default function ClientPortal() {
                         Geen actieve strippenkaart
                       </h3>
                       <p className="text-sm text-gray-500 leading-relaxed mb-6">
-                        Je hebt op dit moment geen actieve strippenkaart. Hierdoor kan ik geen onderhoud, updates of aanpassingen uitvoeren. Koop een nieuwe strippenkaart om weer gebruik te maken van mijn ondersteuning.
+                        Je hebt op dit moment geen actieve strippenkaart. Wil je iets laten aanpassen of extra werk laten doen? Koop dan een nieuwe strippenkaart.
                       </p>
                       <Link
                         to="/strippenkaart"

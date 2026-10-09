@@ -58,8 +58,8 @@ function generatePocReply(
       role: 'assistant',
       content:
         `Je hebt op dit moment geen actieve strippenkaart, dus je strippensaldo is 0. ` +
-        `Zonder strippen kan ik helaas geen onderhoud of aanpassingen uitvoeren. ` +
-        `Je kunt eenvoudig een nieuwe strippenkaart aanschaffen om weer gebruik te maken van mijn ondersteuning.`,
+        `Zonder strippen kan ik helaas geen aanpassingen of extra werk voor je uitvoeren. ` +
+        `Je kunt eenvoudig een nieuwe strippenkaart aanschaffen wanneer je weer iets wilt laten doen.`,
       cta: { label: 'Strippenkaart kopen', to: '/strippenkaart' },
     }
   }
@@ -81,9 +81,9 @@ function generatePocReply(
     return {
       role: 'assistant',
       content:
-        `In de onderhoudsfase zorg ik dat je website up-to-date en veilig blijft. ` +
-        `Denk aan updates, kleine aanpassingen en support. Je betaalt met strippen: ` +
-        `elke strip is 5 minuten service, die je inzet wanneer het jou uitkomt. ` +
+        `Met strippen laat je kleine aanpassingen en extra werk aan je website doen, ` +
+        `zoals een tekst wijzigen, een pagina toevoegen of een nieuwe functie. ` +
+        `Elke strip is 5 minuten werk, die je inzet wanneer het jou uitkomt. ` +
         `Heb je een specifieke vraag over je website "${ctx.projectName}"? Stel hem gerust.`,
     }
   }
@@ -93,7 +93,7 @@ function generatePocReply(
     return {
       role: 'assistant',
       content:
-        `Onderhoud reken je af met strippen. Een strippenkaart koop je vooraf en is ` +
+        `Kleine aanpassingen en extra werk reken je af met strippen. Een strippenkaart koop je vooraf en is ` +
         `geldig zolang je website bij mij gehost wordt (anders 2 jaar) — zo betaal je ` +
         `alleen voor wat je daadwerkelijk gebruikt. ` +
         `Op de strippenkaart-pagina vind je de actuele pakketten en prijzen.`,
@@ -168,8 +168,8 @@ export default function ChatWidget(props: ChatWidgetProps) {
         {
           role: 'assistant',
           content:
-            `Hoi ${clientName}! Ik ben je digitale assistent voor de onderhoudsfase. ` +
-            `Je kunt me bijvoorbeeld vragen naar je strippensaldo, hoe onderhoud werkt, ` +
+            `Hoi ${clientName}! Ik ben je digitale assistent. ` +
+            `Je kunt me bijvoorbeeld vragen naar je strippensaldo, waarvoor je strippen gebruikt, ` +
             `of hoe je iets aanvraagt. Waarmee kan ik je helpen?`,
         },
       ])
