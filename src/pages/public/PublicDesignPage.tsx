@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { CalendarClock, Check, Loader2, MessageSquare, Palette, RefreshCw, XCircle, ZoomIn } from 'lucide-react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { ArrowDown, CalendarClock, Check, Loader2, MessageSquare, Palette, RefreshCw, XCircle, ZoomIn } from 'lucide-react'
 import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
 import { todayDate } from '../../components/domain/domainShared'
 
@@ -182,6 +182,33 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
   )
 }
 
+// Positie van het scherm in /mockups/monitor.webp (in procenten van de afbeelding);
+// het ontwerp ligt onder de monitor en is zichtbaar door het uitgespaarde scherm
+const MONITOR_SCREEN = { left: '4.038%', top: '5.271%', width: '91.795%', height: '62.713%' }
+
+// Het bovenste stuk van het ontwerp (16:9, de hero) in een monitor. Op apparaten met
+// een muis scrolt het scherm bij hover langzaam door het hele ontwerp; op een telefoon
+// niet (Tailwind past hover: alleen toe op apparaten die kunnen hoveren).
+function MonitorPreview({ imageUrl, title }: { imageUrl: string; title: string }) {
+  const [scrollMs, setScrollMs] = useState(8000)
+  return (
+    <div className="group relative w-full max-w-[760px] mx-auto">
+      <div className="absolute overflow-hidden bg-white" style={MONITOR_SCREEN}>
+        <img src={imageUrl} alt={`${title} in een monitor`}
+          onLoad={(e) => {
+            // Langer ontwerp = langzamer scrollen: ongeveer 2,5 seconde per schermhoogte
+            const { naturalWidth, naturalHeight } = e.currentTarget
+            const screens = naturalWidth ? (naturalHeight / naturalWidth) / (9 / 16) - 1 : 0
+            setScrollMs(Math.min(20000, Math.max(2500, Math.round(screens * 2500))))
+          }}
+          style={{ '--scroll-ms': `${scrollMs}ms` } as CSSProperties}
+          className="w-full h-full object-cover object-top transition-[object-position] duration-700 ease-out group-hover:object-bottom group-hover:duration-(--scroll-ms) group-hover:ease-in-out" />
+      </div>
+      <img src="/mockups/monitor.webp" alt="" aria-hidden="true" className="relative w-full h-auto pointer-events-none select-none" />
+    </div>
+  )
+}
+
 // Designs van een domein beoordelen via de link in de mail, zonder inloggen
 export default function PublicDesignPage({ token, focusType }: { token: string; focusType: string | null }) {
   const [result, setResult] = useState<DesignResult | null>(null)
@@ -220,15 +247,46 @@ export default function PublicDesignPage({ token, focusType }: { token: string; 
 
   // Het design uit de mail eerst, daarna de rest in vaste volgorde
   const designs = [...result.document.designs].sort((a, b) => Number(b.type === focusType) - Number(a.type === focusType))
+  // In de monitor een pagina, geen styleguide: liefst het design uit de mail, anders de homepage
+  const monitorDesign = designs.find(d => d.type === focusType && d.type !== 'styleguide')
+    || designs.find(d => d.type === 'homepage')
+    || designs.find(d => d.type !== 'styleguide')
+    || designs[0]
 
   return (
     // Breed: ontwerpen zijn 1920px breed en moeten zo groot mogelijk getoond worden,
     // anders wordt de contentbreedte van het ontworpen site onnatuurlijk smal
     <div className="max-w-[1920px] mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Ontwerp{designs.length === 1 ? '' : 'en'} voor {result.project_name}</h1>
-        <p className="text-sm text-gray-500 mt-1">Bekijk het ontwerp en laat weten of het goed is. Klik op een afbeelding om hem op ware grootte te zien.</p>
-      </div>
+      <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[5fr_7fr] items-center gap-10 px-6 sm:px-10 py-10 lg:py-14">
+          <div>
+            <p className="text-xs font-semibold text-primary uppercase tracking-wider">Ontwerp ter beoordeling</p>
+            <h1 className="mt-3 text-3xl lg:text-4xl font-bold text-gray-900 leading-tight">
+              Welkom! Je ontwerp{designs.length > 1 ? 'en' : ''} voor {result.project_name} {designs.length > 1 ? 'staan' : 'staat'} klaar
+            </h1>
+            <p className="mt-4 text-gray-600 leading-relaxed">
+              Hieronder zie je het ontwerp op ware grootte, precies zoals je website eruit gaat zien. Bekijk het rustig
+              en keur het goed, of laat weten wat er anders moet. Inloggen is niet nodig.
+            </p>
+            {designs.length > 0 && (
+              <button type="button"
+                onClick={() => document.getElementById(`design-${designs[0].type}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                Bekijk het ontwerp
+                <ArrowDown className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {monitorDesign && (
+            <div>
+              <MonitorPreview imageUrl={monitorDesign.image_url} title={monitorDesign.title} />
+              <p className="hidden pointer-fine:block mt-3 text-center text-xs text-gray-400">
+                Ga met je muis over het scherm om door het ontwerp te scrollen
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
       {designs.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-sm text-gray-500">
           Er staan op dit moment geen ontwerpen klaar.
