@@ -30,7 +30,7 @@ export default function AddPunchCard({ projectId, nextNumber, onAdded, align = '
   const add = async () => {
     const pkg = PAID_PACKAGES[paidPackage]
     setSaving(true)
-    // Vervaldatum: 2 jaar; de database haalt die weg als het domein bij DesignPixels host
+    // Vervaldatum regelt de database (36 maanden, of geen bij websitebeheer); dit is alleen een terugvaloptie
     const { error } = await supabase.from('punch_cards').insert({
       project_id: projectId,
       number: nextNumber,
@@ -40,7 +40,7 @@ export default function AddPunchCard({ projectId, nextNumber, onAdded, align = '
       price: kind === 'paid' ? pkg.price : 0,
       status: 'active',
       purchased_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 3 * 365 * 24 * 60 * 60 * 1000).toISOString(),
     })
     setSaving(false)
     if (error) {

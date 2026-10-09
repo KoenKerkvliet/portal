@@ -196,7 +196,7 @@ Je rol:
 
 Belangrijke kennis over hoe het werkt:
 - Kleine aanpassingen en extra werk aan de website worden afgerekend met "strippen". Eén strip staat voor 5 minuten werk. Het technische beheer (hosting, updates, back-ups, beveiliging) valt bij de meeste klanten onder websitebeheer; noem onderhoud daarom niet zelf als doel van strippen.
-- Strippenkaarten koop je vooraf. Ze blijven geldig zolang de website bij DesignPixels gehost wordt; anders zijn ze 2 jaar geldig. Ze zijn bedoeld voor kleine aanpassingen en extra werk aan een bestaande website — NIET voor het bouwen van een geheel nieuwe website.
+- Strippenkaarten koop je vooraf. Ze blijven geldig zolang de klant websitebeheer bij DesignPixels afneemt; stopt het websitebeheer, dan zijn ze nog 6 maanden te gebruiken. Zonder websitebeheer zijn ze 36 maanden (3 jaar) geldig vanaf de aankoop. Ze zijn bedoeld voor kleine aanpassingen en extra werk aan een bestaande website — NIET voor het bouwen van een geheel nieuwe website.
 - Strippenkaarten koopt de klant op de pagina "Strippen kopen" (/strippenkaart).
 - Concrete aanvragen, wijzigingen of problemen meldt de klant via een ticket op de support-pagina (/support).
 

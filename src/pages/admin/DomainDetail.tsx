@@ -904,8 +904,8 @@ export default function DomainDetail() {
             <input type="checkbox" checked={Boolean(project.hosted_by_us)}
               onChange={(e) => updateProject({ hosted_by_us: e.target.checked })}
               className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30" />
-            <span className="text-sm text-gray-700">Website wordt bij DesignPixels gehost</span>
-            <HelpTip text="Aan: strippenkaarten van dit domein blijven geldig zolang de hosting loopt (geen vervaldatum), ook bestaande actieve kaarten. Uit: kaarten zijn 2 jaar geldig vanaf de aankoopdatum. De klant ziet dit op zijn strippenkaart en in de winkel." />
+            <span className="text-sm text-gray-700">Websitebeheer bij DesignPixels (incl. hosting)</span>
+            <HelpTip text="Aan: strippenkaarten van dit domein blijven geldig zolang het websitebeheer loopt (geen vervaldatum), ook bestaande actieve kaarten. Uit: nieuwe kaarten zijn 36 maanden geldig vanaf de aankoopdatum. Zet je het vinkje uit omdat de klant stopt met websitebeheer, dan krijgen actieve kaarten nog 6 maanden (zoals in de algemene voorwaarden). De klant ziet dit op zijn strippenkaart en in de winkel." />
           </label>
 
           <div className="min-w-0">
