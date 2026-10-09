@@ -280,16 +280,19 @@ export default function Dashboard() {
       const [projects, clients, invoices, quotes] = await Promise.all([
         supabase.from('projects').select('id, status', { count: 'exact' }),
         supabase.from('clients').select('id', { count: 'exact' }),
-        supabase.from('invoices').select('id, status', { count: 'exact' }),
+        supabase.from('invoices').select('id, status, is_recurring, is_test'),
         supabase.from('quotes').select('id', { count: 'exact' }),
       ])
 
+      // Sjablonen van terugkerende facturen en testfacturen zijn geen echte facturen;
+      // openstaand = verstuurd en nog niet betaald (concepten staan nog niet open)
+      const realInvoices = (invoices.data || []).filter((i) => !i.is_recurring && !i.is_test)
       setStats({
         projects: projects.count || 0,
         clients: clients.count || 0,
-        invoices: invoices.count || 0,
+        invoices: realInvoices.length,
         quotes: quotes.count || 0,
-        unpaidInvoices: invoices.data?.filter((i) => i.status !== 'paid').length || 0,
+        unpaidInvoices: realInvoices.filter((i) => i.status === 'sent').length,
         activeProjects: projects.data?.filter((p) => p.status === 'active').length || 0,
       })
       setLoading(false)
