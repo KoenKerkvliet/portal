@@ -190,7 +190,7 @@ export default function FormPage() {
 
   return (
     <div className="bg-[#f8f7fc] min-h-[calc(100vh-64px)]">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Back button */}
         <button
           type="button"

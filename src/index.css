@@ -290,3 +290,9 @@ button:not(:disabled),
 .prose-kb strong {
   color: #111827;
 }
+
+/* Altijd ruimte voor de scrollbalk, zodat header en content niet verspringen
+   tussen korte en lange pagina's */
+html {
+  scrollbar-gutter: stable;
+}

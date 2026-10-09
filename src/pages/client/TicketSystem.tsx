@@ -208,7 +208,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
     const sc = (statusConfig[selectedTicket.status] || fallbackStatus)
     const StatusIcon = sc.icon
     return (
-      <div className="max-w-3xl mx-auto">
+      <div>
         <button onClick={() => setSelectedTicket(null)}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors">
           <ArrowLeft className="w-4 h-4" />
@@ -342,7 +342,7 @@ export default function TicketSystem({ projectId, projectName }: Props) {
 
   // List view
   return (
-    <div className="max-w-3xl mx-auto">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Support & Meldingen</h2>

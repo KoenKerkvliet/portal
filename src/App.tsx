@@ -118,7 +118,7 @@ function AppRoutes() {
       {/* Document preview routes — accessible to both clients and admins (admin uses for previewing) */}
       <Route path="/offerte/:quoteId" element={
         <ProtectedRoute>
-          <div className="min-h-screen bg-gray-50 py-8 px-4">
+          <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
             <ClientQuotePage />
           </div>
         </ProtectedRoute>
@@ -130,7 +130,7 @@ function AppRoutes() {
       } />
       <Route path="/factuur/:invoiceId" element={
         <ProtectedRoute>
-          <div className="min-h-screen bg-gray-50 py-8 px-4">
+          <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
             <ClientInvoicePage />
           </div>
         </ProtectedRoute>

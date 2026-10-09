@@ -91,7 +91,7 @@ export default function PublicFormPage({ token }: { token: string }) {
   // Ingestuurd: bedankt + overzicht van de antwoorden (alleen-lezen)
   if (submitted_at) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 text-center">
           <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <Check className="w-6 h-6 text-green-600" />
@@ -121,7 +121,7 @@ export default function PublicFormPage({ token }: { token: string }) {
   }
 
   if (steps.length === 0) {
-    return <div className="max-w-2xl mx-auto py-12 text-center text-sm text-gray-500">Deze vragenlijst bevat nog geen vragen.</div>
+    return <div className="max-w-5xl mx-auto py-12 text-center text-sm text-gray-500">Deze vragenlijst bevat nog geen vragen.</div>
   }
 
   const step = steps[currentStep]
@@ -170,7 +170,7 @@ export default function PublicFormPage({ token }: { token: string }) {
   }
 
   return (
-    <div ref={topRef} className="max-w-2xl mx-auto scroll-mt-4">
+    <div ref={topRef} className="max-w-5xl mx-auto scroll-mt-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 sm:px-8 py-5 sm:py-6 border-b border-gray-100">
           <p className="text-xs font-semibold text-primary uppercase tracking-wider">Vragenlijst{result.project_name ? ` · ${result.project_name}` : ''}</p>

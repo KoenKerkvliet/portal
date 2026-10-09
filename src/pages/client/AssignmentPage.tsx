@@ -443,7 +443,7 @@ export default function ClientAssignmentPage({ publicToken }: { publicToken?: st
   if (!assignment) {
     return (
       <div className="bg-[#f8f7fc] min-h-[calc(100vh-64px)]">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {publicToken ? (
             <div className="text-center py-4">
               <ClipboardCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -465,7 +465,7 @@ export default function ClientAssignmentPage({ publicToken }: { publicToken?: st
 
   return (
     <div className="bg-[#f8f7fc] min-h-[calc(100vh-64px)]">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {!publicToken && (
           <button
             onClick={() => navigate(-1)}

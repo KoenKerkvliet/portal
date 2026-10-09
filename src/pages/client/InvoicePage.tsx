@@ -76,7 +76,7 @@ export default function InvoicePage({ publicToken }: { publicToken?: string }) {
 
   if (!invoice) {
     return (
-      <div className="max-w-3xl mx-auto py-12 text-center">
+      <div className="max-w-5xl mx-auto py-12 text-center">
         <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
         <h2 className="text-lg font-medium text-gray-900">Factuur niet gevonden</h2>
         {publicToken ? (
@@ -101,7 +101,7 @@ export default function InvoicePage({ publicToken }: { publicToken?: string }) {
   const invoiceDate = invoice.invoice_date || invoice.created_at
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       {/* Top bar */}
       <div className={`flex items-center mb-6 ${publicToken ? 'justify-end' : 'justify-between'}`}>
         {!publicToken && (

@@ -448,7 +448,7 @@ export default function ClientPortal() {
       {/* ============================================ */}
       {isOnderhoud && (<>
         <section className="bg-[#f8f7fc]">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 text-center">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 text-center">
             <h2 className="text-xl sm:text-2xl font-light text-gray-700 mb-2">
               Onderhoud
             </h2>
@@ -520,7 +520,7 @@ export default function ClientPortal() {
       {/* SECTION 1: White background — Hero / Overview */}
       {/* ============================================ */}
       {!isOnderhoud && <section className="bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           {/* Project name */}
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
             {project.name}

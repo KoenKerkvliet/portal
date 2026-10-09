@@ -278,7 +278,7 @@ export default function ClientFiles() {
 
   return (
     <div className="bg-[#f8f7fc] min-h-[calc(100vh-64px)]">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Mijn bestanden</h1>
         <p className="text-sm text-gray-500 mb-8">Hier vind je al je bestanden terug.</p>
 

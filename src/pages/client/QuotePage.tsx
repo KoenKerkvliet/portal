@@ -726,7 +726,7 @@ export default function QuotePage({ publicToken }: { publicToken?: string }) {
 
   if (!quote) {
     return (
-      <div className="max-w-3xl mx-auto py-12 text-center">
+      <div className="max-w-5xl mx-auto py-12 text-center">
         <FileCheck className="w-12 h-12 text-gray-300 mx-auto mb-4" />
         <h2 className="text-lg font-medium text-gray-900">Offerte niet gevonden</h2>
         {publicToken ? (
@@ -749,7 +749,7 @@ export default function QuotePage({ publicToken }: { publicToken?: string }) {
   const korEnabled = settings?.kor_enabled ?? false
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       {/* Top bar */}
       <div className={`flex items-center mb-6 ${publicToken ? 'justify-end' : 'justify-between'}`}>
         {!publicToken && (

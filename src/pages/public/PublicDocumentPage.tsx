@@ -39,7 +39,7 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 shadow-sm">
         {/* Bij ontwerpen even breed als de (brede) ontwerpweergave eronder */}
-        <div className={`${type === 'design' ? 'max-w-[1920px] px-4' : 'max-w-3xl px-4 sm:px-6'} mx-auto h-14 sm:h-16 flex items-center`}>
+        <div className={`${type === 'design' ? 'max-w-[1920px] px-4' : 'max-w-5xl px-4 sm:px-6 lg:px-8'} mx-auto h-14 sm:h-16 flex items-center`}>
           <span className="text-lg font-bold tracking-tight">
             <span className="text-primary">Design</span>
             <span className="text-gray-900">Pixels</span>
@@ -54,11 +54,11 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
           <PublicDesignPage key={token} token={token || ''} focusType={searchParams.get('type')} />
         </div>
       ) : type === 'form' ? (
-        <div className="py-8 px-4">
+        <div className="py-8 px-4 sm:px-6 lg:px-8">
           <PublicFormPage key={token} token={token || ''} />
         </div>
       ) : (
-        <div className="py-8 px-4">
+        <div className="py-8 px-4 sm:px-6 lg:px-8">
           {type === 'quote'
             ? <ClientQuotePage key={token} publicToken={token || ''} />
             : <ClientInvoicePage key={token} publicToken={token || ''} />}
