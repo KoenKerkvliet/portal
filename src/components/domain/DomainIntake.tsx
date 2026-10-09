@@ -138,6 +138,7 @@ export default function DomainIntake({
   sendingMeeting,
   meetingSendResult,
   onSendMeeting,
+  formsSection,
   updateProject,
 }: {
   project: Project
@@ -153,6 +154,8 @@ export default function DomainIntake({
   sendingMeeting: boolean
   meetingSendResult?: string
   onSendMeeting: () => void
+  // Vragenlijsten: tussen startgesprek en opdracht
+  formsSection?: React.ReactNode
   updateProject: (updates: Partial<Project>) => void
 }) {
   const meetingAt = project.start_meeting_at
@@ -196,6 +199,8 @@ export default function DomainIntake({
           )}
           {meetingSendResult && <p className="mt-1 text-[11px] text-green-600">{meetingSendResult}</p>}
         </div>
+
+        {formsSection && <div className="py-3">{formsSection}</div>}
 
         <DocRow
           kind="assignment"

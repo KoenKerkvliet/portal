@@ -1052,10 +1052,10 @@ export default function DomainDetail() {
                   sendingMeeting={sendingMeeting}
                   meetingSendResult={meetingSendResult}
                   onSendMeeting={sendMeeting}
+                  formsSection={<DomainForms projectId={project.id} projectName={project.name} />}
                   updateProject={updateProject}
                 />
               )}
-              {phase === 'intake' && <DomainForms projectId={project.id} projectName={project.name} />}
               {phase === 'design' && (
                 <LinkMailField
                   label="Bestanden delen"
