@@ -50,6 +50,7 @@ export interface Project {
   feedback_title: string | null
   feedback_url: string | null
   staging_url: string | null
+  hosted_by_us?: boolean
   staging_sent_at?: string | null
   files_sent_at?: string | null
   live_sent_at?: string | null

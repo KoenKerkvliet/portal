@@ -806,6 +806,14 @@ export default function DomainDetail() {
               help="Verwachte datum waarop de website klaar is. Staat ook in het domeinoverzicht. Klanten die inloggen zien deze datum in hun portaal." />
           </div>
 
+          <label className="flex items-center gap-2 cursor-pointer w-fit">
+            <input type="checkbox" checked={Boolean(project.hosted_by_us)}
+              onChange={(e) => updateProject({ hosted_by_us: e.target.checked })}
+              className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30" />
+            <span className="text-sm text-gray-700">Website wordt bij DesignPixels gehost</span>
+            <HelpTip text="Aan: strippenkaarten van dit domein blijven geldig zolang de hosting loopt (geen vervaldatum), ook bestaande actieve kaarten. Uit: kaarten zijn 2 jaar geldig vanaf de aankoopdatum. De klant ziet dit op zijn strippenkaart en in de winkel." />
+          </label>
+
           <div className="min-w-0">
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <div className="flex items-center gap-1.5">

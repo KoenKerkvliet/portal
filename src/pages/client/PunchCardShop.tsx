@@ -66,6 +66,7 @@ const features = [
   {
     title: 'Lange geldigheid',
     description: 'Wordt je website bij ons gehost, dan blijven je strippen geldig zolang de hosting loopt. Anders zijn ze 2 jaar geldig: ruim de tijd om ze in te zetten voor wat jij nodig hebt.',
+    hostedDescription: 'Je website wordt bij ons gehost, dus je strippen blijven geldig zolang de hosting loopt. Geen haast: zet ze in wanneer het jou uitkomt.',
     icon: Clock,
   },
   {
@@ -86,6 +87,7 @@ export default function PunchCardShop() {
   const [projectName, setProjectName] = useState('')
   const [projectUrl, setProjectUrl] = useState('')
   const [projectId, setProjectId] = useState('')
+  const [hosted, setHosted] = useState(false)
   const [buying, setBuying] = useState<string | null>(null)
   const isSuccess = searchParams.get('success') === 'true'
 
@@ -96,7 +98,7 @@ export default function PunchCardShop() {
       if (projectIds.length === 0) return
       const { data: project } = await supabase
         .from('projects')
-        .select('id, name, url')
+        .select('id, name, url, hosted_by_us')
         .in('id', projectIds)
         .eq('status', 'active')
         .limit(1)
@@ -105,6 +107,7 @@ export default function PunchCardShop() {
         setProjectId(project.id)
         setProjectName(project.name)
         setProjectUrl(project.url || '')
+        setHosted(Boolean(project.hosted_by_us))
       }
     }
     fetchProject()
@@ -204,7 +207,7 @@ export default function PunchCardShop() {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Check className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">Geldig zolang je bij ons host (anders 2 jaar)</span>
+                    <span className="text-sm text-gray-700">{hosted ? 'Geldig zolang je hosting bij ons loopt' : 'Geldig zolang je bij ons host (anders 2 jaar)'}</span>
                   </div>
                 </div>
 
@@ -241,7 +244,7 @@ export default function PunchCardShop() {
                   <feature.icon className="w-5 h-5 text-purple-500" />
                   <h3 className="font-semibold text-gray-900">{feature.title}</h3>
                 </div>
-                <p className="text-sm text-gray-500 leading-relaxed">{feature.description}</p>
+                <p className="text-sm text-gray-500 leading-relaxed">{hosted && 'hostedDescription' in feature ? feature.hostedDescription : feature.description}</p>
               </div>
             ))}
           </div>
