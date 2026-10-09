@@ -183,8 +183,10 @@ function DesignCard({ design, token, highlighted, onUpdated }: {
 }
 
 // Positie van het scherm in /mockups/monitor.webp (in procenten van de afbeelding);
-// het ontwerp ligt onder de monitor en is zichtbaar door het uitgespaarde scherm
-const MONITOR_SCREEN = { left: '4.038%', top: '5.271%', width: '91.795%', height: '62.713%' }
+// het ontwerp ligt onder de monitor en is zichtbaar door het uitgespaarde scherm.
+// Rondom 0,25-0,3% ruimer dan het gat (valt weg onder de zwarte rand), zodat door
+// afronding nergens een kier langs het ontwerp ontstaat.
+const MONITOR_SCREEN = { left: '3.788%', top: '4.971%', width: '92.295%', height: '63.313%' }
 
 // Het bovenste stuk van het ontwerp (16:9, de hero) in een monitor. Op apparaten met
 // een muis scrolt het scherm bij hover langzaam door het hele ontwerp; op een telefoon
@@ -193,7 +195,7 @@ function MonitorPreview({ imageUrl, title }: { imageUrl: string; title: string }
   const [scrollMs, setScrollMs] = useState(8000)
   return (
     <div className="group relative w-full max-w-[760px] mx-auto">
-      <div className="absolute overflow-hidden bg-white" style={MONITOR_SCREEN}>
+      <div className="absolute overflow-hidden bg-black" style={MONITOR_SCREEN}>
         <img src={imageUrl} alt={`${title} in een monitor`}
           onLoad={(e) => {
             // Langer ontwerp = langzamer scrollen: ongeveer 2,5 seconde per schermhoogte
