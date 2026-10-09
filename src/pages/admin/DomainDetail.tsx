@@ -13,6 +13,7 @@ import HelpTip, { Tooltip } from '../../components/HelpTip'
 import DomainPortalAccess from '../../components/domain/DomainPortalAccess'
 import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
 import DomainForms from '../../components/domain/DomainForms'
+import DomainPrivacy from '../../components/domain/DomainPrivacy'
 import DomainDesign from '../../components/domain/DomainDesign'
 import LinkMailField from '../../components/domain/LinkMailField'
 import DomainOplevering, { type DeliveryKind } from '../../components/domain/DomainOplevering'
@@ -68,6 +69,7 @@ export default function DomainDetail() {
   const [loading, setLoading] = useState(true)
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [projectClients, setProjectClients] = useState<ProjectClient[]>([])
+  const [generalTab, setGeneralTab] = useState<'gegevens' | 'privacy'>('gegevens')
   const [newClientOpen, setNewClientOpen] = useState(false)
   const [newClient, setNewClient] = useState(emptyNewClient)
   const [newClientError, setNewClientError] = useState('')
@@ -881,9 +883,25 @@ export default function DomainDetail() {
 
       {/* ── Algemeen ── */}
       <section id="algemeen" className="bg-white rounded-xl shadow-sm border border-gray-100 scroll-mt-4">
-        <div className="px-5 sm:px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">Algemeen</h2>
+        <div className="px-5 sm:px-6 pt-4 border-b border-gray-100 flex items-end justify-between gap-4">
+          <h2 className="text-sm font-semibold text-gray-900 pb-4">Algemeen</h2>
+          {/* Tabbladen: gegevens van het domein, of beveiligde gegevens versturen */}
+          <div className="flex items-end gap-1" role="tablist">
+            {([['gegevens', 'Gegevens'], ['privacy', 'Privacy']] as const).map(([value, label]) => (
+              <button key={value} type="button" role="tab" aria-selected={generalTab === value} onClick={() => setGeneralTab(value)}
+                className={`px-3 pb-3 pt-1 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  generalTab === value ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-800'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+        {generalTab === 'privacy' ? (
+          <div className="px-5 sm:px-6 py-4">
+            <DomainPrivacy projectId={project.id} projectClients={projectClients} />
+          </div>
+        ) : (
         <div className="px-5 sm:px-6 py-4 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
             <FieldInput label="Website" type="url" placeholder="https://voorbeeld.nl" linkable
@@ -992,6 +1010,7 @@ export default function DomainDetail() {
             </div>
           </div>
         </div>
+        )}
       </section>
 
       {/* ── Fases ── huidige fase direct onder Algemeen, daarna de komende fases en
