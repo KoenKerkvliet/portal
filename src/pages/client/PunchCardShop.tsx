@@ -65,7 +65,7 @@ const features = [
   },
   {
     title: 'Lange geldigheid',
-    description: 'Alle strippenkaarten zijn 2 jaar geldig. Ruim de tijd om je strippen in te zetten voor wat jij nodig hebt.',
+    description: 'Wordt je website bij ons gehost, dan blijven je strippen geldig zolang de hosting loopt. Anders zijn ze 2 jaar geldig: ruim de tijd om ze in te zetten voor wat jij nodig hebt.',
     icon: Clock,
   },
   {
@@ -204,7 +204,7 @@ export default function PunchCardShop() {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Check className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">2 jaar geldig</span>
+                    <span className="text-sm text-gray-700">Geldig zolang je bij ons host (anders 2 jaar)</span>
                   </div>
                 </div>
 
