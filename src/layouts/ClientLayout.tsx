@@ -1,7 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles, MessageSquare, ShoppingCart } from 'lucide-react'
+import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles, MessageSquare, ShoppingCart, BookOpenText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { ClientNotification } from '../types'
 import ChatWidget from '../components/ChatWidget'
@@ -188,6 +188,14 @@ export default function ClientLayout() {
                 </button>
               </>
             )}
+            {/* Kennisbank: voor iedereen, ook buiten de onderhoudsfase */}
+            <button
+              onClick={() => navigate('/kennisbank')}
+              className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-sm font-medium text-gray-500 hover:text-primary hover:bg-primary/5 border border-transparent hover:border-primary/10 transition-all"
+            >
+              <BookOpenText className="w-4 h-4" />
+              <span className="hidden sm:block">Kennisbank</span>
+            </button>
 
             {/* Profile dropdown */}
             <div className="relative" ref={menuRef}>

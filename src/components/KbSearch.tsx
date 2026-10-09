@@ -36,7 +36,7 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
 
   return (
     <div>
-      <div className="relative max-w-xl mx-auto">
+      <div className={`relative mx-auto ${compact ? 'max-w-xl' : 'max-w-2xl'}`}>
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus={autoFocus}
           placeholder="Waar kan ik je mee helpen? Bijv. 'openingstijden' of 'mail instellen'"
@@ -57,7 +57,7 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
             </div>
           )
         ) : (
-          <div className={`grid gap-4 ${compact ? 'sm:grid-cols-2' : 'md:grid-cols-2'}`}>
+          <div className={`grid gap-4 ${compact ? 'sm:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
             {groupByCategory(articles).map(([category, items]) => (
               <div key={category} className="rounded-xl border border-gray-100 overflow-hidden bg-white">
                 <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{category}</p>
