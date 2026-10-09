@@ -349,7 +349,7 @@ export default function Tickets() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Support</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
         <p className="text-sm text-gray-500 mt-1">Beheer tickets en meldingen van klanten.</p>
       </div>
 

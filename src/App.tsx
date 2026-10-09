@@ -47,6 +47,8 @@ import ClientSupport from './pages/client/Support'
 import Verify from './pages/Verify'
 import ResetPassword from './pages/ResetPassword'
 import AccountInstellen from './pages/AccountInstellen'
+import SectionTabs from './components/SectionTabs'
+import { LIBRARY_TABS, MAINTENANCE_TABS, SUPPORT_TABS } from './lib/adminSections'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -103,16 +105,22 @@ function AppRoutes() {
         <Route path="kosten" element={<Navigate to="/admin/financien" replace />} />
         <Route path="financien" element={<Financien />} />
 {/* Quote settings now in /admin/instellingen */}
-        <Route path="templates" element={<Templates />} />
-        <Route path="formulieren" element={<Forms />} />
-        <Route path="contentpaginas" element={<ContentPages />} />
+        <Route element={<SectionTabs tabs={LIBRARY_TABS} />}>
+          <Route path="templates" element={<Templates />} />
+          <Route path="formulieren" element={<Forms />} />
+          <Route path="contentpaginas" element={<ContentPages />} />
+          <Route path="bijlages" element={<Attachments />} />
+        </Route>
         <Route path="kennisbank" element={<KnowledgeBase />} />
-        <Route path="bijlages" element={<Attachments />} />
-        <Route path="tickets" element={<Tickets />} />
-        <Route path="chatgesprekken" element={<ChatLogs />} />
-        <Route path="onderhoud" element={<Onderhoud />} />
+        <Route element={<SectionTabs tabs={SUPPORT_TABS} />}>
+          <Route path="tickets" element={<Tickets />} />
+          <Route path="chatgesprekken" element={<ChatLogs />} />
+        </Route>
+        <Route element={<SectionTabs tabs={MAINTENANCE_TABS} />}>
+          <Route path="onderhoud" element={<Onderhoud />} />
+          <Route path="werkzaamheden" element={<Werkzaamheden />} />
+        </Route>
         <Route path="onderhoud/:projectId/timer" element={<OnderhoudTimer />} />
-        <Route path="werkzaamheden" element={<Werkzaamheden />} />
         <Route path="instellingen" element={<AdminSettings />} />
       </Route>
 

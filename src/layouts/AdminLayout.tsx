@@ -1,37 +1,42 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState } from 'react'
+import { LIBRARY_TABS, MAINTENANCE_TABS, SUPPORT_TABS } from '../lib/adminSections'
 import {
   LayoutDashboard,
   FolderKanban,
   Users,
   FileText,
   FileCheck,
-  Layers,
   Settings,
   LogOut,
   Menu,
   X,
-  BookOpen,
   BookOpenText,
-  ClipboardList,
+  Library,
   Package,
   ClipboardCheck,
   MessageSquare,
-  MessageCircle,
   Wrench,
-  History,
   Wallet,
-  Paperclip,
 } from 'lucide-react'
 
-const mainItems = [
+interface NavItem {
+  to: string
+  icon: typeof LayoutDashboard
+  label: string
+  end?: boolean
+  // Extra pagina's (tabbladen) waarbij dit menu-item actief is
+  also?: string[]
+}
+
+const mainItems: NavItem[] = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/projecten', icon: FolderKanban, label: 'Domeinen' },
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
 ]
 
-const financeItems = [
+const financeItems: NavItem[] = [
   { to: '/admin/facturen', icon: FileText, label: 'Facturen' },
   { to: '/admin/offertes', icon: FileCheck, label: 'Offertes' },
   { to: '/admin/opdrachten', icon: ClipboardCheck, label: 'Opdrachten' },
@@ -39,24 +44,20 @@ const financeItems = [
   { to: '/admin/financien', icon: Wallet, label: 'Financiën' },
 ]
 
-const contentItems = [
-  { to: '/admin/templates', icon: Layers, label: 'Templates' },
-  { to: '/admin/formulieren', icon: ClipboardList, label: 'Formulieren' },
-  { to: '/admin/contentpaginas', icon: BookOpen, label: "Contentpagina's" },
-  { to: '/admin/bijlages', icon: Paperclip, label: 'Bijlages' },
+const contentItems: NavItem[] = [
+  { to: '/admin/templates', icon: Library, label: 'Bibliotheek', also: LIBRARY_TABS.map(t => t.to) },
 ]
 
-const supportItems = [
-  { to: '/admin/tickets', icon: MessageSquare, label: 'Support' },
+const supportItems: NavItem[] = [
+  { to: '/admin/tickets', icon: MessageSquare, label: 'Support', also: SUPPORT_TABS.map(t => t.to) },
   { to: '/admin/kennisbank', icon: BookOpenText, label: 'Kennisbank' },
-  { to: '/admin/chatgesprekken', icon: MessageCircle, label: 'Chatgesprekken' },
-  { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud' },
-  { to: '/admin/werkzaamheden', icon: History, label: 'Werkzaamheden' },
+  { to: '/admin/onderhoud', icon: Wrench, label: 'Onderhoud', also: MAINTENANCE_TABS.map(t => t.to) },
 ]
 
 export default function AdminLayout() {
   const { signOut, profile } = useAuth()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
 
@@ -86,11 +87,11 @@ export default function AdminLayout() {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  end={'end' in item ? (item as { end?: boolean }).end : undefined}
+                  end={item.end}
                   onClick={closeSidebar}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
+                      isActive || item.also?.some(p => pathname.startsWith(p))
                         ? 'bg-sidebar-active text-white'
                         : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
                     }`
