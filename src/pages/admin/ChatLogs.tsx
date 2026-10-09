@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { MessageCircle, ArrowLeft, Loader2, AlertTriangle, Trash2 } from 'lucide-react'
 
@@ -28,6 +29,9 @@ export default function ChatLogs() {
   const [messages, setMessages] = useState<ChatMessageRow[]>([])
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // ?gesprek=<id> (link uit de chatmelding per mail) opent dat gesprek direct
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linkedId = searchParams.get('gesprek')
 
   const fetchConversations = async () => {
     const { data } = await supabase
@@ -39,6 +43,14 @@ export default function ChatLogs() {
   }
 
   useEffect(() => { fetchConversations() }, [])
+
+  useEffect(() => {
+    if (!linkedId || loading) return
+    const conv = conversations.find((c) => c.id === linkedId)
+    setSearchParams({}, { replace: true })
+    if (conv) openConversation(conv)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedId, loading])
 
   const openConversation = async (conv: Conversation) => {
     setSelected(conv)

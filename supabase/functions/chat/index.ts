@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { escapeHtml, mailButton, sendMail } from '../_shared/projectMail.ts'
 
 // ---------------------------------------------------------------------------
 // chat — context-bewuste support-assistent voor de onderhoudsfase.
@@ -17,6 +18,54 @@ import { corsHeaders } from '../_shared/cors.ts'
 // ---------------------------------------------------------------------------
 
 const ANTHROPIC_MODEL = 'claude-haiku-4-5'
+
+const ADMIN_URL = 'https://portal.designpixels.nl/admin/chatgesprekken'
+// Na zoveel minuten stilte telt een nieuw bericht in hetzelfde gesprek weer als nieuw
+const NOTIFY_AFTER_SILENCE_MIN = 30
+
+// Mail aan DesignPixels over een chatbericht van een klant
+async function notifyAdmin(opts: {
+  conversationId: string
+  clientName: string
+  projectName: string
+  question: string
+  reply: string
+  unresolved: boolean
+  isNew: boolean
+}) {
+  const to = Deno.env.get('ADMIN_EMAIL') || 'koen.kerkvliet@designpixels.nl'
+  const who = opts.clientName || 'Een klant'
+  const subject = opts.unresolved
+    ? `Chat: de assistent kon ${who} niet helpen`
+    : opts.isNew ? `Nieuwe chat van ${who}` : `${who} chat weer verder`
+  const url = `${ADMIN_URL}?gesprek=${opts.conversationId}`
+  const block = (label: string, text: string, bg: string) =>
+    `<p style="margin:0 0 6px;font-size:13px;color:#888;">${label}</p>
+<div style="margin:0 0 20px;padding:12px 14px;background:${bg};border-radius:10px;white-space:pre-wrap;">${escapeHtml(text)}</div>`
+  const html = `<!DOCTYPE html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#222;font-size:15px;line-height:1.55;">
+<div style="max-width:560px;margin:0 auto;padding:32px 24px;">
+<p style="margin:0 0 24px;font-size:14px;color:#888;">DesignPixels · Chat-assistent</p>
+<p style="margin:0 0 20px;"><strong>${escapeHtml(who)}</strong>${opts.projectName ? ` (${escapeHtml(opts.projectName)})` : ''} heeft een vraag gesteld in het klantportaal.</p>
+${opts.unresolved ? '<p style="margin:0 0 20px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;color:#92400e;">De assistent kon deze vraag niet goed beantwoorden. Misschien wil je zelf contact opnemen.</p>' : ''}
+${block('Vraag', opts.question, '#f3f0ff')}
+${block('Antwoord van de assistent', opts.reply, '#f6f6f6')}
+${mailButton(url, 'Bekijk het gesprek')}
+</div></body></html>`
+  const text = `${who}${opts.projectName ? ` (${opts.projectName})` : ''} heeft een vraag gesteld in het klantportaal.
+${opts.unresolved ? '
+De assistent kon deze vraag niet goed beantwoorden.
+' : ''}
+Vraag:
+${opts.question}
+
+Antwoord van de assistent:
+${opts.reply}
+
+Bekijk het gesprek: ${url}`
+  await sendMail(to, subject, html, text)
+}
 
 interface ChatTurn {
   role: 'user' | 'assistant'
@@ -316,6 +365,13 @@ ${absenceLines || '  (geen afwezigheid gepland)'}`
         const lastUser = cleaned[cleaned.length - 1]
         const now = new Date().toISOString()
 
+        // Hoe stond het gesprek ervoor? Bepaalt of ik een mail krijg.
+        const { data: existing } = await admin
+          .from('chat_conversations')
+          .select('last_message_at, has_unresolved')
+          .eq('id', conversationId)
+          .maybeSingle()
+
         // Upsert het gesprek (idempotent op de client-side UUID).
         await admin.from('chat_conversations').upsert({
           id: conversationId,
@@ -343,6 +399,29 @@ ${absenceLines || '  (geen afwezigheid gepland)'}`
         }
         if (unresolved) updatePayload.has_unresolved = true
         await admin.from('chat_conversations').update(updatePayload).eq('id', conversationId)
+
+        // Mail bij een nieuw gesprek, bij een vervolg na een stilte, en als de
+        // assistent voor het eerst in dit gesprek geen antwoord wist. Zo mis ik
+        // niets, zonder een mail per bericht.
+        const silentSince = existing?.last_message_at ? Date.parse(existing.last_message_at) : 0
+        const isNew = !existing
+        const afterSilence = !isNew && Date.now() - silentSince > NOTIFY_AFTER_SILENCE_MIN * 60_000
+        const firstUnresolved = unresolved && !existing?.has_unresolved
+        if (isNew || afterSilence || firstUnresolved) {
+          const mail = notifyAdmin({
+            conversationId,
+            clientName: client?.name || clientFirstName,
+            projectName,
+            question: lastUser.content,
+            reply,
+            unresolved,
+            isNew,
+          }).catch((mailErr) => console.error('Kon chatmelding niet mailen:', mailErr))
+          // Niet wachten op de mail; het antwoord gaat direct naar de klant
+          const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime
+          if (runtime) runtime.waitUntil(mail)
+          else await mail
+        }
       } catch (logErr) {
         console.error('Kon gesprek niet loggen:', logErr)
       }
