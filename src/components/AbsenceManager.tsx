@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CalendarOff, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { ANNOUNCE_DAYS, absenceHeadline, absenceState, formatAbsenceDay, type Absence } from '../lib/absence'
+import { ABSENCE_REASONS, ANNOUNCE_DAYS, absenceEmergencyText, absenceHeadline, absenceReason, absenceState, formatAbsenceDay, type Absence } from '../lib/absence'
 
 const emptyForm = { starts_on: '', ends_on: '', message: '', emergency: '' }
 
@@ -92,9 +92,9 @@ export default function AbsenceManager() {
             </span>
             <span className={`px-2 py-0.5 rounded-full border text-[11px] font-medium ${s.className}`}>{s.label}</span>
           </div>
-          {(a.message || a.emergency) && (
-            <p className="text-xs text-gray-500 mt-0.5">{[a.message, a.emergency && `Spoed: ${a.emergency}`].filter(Boolean).join(' · ')}</p>
-          )}
+          <p className="text-xs text-gray-500 mt-0.5">
+            {absenceReason(a).charAt(0).toUpperCase() + absenceReason(a).slice(1)}{a.emergency ? ` · ${absenceEmergencyText(a)}` : ''}
+          </p>
         </div>
         {state !== 'past' && (
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -156,21 +156,29 @@ export default function AbsenceManager() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Toelichting (optioneel)</label>
-                    <input type="text" maxLength={200} value={form.message} className={inputClass} placeholder="bijv. Ik ben op vakantie. Na terugkomst reageer ik zo snel mogelijk."
-                      onChange={(e) => setForm(f => ({ ...f, message: e.target.value }))} />
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Reden (optioneel)</label>
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <span className="flex-shrink-0">Ik ben</span>
+                      <input type="text" maxLength={60} list="absence-reasons" value={form.message} className={inputClass} placeholder="op vakantie"
+                        onChange={(e) => setForm(f => ({ ...f, message: e.target.value }))} />
+                      <span className="flex-shrink-0">tot en met …</span>
+                    </div>
+                    <datalist id="absence-reasons">{ABSENCE_REASONS.map(r => <option key={r} value={r} />)}</datalist>
+                    <p className="text-[11px] text-gray-400 mt-1">Leeg laten = "afwezig".</p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Bij spoed (optioneel)</label>
-                    <input type="text" maxLength={200} value={form.emergency} className={inputClass} placeholder="bijv. Bel 06 45 35 24 87; ik kijk dagelijks even naar mijn mail."
-                      onChange={(e) => setForm(f => ({ ...f, emergency: e.target.value }))} />
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <span className="flex-shrink-0">Heb je spoed?</span>
+                      <input type="text" maxLength={200} value={form.emergency} className={inputClass} placeholder="Bel me op 06 45 35 24 87."
+                        onChange={(e) => setForm(f => ({ ...f, emergency: e.target.value }))} />
+                    </div>
                   </div>
                   {form.starts_on && form.ends_on && (
                     <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 text-xs text-gray-600">
                       <span className="font-medium text-gray-700">Voorbeeld tijdens je afwezigheid: </span>
                       {absenceHeadline({ ...form, id: '', created_at: '' }, form.starts_on)}
-                      {form.message && ` ${form.message.trim()}`}
-                      {form.emergency && ` Spoed? ${form.emergency.trim()}`}
+                      {form.emergency.trim() && ` ${absenceEmergencyText(form)}`}
                     </div>
                   )}
                   {error && <p className="text-xs text-red-600">{error}</p>}

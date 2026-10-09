@@ -5,7 +5,7 @@ export interface Absence {
   id: string
   starts_on: string // YYYY-MM-DD, eerste dag
   ends_on: string // YYYY-MM-DD, laatste dag (inclusief)
-  message: string
+  message: string // reden die de zin aanvult: "Ik ben <reden> tot en met …", bijv. "op vakantie"
   emergency: string
   created_at: string
 }
@@ -44,13 +44,26 @@ export function visibleAbsence(absences: Absence[], today = todayYmd()): Absence
     .find(a => ['active', 'announced'].includes(absenceState(a, today))) || null
 }
 
-// Hoofdzin van de melding, in de ik-vorm
+export const ABSENCE_REASONS = ['op vakantie', 'vrij', 'met verlof', 'op cursus']
+
+// Reden als deel van de zin: zonder hoofdletter en punt aan het eind; leeg = "afwezig"
+export const absenceReason = (a: Pick<Absence, 'message'>) => {
+  const r = a.message.trim().replace(/[.!]+$/, '')
+  return r ? r.charAt(0).toLowerCase() + r.slice(1) : 'afwezig'
+}
+
+// Hoofdzin van de melding, in de ik-vorm, met de reden in de zin
 export function absenceHeadline(a: Absence, today = todayYmd()): string {
   const sameDay = a.starts_on === a.ends_on
+  const reason = absenceReason(a)
   if (absenceState(a, today) === 'active') {
-    return sameDay ? 'Ik ben vandaag afwezig.' : `Ik ben afwezig tot en met ${formatAbsenceDay(a.ends_on)}.`
+    return sameDay ? `Ik ben vandaag ${reason}.` : `Ik ben ${reason} tot en met ${formatAbsenceDay(a.ends_on)}.`
   }
   return sameDay
-    ? `Let op: op ${formatAbsenceDay(a.starts_on)} ben ik afwezig.`
-    : `Let op: van ${formatAbsenceDay(a.starts_on)} tot en met ${formatAbsenceDay(a.ends_on)} ben ik afwezig.`
+    ? `Let op: op ${formatAbsenceDay(a.starts_on)} ben ik ${reason}.`
+    : `Let op: van ${formatAbsenceDay(a.starts_on)} tot en met ${formatAbsenceDay(a.ends_on)} ben ik ${reason}.`
 }
+
+// Spoedregeling als losse vraag-en-antwoordzin
+export const absenceEmergencyText = (a: Pick<Absence, 'emergency'>) =>
+  a.emergency.trim() ? `Heb je spoed? ${a.emergency.trim()}` : ''

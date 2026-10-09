@@ -243,7 +243,7 @@ Houd antwoorden kort (max ~4 zinnen) tenzij de klant om uitleg vraagt.`
       .order('starts_on')
       .limit(3)
     const absenceLines = ((absenceData || []) as { starts_on: string; ends_on: string; message: string; emergency: string }[])
-      .map((a) => `  - van ${a.starts_on} tot en met ${a.ends_on}${a.starts_on <= todayAms ? ' (NU afwezig)' : ''}${a.message ? `; toelichting: ${a.message}` : ''}${a.emergency ? `; bij spoed: ${a.emergency}` : ''}`)
+      .map((a) => `  - van ${a.starts_on} tot en met ${a.ends_on}${a.starts_on <= todayAms ? ' (NU afwezig)' : ''}${a.message ? `; reden: ${a.message}` : ''}${a.emergency ? `; bij spoed: ${a.emergency}` : ''}`)
       .join('\n')
 
     const ticketLines = openTickets.length > 0

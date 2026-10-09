@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CalendarOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { absenceHeadline, absenceState, visibleAbsence, type Absence } from '../lib/absence'
+import { absenceEmergencyText, absenceHeadline, absenceState, visibleAbsence, type Absence } from '../lib/absence'
 
 // Melding over afwezigheid, voor klanten. Leest alleen huidige en komende periodes
 // (database staat dat ook zonder login toe) en verschijnt vanaf 14 dagen voor de start.
@@ -25,8 +25,7 @@ export default function AbsenceBanner({ width = 'max-w-5xl' }: { width?: string 
         <CalendarOff className={`w-4 h-4 flex-shrink-0 mt-0.5 ${active ? 'text-amber-600' : 'text-primary'}`} />
         <p className={active ? 'text-amber-900' : 'text-gray-700'}>
           <strong className="font-semibold">{absenceHeadline(absence)}</strong>
-          {absence.message && <> {absence.message}</>}
-          {absence.emergency && <> <span className="whitespace-nowrap">Spoed?</span> {absence.emergency}</>}
+          {absence.emergency && <> {absenceEmergencyText(absence)}</>}
         </p>
       </div>
     </div>
