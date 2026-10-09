@@ -173,7 +173,7 @@ export default function DomainIntake({
           <div className="flex items-center gap-1.5 mb-1">
             <Clock className="w-3.5 h-3.5 text-gray-400" />
             <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Startgesprek</span>
-            <HelpTip text="Plan datum en tijd van het startgesprek, en eventueel de locatie: een adres, 'telefonisch' of een videolink. Invullen stuurt niets. Met 'Mail sturen' krijgt de klant een bevestiging met een agenda-uitnodiging (1 uur) als bijlage; een videolink wordt in de mail een knop. Verzet je de afspraak of wijzig je de locatie, stuur dan opnieuw: de afspraak in de agenda van de klant wordt dan bijgewerkt. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan." />
+            <HelpTip text="Plan datum en tijd van het startgesprek, en eventueel de locatie: een adres, 'telefonisch' of een videolink. Invullen stuurt niets. Met 'Mail sturen' krijgt de klant een bevestiging met datum, tijd en locatie; een videolink wordt in de mail een knop. Verzet je de afspraak of wijzig je de locatie, stuur dan opnieuw. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan." />
           </div>
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
             <input type="datetime-local" value={toDatetimeLocal(meetingAt)}

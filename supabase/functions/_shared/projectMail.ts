@@ -66,17 +66,15 @@ ${bodyHtml}
 </body>
 </html>`
 
-export type MailAttachment = { filename: string; content: string; content_type: string } // content in base64
-
 // Verstuurt via EmailIt; geeft false terug (en logt) als het mislukt
-export async function sendMail(to: string, subject: string, html: string, text: string, attachments?: MailAttachment[]): Promise<boolean> {
+export async function sendMail(to: string, subject: string, html: string, text: string): Promise<boolean> {
   const apiKey = Deno.env.get('EMAILIT_API_KEY')
   if (!apiKey) throw new Error('EMAILIT_API_KEY not configured')
   const from = Deno.env.get('EMAILIT_FROM') || 'DesignPixels <noreply@designpixels.nl>'
   const res = await fetch('https://api.emailit.com/v2/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, subject, html, text, ...(attachments?.length ? { attachments } : {}) }),
+    body: JSON.stringify({ from, to, subject, html, text }),
   })
   if (!res.ok) {
     console.error(`EmailIt API error for ${to}: ${res.status} ${await res.text()}`)
