@@ -633,7 +633,8 @@ export default function DomainDetail() {
     if (!project?.start_meeting_at) return
     const when = new Date(project.start_meeting_at).toLocaleString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
     const again = project.start_meeting_sent_at ? `\n\nLet op: er is al eerder een uitnodiging gemaild op ${new Date(project.start_meeting_sent_at).toLocaleString('nl-NL')}.` : ''
-    if (!confirm(`Uitnodiging voor het startgesprek op ${when} naar de klant mailen?${again}`)) return
+    const where = project.start_meeting_location?.trim() ? `\nLocatie: ${project.start_meeting_location.trim()}` : '\nZonder locatie.'
+    if (!confirm(`Uitnodiging voor het startgesprek op ${when} naar de klant mailen?${where}${again}`)) return
 
     setSendingMeeting(true)
     setMeetingSendResult(undefined)

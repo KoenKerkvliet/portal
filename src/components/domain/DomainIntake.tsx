@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { Project, Quote, Invoice, Assignment } from '../../types'
 import { Clock, ClipboardCheck, FileCheck, FileText, Send, Loader2, ExternalLink } from 'lucide-react'
 import HelpTip from '../HelpTip'
@@ -36,6 +37,22 @@ function docStatus(doc: Quote | Invoice | Assignment): DocStatus {
   if (status === 'paid') return { label: 'Betaald', className }
   if (status === 'sent') return { label: 'Verzonden', className }
   return { label: 'Concept', className }
+}
+
+// Locatie van het startgesprek; slaat op bij verlaten van het veld (of Enter), Escape zet terug
+function LocationInput({ value, onSave }: { value: string; onSave: (value: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => { setDraft(value) }, [value])
+  return (
+    <input type="text" value={draft} onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { if (draft.trim() !== value.trim()) onSave(draft) }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') { setDraft(value); e.currentTarget.blur() }
+      }}
+      placeholder="Locatie of link (optioneel)" aria-label="Locatie of link"
+      className="flex-1 min-w-0 h-8 px-2.5 text-sm text-gray-800 bg-white border border-gray-200 rounded-md placeholder:text-gray-300 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors" />
+  )
 }
 
 const publicPath: Record<IntakeDocKind, string> = { assignment: 'opdracht', quote: 'offerte', invoice: 'factuur' }
@@ -141,8 +158,13 @@ export default function DomainIntake({
   const meetingAt = project.start_meeting_at
   const meetingSentAt = project.start_meeting_sent_at
   // Gemaild voor een ander tijdstip dan nu ingevuld: de klant heeft de oude datum
-  const meetingChanged = !!meetingSentAt && !!meetingAt && !!project.start_meeting_sent_for
+  const timeChanged = !!meetingSentAt && !!meetingAt && !!project.start_meeting_sent_for
     && new Date(project.start_meeting_sent_for).getTime() !== new Date(meetingAt).getTime()
+  // Ook een gewijzigde locatie moet de klant nog krijgen
+  const locationChanged = !!meetingSentAt && !!meetingAt
+    && (project.start_meeting_location || '').trim() !== (project.start_meeting_sent_location || '').trim()
+  const meetingChanged = timeChanged || locationChanged
+  const changedWhat = timeChanged && locationChanged ? 'De datum en locatie zijn' : timeChanged ? 'De datum is' : 'De locatie is'
 
   return (
     <div className="space-y-5">
@@ -151,12 +173,14 @@ export default function DomainIntake({
           <div className="flex items-center gap-1.5 mb-1">
             <Clock className="w-3.5 h-3.5 text-gray-400" />
             <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Startgesprek</span>
-            <HelpTip text="Plan datum en tijd van het startgesprek. Invullen stuurt niets. Met 'Mail sturen' krijgt de klant een bevestiging met een agenda-uitnodiging (1 uur) als bijlage. Verzet je de afspraak, stuur dan opnieuw: de afspraak in de agenda van de klant wordt dan bijgewerkt. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan." />
+            <HelpTip text="Plan datum en tijd van het startgesprek, en eventueel de locatie: een adres, 'telefonisch' of een videolink. Invullen stuurt niets. Met 'Mail sturen' krijgt de klant een bevestiging met een agenda-uitnodiging (1 uur) als bijlage; een videolink wordt in de mail een knop. Verzet je de afspraak of wijzig je de locatie, stuur dan opnieuw: de afspraak in de agenda van de klant wordt dan bijgewerkt. De mail gaat naar gekoppelde klanten met 'Portaalmails' aan." />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
             <input type="datetime-local" value={toDatetimeLocal(meetingAt)}
               onChange={(e) => updateProject({ start_meeting_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
-              className="flex-1 min-w-0 h-8 px-2 text-sm text-gray-800 bg-white border border-gray-200 rounded-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors" />
+              className="w-full sm:w-56 flex-shrink-0 h-8 px-2 text-sm text-gray-800 bg-white border border-gray-200 rounded-md hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors" />
+            <LocationInput value={project.start_meeting_location || ''}
+              onSave={(v) => updateProject({ start_meeting_location: v.trim() || null })} />
             <button type="button" onClick={onSendMeeting} disabled={!meetingAt || sendingMeeting}
               className="flex-shrink-0 inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-primary hover:bg-primary-600 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               {sendingMeeting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
@@ -166,7 +190,7 @@ export default function DomainIntake({
           {meetingAt && (
             <p className={`mt-1.5 text-[11px] ${meetingChanged ? 'text-amber-600' : 'text-gray-500'}`}>
               {meetingChanged
-                ? `Gemaild op ${formatDateTime(meetingSentAt!)} voor ${formatDateTime(project.start_meeting_sent_for!)}. De datum is daarna gewijzigd: mail de klant de nieuwe datum.`
+                ? `Gemaild op ${formatDateTime(meetingSentAt!)}. ${changedWhat} daarna gewijzigd: mail de klant de wijziging.`
                 : meetingSentAt ? `Uitnodiging gemaild op ${formatDateTime(meetingSentAt)}` : 'Nog niet gemaild'}
             </p>
           )}

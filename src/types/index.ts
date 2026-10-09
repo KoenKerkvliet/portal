@@ -53,6 +53,8 @@ export interface Project {
   hosted_by_us?: boolean
   start_meeting_sent_at?: string | null
   start_meeting_sent_for?: string | null
+  start_meeting_location?: string | null
+  start_meeting_sent_location?: string | null
   staging_sent_at?: string | null
   files_sent_at?: string | null
   live_sent_at?: string | null
