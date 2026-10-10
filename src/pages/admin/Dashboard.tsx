@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench, MessageSquareText } from 'lucide-react'
+import { Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, Wrench, MessageSquareText } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AbsenceManager from '../../components/AbsenceManager'
 import DashboardShortcuts from '../../components/DashboardShortcuts'
 import DashboardTasks from '../../components/DashboardTasks'
+import DashboardLeads from '../../components/DashboardLeads'
 
 interface PunchProjectStat {
   id: string
@@ -110,42 +111,7 @@ export default function Dashboard() {
   const [punchStats, setPunchStats] = useState<PunchStats>(emptyPunchStats)
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const stackedIdsRef = useRef<Record<string, string[]>>({})
-  const [emailOpen, setEmailOpen] = useState(false)
-  const [sendingTest, setSendingTest] = useState(false)
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
-  const [testEmailDesignPixels, setTestEmailDesignPixels] = useState(true)
-  const [testEmailCustom, setTestEmailCustom] = useState('')
 
-  const handleSendTestEmail = async () => {
-    const recipients: string[] = []
-    if (testEmailDesignPixels) recipients.push('koen.kerkvliet@designpixels.nl')
-    if (testEmailCustom.trim()) recipients.push(testEmailCustom.trim())
-
-    if (recipients.length === 0) {
-      setTestResult({ success: false, message: 'Selecteer minstens één ontvanger of vul een e-mailadres in.' })
-      return
-    }
-
-    setSendingTest(true)
-    setTestResult(null)
-
-    try {
-      const results: string[] = []
-      for (const to of recipients) {
-        const { data, error } = await supabase.functions.invoke('send-test-email', {
-          body: { to },
-        })
-        if (error) throw error
-        if (data && !data.success) throw new Error(data.error || 'Onbekende fout')
-        results.push(to)
-      }
-      setTestResult({ success: true, message: `Testmail verzonden naar ${results.join(' en ')}` })
-    } catch (err) {
-      setTestResult({ success: false, message: `Verzenden mislukt: ${err instanceof Error ? err.message : 'Onbekende fout'}` })
-    } finally {
-      setSendingTest(false)
-    }
-  }
 
   const fetchNotifications = async () => {
     const { data } = await supabase
@@ -399,20 +365,22 @@ export default function Dashboard() {
         </div>
 
         {punchStats.perProject.length > 0 && (
-          <div className="mt-5 pt-5 border-t border-gray-100 space-y-2">
+          <div className="mt-5 pt-5 border-t border-gray-100">
             <p className="text-xs font-medium text-gray-500 mb-3">Per domein</p>
-            {punchStats.perProject.map((p) => {
-              const percentage = p.total > 0 ? (p.remaining / p.total) * 100 : 0
-              return (
-                <div key={p.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <span className="text-xs font-medium text-gray-700 truncate">{p.name}</span>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
-                        {p.total > 0 ? `${p.remaining}/${p.total} strippen` : 'geen actieve kaart'}
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {punchStats.perProject.map((p) => {
+                const percentage = p.total > 0 ? (p.remaining / p.total) * 100 : 0
+                return (
+                  <div key={p.id} className="bg-gray-50 rounded-lg px-3 py-2.5 min-w-0">
+                    <p className="text-xs font-medium text-gray-700 truncate" title={p.name}>{p.name}</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-0.5">
+                      {p.total > 0 ? (
+                        <>{p.remaining}<span className="text-gray-400 font-normal">/{p.total} strippen</span></>
+                      ) : (
+                        <span className="text-xs font-normal text-gray-400">geen actieve kaart</span>
+                      )}
+                    </p>
+                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden mt-2">
                       <div
                         className={`h-full rounded-full transition-all ${
                           percentage > 50 ? 'bg-emerald-400' : percentage > 20 ? 'bg-amber-400' : 'bg-red-400'
@@ -420,74 +388,20 @@ export default function Dashboard() {
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      {p.cards} {p.cards === 1 ? 'kaart' : 'kaarten'} • {p.used} afgeschreven • {formatEuro(p.earned)} verdiend
+                    <p className="text-[11px] text-gray-400 mt-1.5 truncate">
+                      {p.used} afgeschreven • {formatEuro(p.earned)}
                     </p>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <DashboardTasks />
-
-      <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100">
-        <button
-          onClick={() => setEmailOpen((v) => !v)}
-          className="w-full flex items-center justify-between gap-3 p-4 sm:p-6 text-left"
-        >
-          <div className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-gray-400" />
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">E-mail integratie</h2>
-              <p className="text-sm text-gray-500">Test of de EmailIt v2 koppeling correct werkt.</p>
+                )
+              })}
             </div>
           </div>
-          <ChevronDown className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform ${emailOpen ? 'rotate-180' : ''}`} />
-        </button>
-
-        {emailOpen && (
-        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-        <div className="space-y-3 mb-5">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={testEmailDesignPixels}
-              onChange={(e) => setTestEmailDesignPixels(e.target.checked)}
-              className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30"
-            />
-            <span className="text-sm text-gray-700">koen.kerkvliet@designpixels.nl</span>
-          </label>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ander e-mailadres</label>
-            <input
-              type="email"
-              value={testEmailCustom}
-              onChange={(e) => setTestEmailCustom(e.target.value)}
-              placeholder="naam@voorbeeld.nl"
-              className="w-full max-w-sm px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all"
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={handleSendTestEmail}
-          disabled={sendingTest}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#9e86ff] to-[#7c3aed] text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Mail className="w-4 h-4" />
-          {sendingTest ? 'Verzenden...' : 'Testmail versturen'}
-        </button>
-        {testResult && (
-          <div className={`mt-3 px-4 py-3 rounded-lg text-sm ${testResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-            {testResult.message}
-          </div>
-        )}
-        </div>
         )}
       </div>
+
+      <DashboardLeads />
+
+      <DashboardTasks />
     </div>
   )
 }

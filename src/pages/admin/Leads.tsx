@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import LeadScanDialog from '../../components/LeadScanDialog'
 import type { Lead, LeadPriority, LeadStatus } from '../../types'
@@ -57,6 +57,7 @@ const readSortMode = (): LeadSortMode => {
 
 export default function Leads() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -80,6 +81,20 @@ export default function Leads() {
   }
 
   useEffect(() => { fetchLeads() }, [])
+
+  // Het dashboard linkt hierheen met een filter in de URL (?opvolgen=1 of
+  // ?status=interessant). Daarna halen we hem weg, zodat een verversing niet
+  // een filter terugzet dat je net had weggeklikt.
+  useEffect(() => {
+    const status = searchParams.get('status')
+    const opvolgen = searchParams.get('opvolgen')
+    if (!status && !opvolgen) return
+
+    if (opvolgen === '1') setOnlyFollowUp(true)
+    if (status && status in STATUSES) setStatusFilter(status as LeadStatus)
+    setPage(1)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   /** Werkt een lead bij in de database én meteen in beeld. */
   const saveLead = async (id: string, patch: Partial<Lead>) => {
