@@ -13,6 +13,9 @@
 //   { action: 'get',        type: 'form', token }                                     — vragenlijst + antwoorden
 //   { action: 'save',       type: 'form', token, data }                               — tussentijds opslaan
 //   { action: 'submit',     type: 'form', token, data }                               — insturen
+//   { action: 'get',        type: 'board', token }                                    — takenbord van een domein
+//   { action: 'feedback',   type: 'board', token, text, page?, name?, screenshot? }   — feedback op de testsite
+//   { action: 'delivered',  type: 'board', token, task_id }                           — klanttaak aangeleverd
 //
 // verify_jwt = false (zie supabase/config.toml): de geheime code ís de autorisatie.
 
@@ -596,6 +599,207 @@ async function sendFormAdminMail(formTitle: string, clientName: string, projectN
   }
 }
 
+// ── Takenbord ──
+// De code (projects.board_token) hoort bij één domein. De klant ziet alle taken behalve
+// die alleen voor mij zijn, kan feedback geven (development en oplevering) en een
+// klanttaak als aangeleverd melden. Ik beoordeel daarna of de taak echt klaar is.
+
+const FEEDBACK_PHASES = ['development', 'oplevering']
+const MAX_FEEDBACK_PER_DAY = 30
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024
+const SCREENSHOT_TYPES: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }
+const TIME_ZONE = 'Europe/Amsterdam'
+
+async function loadBoardProject(db: SupabaseClient, token: string) {
+  const { data, error } = await db
+    .from('projects')
+    .select('id, name, current_phase, due_date, staging_url')
+    .eq('board_token', token)
+    .maybeSingle()
+  if (error) throw new Error(`Planning laden mislukt: ${error.message}`)
+  if (!data) throw notFound()
+  return data as { id: string; name: string; current_phase: string; due_date: string | null; staging_url: string | null }
+}
+
+// Begin van vandaag (Nederlandse tijd) als ISO-tijdstip
+function startOfTodayAms(): string {
+  const now = new Date()
+  const day = now.toLocaleDateString('en-CA', { timeZone: TIME_ZONE })
+  const offset = new Date(now.toLocaleString('en-US', { timeZone: TIME_ZONE })).getTime() -
+    new Date(now.toLocaleString('en-US', { timeZone: 'UTC' })).getTime()
+  return new Date(Date.parse(`${day}T00:00:00Z`) - offset).toISOString()
+}
+
+async function handleBoardGet(db: SupabaseClient, token: string, req?: Request) {
+  const project = await loadBoardProject(db, token)
+  if (req) {
+    await logDocOpen(db, req, { doc_type: 'board', doc_id: project.id, project_id: project.id, client_id: null, label: 'Planning' })
+  }
+  const { data: rows, error } = await db
+    .from('project_tasks')
+    .select('id, title, description, status, assignee, due_date, is_feedback, feedback_page, feedback_author, screenshot_path, client_done_at, done_note, completed_at, created_at')
+    .eq('project_id', project.id)
+    .eq('private', false)
+    .order('sort_order')
+    .order('created_at')
+  if (error) throw new Error(`Taken laden mislukt: ${error.message}`)
+
+  const tasks = []
+  for (const row of (rows || []) as Array<Record<string, unknown> & { screenshot_path: string | null }>) {
+    const { screenshot_path, ...task } = row
+    let screenshot_url: string | null = null
+    if (screenshot_path) {
+      const { data } = await db.storage.from('task-feedback').createSignedUrl(screenshot_path, 60 * 60)
+      screenshot_url = data?.signedUrl || null
+    }
+    tasks.push({ ...task, screenshot_url })
+  }
+
+  return json({
+    success: true,
+    type: 'board',
+    document: {
+      project: { name: project.name, phase: project.current_phase, due_date: project.due_date, staging_url: project.staging_url },
+      tasks,
+      feedback_open: FEEDBACK_PHASES.includes(project.current_phase),
+    },
+    project_name: project.name,
+    client_name: '',
+    client_company: '',
+    settings: null,
+    attachments: [],
+  })
+}
+
+async function handleBoardFeedback(db: SupabaseClient, token: string, body: Record<string, unknown>) {
+  const project = await loadBoardProject(db, token)
+  if (!FEEDBACK_PHASES.includes(project.current_phase)) {
+    throw new HttpError(400, 'Feedback geven kan alleen tijdens de bouw en de oplevering. Stel je vraag gerust via support.')
+  }
+  const text = asText(body.text, MAX_TEXT)
+  const page = asText(body.page, 300)
+  const name = asText(body.name, MAX_NAME)
+  if (!text) throw new HttpError(400, 'Beschrijf wat er anders moet.')
+
+  const today = startOfTodayAms()
+  const { count: todayCount } = await db
+    .from('project_tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('project_id', project.id)
+    .eq('is_feedback', true)
+    .gte('created_at', today)
+  if ((todayCount || 0) >= MAX_FEEDBACK_PER_DAY) {
+    throw new HttpError(429, 'Er is vandaag al veel feedback gegeven. Probeer het morgen opnieuw of stuur een mail.')
+  }
+
+  // Optionele screenshot: { data: base64, type: 'image/png' | 'image/jpeg' | 'image/webp' }
+  let screenshot: { bytes: Uint8Array; ext: string; type: string } | null = null
+  const shot = body.screenshot as { data?: unknown; type?: unknown } | undefined
+  if (shot && typeof shot.data === 'string' && typeof shot.type === 'string') {
+    const ext = SCREENSHOT_TYPES[shot.type]
+    if (!ext) throw new HttpError(400, 'Een screenshot moet een PNG-, JPG- of WebP-afbeelding zijn.')
+    let bytes: Uint8Array
+    try {
+      bytes = Uint8Array.from(atob(shot.data), c => c.charCodeAt(0))
+    } catch {
+      throw new HttpError(400, 'De screenshot kon niet gelezen worden.')
+    }
+    if (bytes.length > MAX_SCREENSHOT_BYTES) throw new HttpError(400, 'De screenshot is te groot (maximaal 5 MB).')
+    screenshot = { bytes, ext, type: shot.type }
+  }
+
+  const { data: last } = await db
+    .from('project_tasks').select('sort_order').eq('project_id', project.id)
+    .order('sort_order', { ascending: false }).limit(1).maybeSingle()
+  const firstLine = text.split('\n')[0].trim()
+  const title = firstLine.length > 120 ? `${firstLine.slice(0, 117)}...` : firstLine
+  const { data: task, error } = await db
+    .from('project_tasks')
+    .insert({
+      project_id: project.id,
+      title,
+      description: text,
+      status: 'todo',
+      assignee: 'me',
+      is_feedback: true,
+      feedback_page: page,
+      feedback_author: name,
+      sort_order: ((last?.sort_order as number | undefined) ?? -1) + 1,
+    })
+    .select('id')
+    .single()
+  if (error || !task) throw new Error(`Feedback opslaan mislukt: ${error?.message}`)
+
+  if (screenshot) {
+    const path = `${project.id}/${task.id}.${screenshot.ext}`
+    const { error: uploadError } = await db.storage.from('task-feedback').upload(path, screenshot.bytes, { contentType: screenshot.type })
+    if (uploadError) console.error('[public-document] Screenshot opslaan mislukt:', uploadError.message)
+    else await db.from('project_tasks').update({ screenshot_path: path }).eq('id', task.id)
+  }
+
+  await db.from('admin_notifications').insert({
+    type: 'feedback',
+    title: `Feedback op ${project.name}`,
+    message: `${name || 'De klant'}: "${title}"${page ? ` (pagina: ${page})` : ''}`,
+    project_id: project.id,
+    client_id: null,
+  })
+  // Alleen bij de eerste feedback van de dag een mail, zodat ik niet per puntje gemaild word
+  if ((todayCount || 0) === 0) await sendFeedbackAdminMail(project.name, name, text, page)
+
+  return handleBoardGet(db, token)
+}
+
+async function handleBoardDelivered(db: SupabaseClient, token: string, body: Record<string, unknown>) {
+  const project = await loadBoardProject(db, token)
+  const taskId = typeof body.task_id === 'string' ? body.task_id : ''
+  if (!/^[0-9a-f-]{36}$/i.test(taskId)) throw notFound()
+  const { data: task } = await db
+    .from('project_tasks')
+    .select('id, title, assignee, status, private, client_done_at')
+    .eq('id', taskId)
+    .eq('project_id', project.id)
+    .maybeSingle()
+  if (!task || task.private || task.assignee !== 'client') throw notFound()
+  if (task.status === 'done') throw new HttpError(409, 'Deze taak is al afgerond.')
+  if (!task.client_done_at) {
+    const now = new Date().toISOString()
+    await db.from('project_tasks').update({ client_done_at: now, updated_at: now }).eq('id', task.id)
+    await db.from('admin_notifications').insert({
+      type: 'feedback',
+      title: `Aangeleverd: ${task.title}`,
+      message: `De klant van ${project.name} meldt dat "${task.title}" is aangeleverd. Kijk het na en zet de taak op klaar.`,
+      project_id: project.id,
+      client_id: null,
+    })
+  }
+  return handleBoardGet(db, token)
+}
+
+async function sendFeedbackAdminMail(projectName: string, name: string, text: string, page: string) {
+  const apiKey = Deno.env.get('EMAILIT_API_KEY')
+  if (!apiKey) return
+  const from = Deno.env.get('EMAILIT_FROM') || 'DesignPixels <noreply@designpixels.nl>'
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8f7fc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:480px;margin:40px auto;background:white;border-radius:16px;padding:32px;">
+  <h2 style="color:#1f2937;margin:0 0 8px;font-size:20px;">Feedback op ${escapeHtml(projectName)}</h2>
+  <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 16px;"><strong>${escapeHtml(name || 'De klant')}</strong> heeft feedback gegeven via de planning${page ? ` (pagina: ${escapeHtml(page)})` : ''}:</p>
+  <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#374151;font-size:14px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(text)}</div>
+  <p style="color:#9ca3af;font-size:12px;line-height:1.5;margin:16px 0 0;">Je krijgt alleen bij de eerste feedback van de dag een mail. Alle punten staan op het takenbord van het domein.</p>
+</div></body></html>`
+  try {
+    const res = await fetch('https://api.emailit.com/v2/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: ADMIN_EMAIL, subject: `Feedback op ${projectName} van ${name || 'de klant'}`, html }),
+    })
+    if (!res.ok) console.error(`[public-document] Adminmail feedback mislukt: ${res.status} ${await res.text()}`)
+  } catch (e) {
+    console.error('[public-document] Adminmail feedback exception:', e instanceof Error ? e.message : String(e))
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ success: false, error: 'Methode niet toegestaan' }, 405)
@@ -609,9 +813,9 @@ Deno.serve(async (req) => {
     }
 
     const action = body.action
-    const type = body.type as DocType | 'design' | 'form'
+    const type = body.type as DocType | 'design' | 'form' | 'board'
     const token = typeof body.token === 'string' ? body.token : ''
-    if (type !== 'design' && type !== 'form' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
+    if (type !== 'design' && type !== 'form' && type !== 'board' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
     if (!TOKEN_PATTERN.test(token)) throw notFound()
 
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
@@ -621,6 +825,15 @@ Deno.serve(async (req) => {
         case 'get': return await handleDesignGet(db, token, req)
         case 'accept': return await handleDesignResponse(db, token, body, true)
         case 'decline': return await handleDesignResponse(db, token, body, false)
+        default: throw new HttpError(400, 'Onbekende actie.')
+      }
+    }
+
+    if (type === 'board') {
+      switch (action) {
+        case 'get': return await handleBoardGet(db, token, req)
+        case 'feedback': return await handleBoardFeedback(db, token, body)
+        case 'delivered': return await handleBoardDelivered(db, token, body)
         default: throw new HttpError(400, 'Onbekende actie.')
       }
     }

@@ -15,6 +15,7 @@ import DomainIntake, { type IntakeDocKind } from '../../components/domain/Domain
 import DomainForms from '../../components/domain/DomainForms'
 import DomainPrivacy from '../../components/domain/DomainPrivacy'
 import DomainActivity from '../../components/domain/DomainActivity'
+import DomainTasks from '../../components/domain/DomainTasks'
 import DomainDesign from '../../components/domain/DomainDesign'
 import LinkMailField from '../../components/domain/LinkMailField'
 import DomainOplevering, { type DeliveryKind } from '../../components/domain/DomainOplevering'
@@ -1133,6 +1134,14 @@ export default function DomainDetail() {
                   onSelectInvoice={saveOpleveringInvoice}
                   onSend={sendDelivery}
                 />
+              )}
+              {/* Takenbord: in development en oplevering, met een link voor de klant */}
+              {(phase === 'development' || phase === 'oplevering') && (
+                <div className="pt-5 border-t border-gray-100">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Planning</h3>
+                  <DomainTasks projectId={project.id} boardToken={project.board_token} boardSentAt={project.board_sent_at}
+                    onProjectChanged={fetchProject} />
+                </div>
               )}
               {phase === 'onderhoud' && <DomainOnderhoud projectId={project.id} />}
 

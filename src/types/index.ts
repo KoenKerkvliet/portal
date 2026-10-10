@@ -56,6 +56,8 @@ export interface Project {
   start_meeting_location?: string | null
   start_meeting_sent_location?: string | null
   staging_sent_at?: string | null
+  board_token?: string | null // link naar de planning (takenbord) voor de klant
+  board_sent_at?: string | null
   files_sent_at?: string | null
   live_sent_at?: string | null
   review_requested_at?: string | null

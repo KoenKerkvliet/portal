@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench } from 'lucide-react'
+import { Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench, MessageSquareText } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AbsenceManager from '../../components/AbsenceManager'
 import DashboardShortcuts from '../../components/DashboardShortcuts'
+import DashboardTasks from '../../components/DashboardTasks'
 
 interface PunchProjectStat {
   id: string
@@ -83,12 +84,14 @@ const notifIcons: Record<string, typeof Bell> = {
   quote_declined: XCircle,
   assignment: ClipboardCheck,
   card_update: Layers,
+  feedback: MessageSquareText,
   general: Bell,
 }
 
 const notifColors: Record<string, string> = {
   quote_accepted: 'bg-green-50 border-green-200',
   quote_declined: 'bg-red-50 border-red-200',
+  feedback: 'bg-sky-50 border-sky-200',
   assignment: 'bg-emerald-50 border-emerald-200',
   card_update: 'bg-amber-50 border-amber-200',
   general: 'bg-gray-50 border-gray-200',
@@ -100,6 +103,7 @@ const notifIconColors: Record<string, string> = {
   assignment: 'text-emerald-500',
   card_update: 'text-amber-500',
   general: 'text-gray-400',
+  feedback: 'text-sky-500',
 }
 
 export default function Dashboard() {
@@ -426,6 +430,8 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      <DashboardTasks />
 
       <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100">
         <button

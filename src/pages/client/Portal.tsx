@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { getClientAndProjectIds } from '../../lib/clientProjects'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Project, ProjectPhase, PhaseStep, CardElement, PunchCard, PunchCardUse } from '../../types'
-import { Sparkles, ArrowRight, Calendar, ExternalLink, CreditCard, ShoppingCart } from 'lucide-react'
+import { Sparkles, ArrowRight, Calendar, ExternalLink, CreditCard, ShoppingCart, ListChecks } from 'lucide-react'
 import { getIconComponent } from '../../components/CardElementEditor'
 import PunchCardView from '../../components/PunchCardView'
 
@@ -583,6 +583,21 @@ export default function ClientPortal() {
               <h2 className="text-2xl sm:text-3xl font-light text-gray-700 text-center mb-10 sm:mb-12">
                 {phaseLabels[project.current_phase]}
               </h2>
+            )}
+
+            {/* Planning (takenbord) in development en oplevering */}
+            {project.board_token && (project.current_phase === 'development' || isOplevering) && (
+              <Link to={`/d/planning/${project.board_token}`}
+                className="mb-8 flex items-center gap-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                <span className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                  <ListChecks className="w-5 h-5" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block font-semibold text-gray-900">Bekijk de planning</span>
+                  <span className="block text-sm text-gray-500">Wat ik nog doe, wat klaar is, wat ik van jou nodig heb. Je geeft hier ook feedback op de testsite.</span>
+                </span>
+                <ArrowRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
+              </Link>
             )}
 
             {/* Oplevering: Ticket system */}
