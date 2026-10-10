@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { applyDefaultTemplates } from '../../lib/applyDefaultTemplates'
 import type { Client } from '../../types'
@@ -6,6 +7,14 @@ import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, Folder
 import { formatDateTime, formatRelative } from '../../lib/portalActivity'
 
 const MAX_EXTRA_EMAILS = 2
+
+// Wat de leadpagina meegeeft als je daar op "Voeg toe als klant" klikt.
+interface LeadPrefill {
+  company: string
+  phone: string
+  domainName: string
+  domainUrl: string
+}
 
 // Portaalgebruik per klant (rpc admin_client_activity)
 interface ClientActivity {
@@ -32,6 +41,8 @@ interface ClientDomain {
 }
 
 export default function Clients() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [activity, setActivity] = useState<Record<string, ClientActivity>>({})
   const [clients, setClients] = useState<Client[]>([])
   const [newUsers, setNewUsers] = useState<NewUser[]>([])
@@ -83,6 +94,24 @@ export default function Clients() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // Vanaf de leadpagina: formulier openen met wat we al weten. De naam en het
+  // e-mailadres van de contactpersoon kent de scanner niet; die vul je zelf aan.
+  useEffect(() => {
+    const prefill = (location.state as { leadPrefill?: LeadPrefill } | null)?.leadPrefill
+    if (!prefill) return
+
+    setFormData({ name: '', email: '', phone: prefill.phone, company: prefill.company })
+    setExtraEmails([])
+    setEditingId(null)
+    setDomainMode('new')
+    setNewDomain({ name: prefill.domainName, url: prefill.domainUrl })
+    setShowForm(true)
+
+    // Uit de history halen, anders staat het formulier er bij een refresh of
+    // een stap terug opnieuw.
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
 
   const resetForm = () => {
     setShowForm(false)

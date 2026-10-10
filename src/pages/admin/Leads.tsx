@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Lead, LeadPriority, LeadStatus } from '../../types'
 import {
@@ -10,6 +11,7 @@ import {
   ChevronDown,
   CalendarClock,
   RotateCcw,
+  UserPlus,
 } from 'lucide-react'
 import {
   PRIORITIES,
@@ -19,8 +21,8 @@ import {
   city,
   formatDate,
   formatScanned,
+  compareLeads,
   hostname,
-  leadSortKey,
   telHref,
   todayISO,
 } from '../../lib/leads'
@@ -38,6 +40,7 @@ const readPageSize = () => {
 }
 
 export default function Leads() {
+  const navigate = useNavigate()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -75,6 +78,25 @@ export default function Leads() {
     }
   }
 
+  /**
+   * Opent het klantformulier met wat we al van de lead weten. De contactpersoon
+   * en het e-mailadres kent de scanner niet, die vul je daar zelf aan.
+   */
+  const addAsClient = (lead: Lead) => {
+    navigate('/admin/klanten', {
+      state: {
+        leadPrefill: {
+          company: lead.name,
+          phone: lead.phone ?? '',
+          domainName: lead.name,
+          // Alleen een echte eigen site is een domein; een Facebook-pagina
+          // of gids-vermelding niet.
+          domainUrl: lead.website_kind === 'eigen' ? (lead.website ?? '') : '',
+        },
+      },
+    })
+  }
+
   const types = useMemo(
     () => [...new Set(leads.map((l) => l.lead_type).filter(Boolean))].sort() as string[],
     [leads],
@@ -99,11 +121,7 @@ export default function Leads() {
           .filter(Boolean)
           .some((v) => (v as string).toLowerCase().includes(q))
       })
-      .sort((a, b) => {
-        const [pa, sa] = leadSortKey(a)
-        const [pb, sb] = leadSortKey(b)
-        return pa - pb || sa - sb || a.name.localeCompare(b.name)
-      })
+      .sort(compareLeads)
   }, [leads, search, priorityFilter, statusFilter, typeFilter, regionFilter, onlyFollowUp])
 
   const stats = useMemo(() => {
@@ -264,7 +282,7 @@ export default function Leads() {
                   <th className="px-3 py-3 font-semibold text-gray-600">Contact</th>
                   <th className="px-3 py-3 font-semibold text-gray-600">Status</th>
                   <th className="px-3 py-3 font-semibold text-gray-600">Opvolgen</th>
-                  <th className="w-8"></th>
+                  <th className="w-20"></th>
                 </tr>
               </thead>
               <tbody>
@@ -345,13 +363,22 @@ export default function Leads() {
                           />
                         </td>
                         <td className="pr-4">
-                          <button
-                            onClick={() => setExpandedId(expanded ? null : lead.id)}
-                            className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors"
-                            title={expanded ? 'Inklappen' : 'Details en notitie'}
-                          >
-                            <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                          </button>
+                          <div className="flex items-center justify-end">
+                            <button
+                              onClick={() => addAsClient(lead)}
+                              className="p-1.5 text-gray-400 hover:text-primary transition-colors"
+                              title="Voeg toe als klant"
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setExpandedId(expanded ? null : lead.id)}
+                              className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors"
+                              title={expanded ? 'Inklappen' : 'Details en notitie'}
+                            >
+                              <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
 

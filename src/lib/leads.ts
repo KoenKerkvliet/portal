@@ -44,6 +44,7 @@ export const STATUSES: Record<LeadStatus, { label: string; badge: string }> = {
   interessant: { label: 'Interessant', badge: 'bg-purple-50 text-purple-700' },
   contact_gelegd: { label: 'Contact gelegd', badge: 'bg-green-50 text-green-700' },
   mail_gestuurd: { label: 'Mail gestuurd', badge: 'bg-blue-50 text-blue-700' },
+  in_beraad: { label: 'In beraad bij hen', badge: 'bg-indigo-50 text-indigo-700' },
   nog_opvolgen: { label: 'Nog opvolgen', badge: 'bg-amber-50 text-amber-700' },
   niet_interessant: { label: 'Niet interessant', badge: 'bg-red-50 text-red-700' },
 }
@@ -53,6 +54,7 @@ export const STATUS_ORDER: LeadStatus[] = [
   'interessant',
   'contact_gelegd',
   'mail_gestuurd',
+  'in_beraad',
   'nog_opvolgen',
   'niet_interessant',
 ]
@@ -65,11 +67,25 @@ export const formatDate = (iso: string | null) =>
 export const formatScanned = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Nooit'
 
-/** Sorteersleutel: beste kansen eerst, daarbinnen de laagste score. */
-export const leadSortKey = (lead: Lead): [number, number] => [
+/**
+ * Sorteersleutel: afgeschreven leads onderaan, daarboven de beste kansen
+ * eerst, en daarbinnen de laagste score.
+ */
+export const leadSortKey = (lead: Lead): number[] => [
+  lead.status === 'niet_interessant' ? 1 : 0,
   PRIORITY_ORDER.indexOf(lead.priority ?? 'ok'),
   lead.score ?? 0,
 ]
+
+/** Vergelijkt twee leads op hun sorteersleutel; gelijk? dan op naam. */
+export const compareLeads = (a: Lead, b: Lead) => {
+  const ka = leadSortKey(a)
+  const kb = leadSortKey(b)
+  for (let i = 0; i < ka.length; i++) {
+    if (ka[i] !== kb[i]) return ka[i] - kb[i]
+  }
+  return a.name.localeCompare(b.name)
+}
 
 /** Alleen de plaatsnaam uit een volledig adres, voor een compacte tabel. */
 export const city = (address: string | null) => {
