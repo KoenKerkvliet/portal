@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Lead, LeadPriority, LeadStatus } from '../../types'
+import type { LeadSortMode } from '../../lib/leads'
 import {
   Search,
   Phone,
@@ -9,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ArrowDownWideNarrow,
   CalendarClock,
   RotateCcw,
   UserPlus,
@@ -21,7 +23,8 @@ import {
   city,
   formatDate,
   formatScanned,
-  compareLeads,
+  SORT_MODES,
+  makeLeadComparator,
   hostname,
   telHref,
   todayISO,
@@ -29,6 +32,7 @@ import {
 
 const PAGE_SIZES = [25, 50, 100]
 const PAGE_SIZE_STORAGE_KEY = 'leads-page-size'
+const SORT_STORAGE_KEY = 'leads-sort-mode'
 
 const readPageSize = () => {
   try {
@@ -36,6 +40,15 @@ const readPageSize = () => {
     return PAGE_SIZES.includes(stored) ? stored : PAGE_SIZES[0]
   } catch {
     return PAGE_SIZES[0]
+  }
+}
+
+const readSortMode = (): LeadSortMode => {
+  try {
+    const stored = localStorage.getItem(SORT_STORAGE_KEY)
+    return stored === 'kans' || stored === 'opvolging' ? stored : 'opvolging'
+  } catch {
+    return 'opvolging'
   }
 }
 
@@ -53,6 +66,7 @@ export default function Leads() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(readPageSize)
+  const [sortMode, setSortMode] = useState<LeadSortMode>(readSortMode)
 
   const fetchLeads = async () => {
     const { data } = await supabase.from('leads').select('*')
@@ -121,8 +135,8 @@ export default function Leads() {
           .filter(Boolean)
           .some((v) => (v as string).toLowerCase().includes(q))
       })
-      .sort(compareLeads)
-  }, [leads, search, priorityFilter, statusFilter, typeFilter, regionFilter, onlyFollowUp])
+      .sort(makeLeadComparator(sortMode))
+  }, [leads, search, priorityFilter, statusFilter, typeFilter, regionFilter, onlyFollowUp, sortMode])
 
   const stats = useMemo(() => {
     const today = todayISO()
@@ -147,6 +161,12 @@ export default function Leads() {
   const filtersActive =
     !!search || !!priorityFilter || !!statusFilter || !!typeFilter || !!regionFilter || onlyFollowUp
 
+  const changeSortMode = (mode: LeadSortMode) => {
+    setSortMode(mode)
+    setPage(1)
+    try { localStorage.setItem(SORT_STORAGE_KEY, mode) } catch { /* privémodus */ }
+  }
+
   const changePageSize = (size: number) => {
     setPageSize(size)
     setPage(1)
@@ -158,9 +178,20 @@ export default function Leads() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
-          <p className="text-gray-500 mt-1">
-            Bedrijven uit de lead-scanner. Beste kansen staan bovenaan.
-          </p>
+          <p className="text-gray-500 mt-1">{SORT_MODES[sortMode].hint}.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <ArrowDownWideNarrow className="w-4 h-4 text-gray-400" />
+          <select
+            value={sortMode}
+            onChange={(e) => changeSortMode(e.target.value as LeadSortMode)}
+            className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+            title="Volgorde van de lijst"
+          >
+            {(Object.keys(SORT_MODES) as LeadSortMode[]).map((m) => (
+              <option key={m} value={m}>{SORT_MODES[m].label}</option>
+            ))}
+          </select>
         </div>
       </div>
 

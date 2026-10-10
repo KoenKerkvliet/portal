@@ -67,20 +67,52 @@ export const formatDate = (iso: string | null) =>
 export const formatScanned = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Nooit'
 
-/**
- * Sorteersleutel: afgeschreven leads onderaan, daarboven de beste kansen
- * eerst, en daarbinnen de laagste score.
- */
-export const leadSortKey = (lead: Lead): number[] => [
-  lead.status === 'niet_interessant' ? 1 : 0,
-  PRIORITY_ORDER.indexOf(lead.priority ?? 'ok'),
-  lead.score ?? 0,
+// Volgorde waarin statussen bovenaan komen bij sorteren op opvolging:
+// waar iets loopt eerst, de onaangeroerde voorraad daaronder, afgeschreven
+// leads onderaan.
+export const STATUS_SORT_ORDER: LeadStatus[] = [
+  'in_beraad',        // zij beslissen, hier wil je bovenop zitten
+  'mail_gestuurd',    // jij wacht op antwoord
+  'contact_gelegd',
+  'nog_opvolgen',
+  'interessant',      // wel gemarkeerd, nog niets mee gedaan
+  'nieuw',            // de voorraad
+  'niet_interessant', // altijd onderaan
 ]
 
-/** Vergelijkt twee leads op hun sorteersleutel; gelijk? dan op naam. */
-export const compareLeads = (a: Lead, b: Lead) => {
-  const ka = leadSortKey(a)
-  const kb = leadSortKey(b)
+export type LeadSortMode = 'opvolging' | 'kans'
+
+export const SORT_MODES: Record<LeadSortMode, { label: string; hint: string }> = {
+  opvolging: {
+    label: 'Opvolging eerst',
+    hint: 'Lopende gesprekken bovenaan, daaronder de voorraad op kans gesorteerd',
+  },
+  kans: {
+    label: 'Beste kans eerst',
+    hint: 'Geen website en alleen social bovenaan, ongeacht de status',
+  },
+}
+
+// Een status die (nog) niet in de volgorde staat hoort onderaan, niet bovenaan
+// — wat indexOf met zijn -1 wel zou doen.
+const statusRank = (status: LeadStatus) => {
+  const index = STATUS_SORT_ORDER.indexOf(status)
+  return index === -1 ? STATUS_SORT_ORDER.length : index
+}
+
+/** Sorteersleutel per modus; lager is hoger in de lijst. */
+const leadSortKey = (lead: Lead, mode: LeadSortMode): number[] => {
+  const kans = [PRIORITY_ORDER.indexOf(lead.priority ?? 'ok'), lead.score ?? 0]
+  return mode === 'opvolging'
+    ? [statusRank(lead.status), ...kans]
+    // Ook hier zakken afgeschreven leads naar de onderkant.
+    : [lead.status === 'niet_interessant' ? 1 : 0, ...kans]
+}
+
+/** Vergelijker voor Array.sort; bij gelijke sleutel op naam. */
+export const makeLeadComparator = (mode: LeadSortMode) => (a: Lead, b: Lead) => {
+  const ka = leadSortKey(a, mode)
+  const kb = leadSortKey(b, mode)
   for (let i = 0; i < ka.length; i++) {
     if (ka[i] !== kb[i]) return ka[i] - kb[i]
   }
