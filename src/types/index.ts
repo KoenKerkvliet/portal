@@ -463,3 +463,46 @@ export interface WorkLog {
   updated_at: string
   project?: Project
 }
+
+export type LeadPriority = 'geen_site' | 'social' | 'hoog' | 'gemiddeld' | 'ok'
+
+export type LeadWebsiteKind = 'eigen' | 'social' | 'gids' | 'geen'
+
+export type LeadStatus =
+  | 'nieuw'
+  | 'interessant'
+  | 'contact_gelegd'
+  | 'mail_gestuurd'
+  | 'nog_opvolgen'
+  | 'niet_interessant'
+
+export interface Lead {
+  id: string
+  place_id: string | null
+  name: string
+  address: string | null
+  phone: string | null
+  website: string | null
+  // Resultaat van de website-audit; wordt bij elke scan overschreven
+  website_kind: LeadWebsiteKind | null
+  score: number | null
+  priority: LeadPriority | null
+  issues: string[]
+  cms: string | null
+  has_ssl: boolean | null
+  mobile_friendly: boolean | null
+  load_time_seconds: number | null
+  google_rating: number | null
+  google_reviews: number | null
+  search_query: string | null
+  region: string | null
+  lead_type: string | null
+  // Opvolging; een scan raakt deze velden nooit aan
+  status: LeadStatus
+  note: string | null
+  last_contact_at: string | null
+  follow_up_at: string | null
+  first_seen_at: string
+  scanned_at: string | null
+  updated_at: string
+}

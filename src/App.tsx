@@ -10,6 +10,7 @@ import Projects from './pages/admin/Projects'
 import DomainDetail from './pages/admin/DomainDetail'
 import PublicDocumentPage from './pages/public/PublicDocumentPage'
 import Clients from './pages/admin/Clients'
+import Leads from './pages/admin/Leads'
 import Invoices from './pages/admin/Invoices'
 // RecurringInvoices and InvoiceSettings are now integrated into Invoices and Settings pages
 import Products from './pages/admin/Products'
@@ -95,6 +96,7 @@ function AppRoutes() {
         <Route path="projecten" element={<Projects />} />
         <Route path="projecten/:id" element={<DomainDetail />} />
         <Route path="klanten" element={<Clients />} />
+        <Route path="leads" element={<Leads />} />
         <Route path="facturen" element={<Invoices />} />
         <Route path="facturen/nieuw" element={<InvoiceBuilder />} />
         <Route path="facturen/:id" element={<InvoiceBuilder />} />

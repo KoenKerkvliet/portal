@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Wrench,
   Wallet,
+  Target,
 } from 'lucide-react'
 
 interface NavItem {
@@ -34,6 +35,7 @@ const mainItems: NavItem[] = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/projecten', icon: FolderKanban, label: 'Domeinen' },
   { to: '/admin/klanten', icon: Users, label: 'Klanten' },
+  { to: '/admin/leads', icon: Target, label: 'Leads' },
 ]
 
 const financeItems: NavItem[] = [
