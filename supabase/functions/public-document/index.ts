@@ -87,6 +87,41 @@ function labelFor(type: DocType, doc: Record<string, unknown>) {
   return `Opdracht: ${doc.title}`
 }
 
+// Registreert dat een document via de link is geopend (portaalgebruik in het beheer).
+// Mijn eigen bezoeken (ingelogd als admin) tellen niet mee, en hetzelfde document binnen
+// 30 minuten telt één keer. Mag het openen nooit laten mislukken.
+async function logDocOpen(db: SupabaseClient, req: Request, event: {
+  doc_type: string
+  doc_id: string
+  project_id: string | null
+  client_id: string | null
+  label: string
+}) {
+  try {
+    const bearer = (req.headers.get('Authorization') || '').replace('Bearer ', '')
+    if (bearer.split('.').length === 3) {
+      const { data: { user } } = await db.auth.getUser(bearer)
+      if (user) {
+        const { data: profile } = await db.from('profiles').select('role').eq('id', user.id).maybeSingle()
+        if (profile?.role === 'admin') return
+      }
+    }
+    const since = new Date(Date.now() - 30 * 60_000).toISOString()
+    const { data: recent } = await db
+      .from('portal_events')
+      .select('id')
+      .eq('kind', 'doc_open')
+      .eq('doc_type', event.doc_type)
+      .eq('doc_id', event.doc_id)
+      .gt('created_at', since)
+      .limit(1)
+    if (recent && recent.length > 0) return
+    await db.from('portal_events').insert({ kind: 'doc_open', ...event })
+  } catch (e) {
+    console.error('[public-document] Openen registreren mislukt:', e instanceof Error ? e.message : String(e))
+  }
+}
+
 // Zet de stap met de knop naar dit document op voltooid (zelfde gedrag als in het portaal)
 async function markStepCompleted(db: SupabaseClient, projectId: string, matches: (data: Record<string, string>) => boolean) {
   const { data: phaseRecords } = await db.from('project_phases').select('id, custom_data').eq('project_id', projectId)
@@ -173,8 +208,14 @@ async function sendAdminMail(opts: {
   }
 }
 
-async function handleGet(db: SupabaseClient, type: DocType, token: string) {
+// req alleen bij het openen van de pagina, zodat een reactie niet nog eens als "geopend" telt
+async function handleGet(db: SupabaseClient, type: DocType, token: string, req?: Request) {
   const doc = await loadDocument(db, type, token)
+  if (req) {
+    await logDocOpen(db, req, {
+      doc_type: type, doc_id: doc.id, project_id: doc.project_id, client_id: doc.client_id, label: labelFor(type, doc),
+    })
+  }
   const { data: settings } = await db.from('invoice_settings').select('*').limit(1).maybeSingle()
 
   let attachments: unknown[] = []
@@ -353,8 +394,13 @@ function designView(customData: Record<string, unknown> | null) {
     }))
 }
 
-async function handleDesignGet(db: SupabaseClient, token: string) {
+async function handleDesignGet(db: SupabaseClient, token: string, req?: Request) {
   const phase = await loadDesignPhase(db, token)
+  if (req) {
+    await logDocOpen(db, req, {
+      doc_type: 'design', doc_id: phase.id, project_id: phase.project_id, client_id: null, label: 'Ontwerpen',
+    })
+  }
   return json({
     success: true,
     type: 'design',
@@ -466,8 +512,14 @@ function cleanAnswers(steps: FormStep[], raw: unknown): Record<string, Answer> {
 const isEmptyAnswer = (value: Answer | undefined) =>
   value === undefined || value === '' || value === false || (Array.isArray(value) && value.length === 0)
 
-async function handleFormGet(db: SupabaseClient, token: string) {
+async function handleFormGet(db: SupabaseClient, token: string, req?: Request) {
   const sub = await loadFormSubmission(db, token)
+  if (req) {
+    await logDocOpen(db, req, {
+      doc_type: 'form', doc_id: sub.id, project_id: sub.project_id, client_id: null,
+      label: `Vragenlijst "${sub.form?.title || 'Vragenlijst'}"`,
+    })
+  }
   return json({
     success: true,
     type: 'form',
@@ -566,7 +618,7 @@ Deno.serve(async (req) => {
 
     if (type === 'design') {
       switch (action) {
-        case 'get': return await handleDesignGet(db, token)
+        case 'get': return await handleDesignGet(db, token, req)
         case 'accept': return await handleDesignResponse(db, token, body, true)
         case 'decline': return await handleDesignResponse(db, token, body, false)
         default: throw new HttpError(400, 'Onbekende actie.')
@@ -575,7 +627,7 @@ Deno.serve(async (req) => {
 
     if (type === 'form') {
       switch (action) {
-        case 'get': return await handleFormGet(db, token)
+        case 'get': return await handleFormGet(db, token, req)
         case 'save': return await handleFormSave(db, token, body, false)
         case 'submit': return await handleFormSave(db, token, body, true)
         default: throw new HttpError(400, 'Onbekende actie.')
@@ -583,7 +635,7 @@ Deno.serve(async (req) => {
     }
 
     switch (action) {
-      case 'get': return await handleGet(db, type, token)
+      case 'get': return await handleGet(db, type, token, req)
       case 'accept': return await handleAccept(db, type, token, body)
       case 'decline': return await handleDecline(db, type, token, body)
       case 'attachment': return await handleAttachment(db, type, token, body)

@@ -7,6 +7,7 @@ import KbSearch from '../../components/KbSearch'
 import AbsenceBanner from '../../components/AbsenceBanner'
 import { articlePath, categoryPath, categorySlug, KB_CATEGORIES, type KbArticle } from '../../lib/knowledgeBase'
 import KbCategoryIcon from '../../components/KbCategoryIcon'
+import { trackArticleView } from '../../lib/tracking'
 
 // Openbare kennisbank, zonder inloggen: /kennisbank (zoeken + categorieën),
 // /kennisbank/categorie/:category (artikelen van één categorie) en /kennisbank/:slug
@@ -146,6 +147,7 @@ function Article({ slug }: { slug: string }) {
       setArticle(data as KbArticle | null)
       if (data) {
         document.title = `${data.title} · DesignPixels Kennisbank`
+        trackArticleView(slug)
         const { data: others } = await supabase.from('kb_articles').select('*')
           .eq('published', true).eq('category', data.category).neq('id', data.id).order('title').limit(5)
         setRelated((others || []) as KbArticle[])

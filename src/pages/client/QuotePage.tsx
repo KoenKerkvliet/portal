@@ -8,6 +8,7 @@ import DOMPurify from 'dompurify'
 import { sendAdminNotificationEmail } from '../../lib/sendAdminNotificationEmail'
 import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
 import { renderRichTextToPdf } from '../../lib/richTextPdf'
+import { trackPortalView } from '../../lib/tracking'
 
 // Convert HTML to structured plain text for PDF
 function htmlToPlainText(html: string): string {
@@ -139,6 +140,11 @@ export default function QuotePage({ publicToken }: { publicToken?: string }) {
   const [viewingAttachment, setViewingAttachment] = useState<QuoteAttachment | null>(null)
   const [loadError, setLoadError] = useState('')
   const [actionError, setActionError] = useState('')
+
+  // Bekeken in het portaal (via de link uit de mail registreert de server het openen)
+  useEffect(() => {
+    if (!publicToken && quoteId) trackPortalView(`/offerte/${quoteId}`, 'quote', quoteId)
+  }, [publicToken, quoteId])
 
   // Acceptance state
   const [acceptName, setAcceptName] = useState('')

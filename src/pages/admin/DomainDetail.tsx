@@ -14,6 +14,7 @@ import DomainPortalAccess from '../../components/domain/DomainPortalAccess'
 import DomainIntake, { type IntakeDocKind } from '../../components/domain/DomainIntake'
 import DomainForms from '../../components/domain/DomainForms'
 import DomainPrivacy from '../../components/domain/DomainPrivacy'
+import DomainActivity from '../../components/domain/DomainActivity'
 import DomainDesign from '../../components/domain/DomainDesign'
 import LinkMailField from '../../components/domain/LinkMailField'
 import DomainOplevering, { type DeliveryKind } from '../../components/domain/DomainOplevering'
@@ -69,7 +70,7 @@ export default function DomainDetail() {
   const [loading, setLoading] = useState(true)
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
   const [projectClients, setProjectClients] = useState<ProjectClient[]>([])
-  const [generalTab, setGeneralTab] = useState<'gegevens' | 'privacy'>('gegevens')
+  const [generalTab, setGeneralTab] = useState<'gegevens' | 'privacy' | 'activiteit'>('gegevens')
   const [newClientOpen, setNewClientOpen] = useState(false)
   const [newClient, setNewClient] = useState(emptyNewClient)
   const [newClientError, setNewClientError] = useState('')
@@ -885,9 +886,9 @@ export default function DomainDetail() {
       <section id="algemeen" className="bg-white rounded-xl shadow-sm border border-gray-100 scroll-mt-4">
         <div className="px-5 sm:px-6 pt-4 border-b border-gray-100 flex items-end justify-between gap-4">
           <h2 className="text-sm font-semibold text-gray-900 pb-4">Algemeen</h2>
-          {/* Tabbladen: gegevens van het domein, of beveiligde gegevens versturen */}
+          {/* Tabbladen: gegevens van het domein, beveiligde gegevens versturen, of portaalgebruik */}
           <div className="flex items-end gap-1" role="tablist">
-            {([['gegevens', 'Gegevens'], ['privacy', 'Privacy']] as const).map(([value, label]) => (
+            {([['gegevens', 'Gegevens'], ['privacy', 'Privacy'], ['activiteit', 'Activiteit']] as const).map(([value, label]) => (
               <button key={value} type="button" role="tab" aria-selected={generalTab === value} onClick={() => setGeneralTab(value)}
                 className={`px-3 pb-3 pt-1 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   generalTab === value ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-800'
@@ -900,6 +901,11 @@ export default function DomainDetail() {
         {generalTab === 'privacy' ? (
           <div className="px-5 sm:px-6 py-4">
             <DomainPrivacy projectId={project.id} projectClients={projectClients} />
+          </div>
+        ) : generalTab === 'activiteit' ? (
+          <div className="px-5 sm:px-6 py-4">
+            <DomainActivity projectId={project.id}
+              clientIds={[...new Set([...projectClients.map(pc => pc.client_id), ...(project.client_id ? [project.client_id] : [])])].sort()} />
           </div>
         ) : (
         <div className="px-5 sm:px-6 py-4 space-y-5">

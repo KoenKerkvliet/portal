@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import type { Invoice, InvoiceSettings, QuoteItem } from '../../types'
 import { generateInvoicePdfDoc } from '../../lib/invoicePdf'
 import { callPublicDocument, type PublicDocumentResult } from '../../lib/publicDocument'
+import { trackPortalView } from '../../lib/tracking'
 import { ArrowLeft, Download, Loader2, FileText, Calendar, Hash, Building2 } from 'lucide-react'
 
 const statusLabels: Record<string, { label: string; color: string }> = {
@@ -23,6 +24,11 @@ export default function InvoicePage({ publicToken }: { publicToken?: string }) {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [loadError, setLoadError] = useState('')
+
+  // Bekeken in het portaal (via de link uit de mail registreert de server het openen)
+  useEffect(() => {
+    if (!publicToken && invoiceId) trackPortalView(`/factuur/${invoiceId}`, 'invoice', invoiceId)
+  }, [publicToken, invoiceId])
 
   useEffect(() => {
     const fetch = async () => {

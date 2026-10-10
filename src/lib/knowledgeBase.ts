@@ -9,6 +9,7 @@ export interface KbArticle {
   summary: string
   content: string
   published: boolean
+  view_count?: number // aantal keer gelezen (anoniem)
   created_at: string
   updated_at: string
 }

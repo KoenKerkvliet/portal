@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { applyDefaultTemplates } from '../../lib/applyDefaultTemplates'
 import type { Client } from '../../types'
-import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore, KeyRound } from 'lucide-react'
+import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore, KeyRound, Activity } from 'lucide-react'
+import { formatDateTime, formatRelative } from '../../lib/portalActivity'
 
 const MAX_EXTRA_EMAILS = 2
+
+// Portaalgebruik per klant (rpc admin_client_activity)
+interface ClientActivity {
+  last_active_at: string | null
+  events_30d: number
+}
 
 interface NewUser {
   id: string
@@ -25,6 +32,7 @@ interface ClientDomain {
 }
 
 export default function Clients() {
+  const [activity, setActivity] = useState<Record<string, ClientActivity>>({})
   const [clients, setClients] = useState<Client[]>([])
   const [newUsers, setNewUsers] = useState<NewUser[]>([])
   const [domains, setDomains] = useState<DomainOption[]>([])
@@ -42,11 +50,12 @@ export default function Clients() {
   const [newDomain, setNewDomain] = useState({ name: '', url: '' })
 
   const fetchData = async () => {
-    const [{ data: clientData }, { data: profileData }, { data: domainData }, { data: pcData }] = await Promise.all([
+    const [{ data: clientData }, { data: profileData }, { data: domainData }, { data: pcData }, { data: activityData }] = await Promise.all([
       supabase.from('clients').select('*').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, email, full_name, created_at').eq('role', 'client'),
       supabase.from('projects').select('id, name, url').order('name'),
       supabase.from('project_clients').select('client_id, project:projects(id, name)'),
+      supabase.rpc('admin_client_activity'),
     ])
 
     const linkedProfileIds = (clientData || []).map(c => c.profile_id).filter(Boolean)
@@ -67,6 +76,9 @@ export default function Clients() {
     setNewUsers(unlinkedProfiles)
     setDomains(domainData || [])
     setClientDomains(domainsByClient)
+    const activityByClient: Record<string, ClientActivity> = {}
+    for (const row of (activityData || []) as ({ client_id: string } & ClientActivity)[]) activityByClient[row.client_id] = row
+    setActivity(activityByClient)
     setLoading(false)
   }
 
@@ -718,6 +730,23 @@ export default function Clients() {
                         <span>{client.company}</span>
                       </div>
                     )}
+                    {client.profile_id && (() => {
+                      const a = activity[client.id]
+                      return (
+                        <div className="flex items-center gap-2 text-sm text-gray-600"
+                          title={a?.last_active_at ? `Laatst actief op ${formatDateTime(a.last_active_at)}` : undefined}>
+                          <Activity className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          {a?.last_active_at ? (
+                            <span>
+                              Actief {formatRelative(a.last_active_at)}
+                              {a.events_30d > 0 && <span className="text-gray-400"> · {a.events_30d}× in 30 dagen</span>}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">Nog niet ingelogd</span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Gekoppelde domeinen */}

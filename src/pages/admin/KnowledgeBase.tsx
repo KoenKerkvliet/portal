@@ -225,7 +225,7 @@ export default function KnowledgeBase() {
                         </span>
                       </div>
                       <p className="text-xs text-gray-400 truncate mt-0.5">
-                        {a.summary || 'Geen samenvatting'} · bijgewerkt {formatDate(a.updated_at)}
+                        {a.summary || 'Geen samenvatting'} · bijgewerkt {formatDate(a.updated_at)}{a.published && ` · ${a.view_count || 0}× gelezen`}
                       </p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">

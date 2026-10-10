@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { User, Settings, LogOut, ChevronDown, FolderOpen, Bell, FileCheck, FileText, ClipboardCheck, Layers, X, Sparkles, MessageSquare, ShoppingCart, BookOpenText } from 'lucide-react'
@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import type { ClientNotification } from '../types'
 import ChatWidget from '../components/ChatWidget'
 import AbsenceBanner from '../components/AbsenceBanner'
+import { trackPortalView } from '../lib/tracking'
 
 const notificationIcons: Record<string, typeof FileCheck> = {
   quote: FileCheck,
@@ -141,6 +142,12 @@ export default function ClientLayout() {
   useEffect(() => {
     fetchNotifications()
   }, [fetchNotifications])
+
+  // Portaalgebruik bijhouden (zichtbaar voor mij in het beheer)
+  const { pathname } = useLocation()
+  useEffect(() => {
+    trackPortalView(pathname)
+  }, [pathname])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

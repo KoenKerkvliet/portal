@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import type { Quote, QuoteStatus } from '../../types'
 import { Plus, FileCheck, Trash2, Pencil, FlaskConical, X, FileText, Eye } from 'lucide-react'
+import DocOpenedBadge from '../../components/DocOpenedBadge'
+import { fetchDocOpens, type DocOpens } from '../../lib/portalActivity'
 
 const statusColors: Record<QuoteStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', accepted: 'bg-green-100 text-green-700', declined: 'bg-red-100 text-red-700' }
 
@@ -10,6 +12,8 @@ export default function Quotes() {
   const navigate = useNavigate()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [loading, setLoading] = useState(true)
+  // Wanneer de klant een offerte opende (via de mail of in het portaal)
+  const [docOpens, setDocOpens] = useState<Record<string, DocOpens>>({})
   const [showNewModal, setShowNewModal] = useState(false)
   const [isTest, setIsTest] = useState(false)
 
@@ -17,6 +21,7 @@ export default function Quotes() {
     const { data } = await supabase.from('quotes').select('*, client:clients(name), project:projects(name)').order('created_at', { ascending: false })
     setQuotes(data || [])
     setLoading(false)
+    setDocOpens(await fetchDocOpens('quote', (data || []).map(q => q.id)))
   }
 
   useEffect(() => {
@@ -128,6 +133,7 @@ export default function Quotes() {
                   {quote.is_test && (
                     <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">Test</span>
                   )}
+                  <DocOpenedBadge opens={docOpens[quote.id]} />
                 </div>
                 <p className="text-sm text-gray-500">{(quote.client as unknown as { name: string })?.name} — {(quote.project as unknown as { name: string })?.name}</p>
                 <p className="text-sm text-gray-400 mt-0.5">Geldig tot: {new Date(quote.valid_until).toLocaleDateString('nl-NL')}</p>

@@ -6,6 +6,8 @@ import type { Invoice, InvoiceStatus, QuoteItem, RecurrenceInterval, YearFormat 
 import { Plus, FileText, Trash2, Clock, CheckCircle, Repeat, Loader2, Search, Filter, ArrowUpDown, MoreVertical, X, FlaskConical, Pencil, Eye, Split, CheckCheck, Upload, Send, Mail, BellRing } from 'lucide-react'
 import InvoiceImportModal from '../../components/InvoiceImportModal'
 import { generateInvoicePdfDoc } from '../../lib/invoicePdf'
+import DocOpenedBadge from '../../components/DocOpenedBadge'
+import { fetchDocOpens, type DocOpens } from '../../lib/portalActivity'
 
 const statusLabels: Record<InvoiceStatus, string> = { draft: 'Concept', sent: 'Verzonden', paid: 'Betaald' }
 const statusColors: Record<InvoiceStatus, string> = { draft: 'bg-gray-100 text-gray-700', sent: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700' }
@@ -47,8 +49,9 @@ function nextTempNumber(invoices: Invoice[]): string {
   return `TMP-${max + 1}`
 }
 
-function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
+function InvoiceRow({ invoice, opens, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
   invoice: Invoice
+  opens?: DocOpens
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onSend: (invoice: Invoice) => void
   onRemind: (invoice: Invoice) => void
@@ -123,6 +126,7 @@ function InvoiceRow({ invoice, onStatusChange, onSend, onRemind, onDelete, onEdi
             </span>
           )}
         </div>
+        <DocOpenedBadge opens={opens} />
       </td>
       <td className="px-5 py-3.5 text-sm text-gray-700">{clientName}</td>
       <td className="px-5 py-3.5">
@@ -360,7 +364,8 @@ function RecurringInvoiceTable({ invoices, onPause, onDelete, onEdit }: {
   )
 }
 
-function InvoiceTable({ invoices, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
+function InvoiceTable({ invoices, opens, onStatusChange, onSend, onRemind, onDelete, onEdit, onSplit, onFinalize, dateLabel }: {
+  opens: Record<string, DocOpens>
   invoices: Invoice[]
   onStatusChange: (invoice: Invoice, status: InvoiceStatus) => void
   onSend: (invoice: Invoice) => void
@@ -387,7 +392,7 @@ function InvoiceTable({ invoices, onStatusChange, onSend, onRemind, onDelete, on
         </thead>
         <tbody>
           {invoices.map((invoice) => (
-            <InvoiceRow key={invoice.id} invoice={invoice} onStatusChange={onStatusChange} onSend={onSend} onRemind={onRemind} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} dateLabel={dateLabel} />
+            <InvoiceRow key={invoice.id} invoice={invoice} opens={opens[invoice.id]} onStatusChange={onStatusChange} onSend={onSend} onRemind={onRemind} onDelete={onDelete} onEdit={onEdit} onSplit={onSplit} onFinalize={onFinalize} dateLabel={dateLabel} />
           ))}
         </tbody>
       </table>
@@ -398,6 +403,8 @@ function InvoiceTable({ invoices, onStatusChange, onSend, onRemind, onDelete, on
 export default function Invoices() {
   const navigate = useNavigate()
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  // Wanneer de klant een factuur opende (via de mail of in het portaal)
+  const [docOpens, setDocOpens] = useState<Record<string, DocOpens>>({})
   const [loading, setLoading] = useState(true)
   const [showNewModal, setShowNewModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -428,6 +435,7 @@ export default function Invoices() {
       .order('created_at', { ascending: false })
     setInvoices(data || [])
     setLoading(false)
+    setDocOpens(await fetchDocOpens('invoice', (data || []).map(i => i.id)))
   }
 
   const invoiceDateOf = (i: Invoice) => i.invoice_date || i.created_at
@@ -1080,7 +1088,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen openstaande facturen</p>
               </div>
             ) : (
-              <InvoiceTable invoices={openInvoices} onStatusChange={handleStatusChange} onSend={setSendTarget} onRemind={setRemindTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="due" />
+              <InvoiceTable invoices={openInvoices} opens={docOpens} onStatusChange={handleStatusChange} onSend={setSendTarget} onRemind={setRemindTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="due" />
             )}
           </section>
 
@@ -1107,7 +1115,7 @@ export default function Invoices() {
                 <p className="text-sm text-gray-400">Geen betaalde facturen in {paidYear}</p>
               </div>
             ) : (
-              <InvoiceTable invoices={paidInvoicesFiltered} onStatusChange={handleStatusChange} onSend={setSendTarget} onRemind={setRemindTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="paid" />
+              <InvoiceTable invoices={paidInvoicesFiltered} opens={docOpens} onStatusChange={handleStatusChange} onSend={setSendTarget} onRemind={setRemindTarget} onDelete={handleDelete} onEdit={handleEdit} onSplit={handleSplit} onFinalize={handleFinalize} dateLabel="paid" />
             )}
           </section>
 
