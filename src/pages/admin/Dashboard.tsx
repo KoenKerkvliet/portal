@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { FolderKanban, Users, FileText, FileCheck, Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AbsenceManager from '../../components/AbsenceManager'
+import DashboardShortcuts from '../../components/DashboardShortcuts'
 
 interface DashboardStats {
   projects: number
@@ -377,6 +378,8 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      <DashboardShortcuts />
 
       {/* Admin notifications */}
       {notifications.length > 0 && (
