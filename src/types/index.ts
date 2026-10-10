@@ -473,6 +473,7 @@ export type LeadStatus =
   | 'interessant'
   | 'contact_gelegd'
   | 'mail_gestuurd'
+  | 'tweede_mail'
   | 'in_beraad'
   | 'nog_opvolgen'
   | 'niet_interessant'

@@ -8,7 +8,7 @@ import { PRIORITIES, STATUSES, city, formatDate, todayISO } from '../lib/leads'
 const PER_COLUMN = 5
 
 // Statussen waarbij het contact loopt en de bal ergens ligt.
-const LOPEND: LeadStatus[] = ['in_beraad', 'mail_gestuurd', 'contact_gelegd']
+const LOPEND: LeadStatus[] = ['in_beraad', 'tweede_mail', 'mail_gestuurd', 'contact_gelegd']
 
 type Row = Pick<
   Lead,

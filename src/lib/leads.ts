@@ -44,6 +44,7 @@ export const STATUSES: Record<LeadStatus, { label: string; badge: string }> = {
   interessant: { label: 'Interessant', badge: 'bg-purple-50 text-purple-700' },
   contact_gelegd: { label: 'Contact gelegd', badge: 'bg-green-50 text-green-700' },
   mail_gestuurd: { label: 'Mail gestuurd', badge: 'bg-blue-50 text-blue-700' },
+  tweede_mail: { label: 'Tweede mail gestuurd', badge: 'bg-sky-100 text-sky-800' },
   in_beraad: { label: 'In beraad bij hen', badge: 'bg-indigo-50 text-indigo-700' },
   nog_opvolgen: { label: 'Nog opvolgen', badge: 'bg-amber-50 text-amber-700' },
   niet_interessant: { label: 'Niet interessant', badge: 'bg-red-50 text-red-700' },
@@ -54,6 +55,7 @@ export const STATUS_ORDER: LeadStatus[] = [
   'interessant',
   'contact_gelegd',
   'mail_gestuurd',
+  'tweede_mail',
   'in_beraad',
   'nog_opvolgen',
   'niet_interessant',
@@ -72,6 +74,7 @@ export const formatScanned = (iso: string | null) =>
 // leads onderaan.
 export const STATUS_SORT_ORDER: LeadStatus[] = [
   'in_beraad',        // zij beslissen, hier wil je bovenop zitten
+  'tweede_mail',      // laatste poging loopt: binnenkort doorhakken
   'mail_gestuurd',    // jij wacht op antwoord
   'contact_gelegd',
   'nog_opvolgen',
