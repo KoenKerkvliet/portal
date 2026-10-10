@@ -32,7 +32,7 @@ create table if not exists public.leads (
   -- opvolging: alleen van de gebruiker
   status text not null default 'nieuw' check (status in (
     'nieuw', 'interessant', 'contact_gelegd', 'mail_gestuurd',
-    'nog_opvolgen', 'niet_interessant'
+    'in_beraad', 'nog_opvolgen', 'niet_interessant'
   )),
   note text,
   last_contact_at date,
