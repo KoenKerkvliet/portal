@@ -112,7 +112,7 @@ export default function PublicBoardPage({ token }: { token: string }) {
             {state && task.due_date && (
               <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[11px] font-medium ${dueClass[state]}`}>
                 <Clock className="w-3 h-3" />
-                {task.assignee === 'client' ? `Uiterlijk ${dueLabel(task.due_date)}` : dueLabel(task.due_date)}
+                {task.assignee === 'client' && state !== 'overdue' ? `Uiterlijk ${dueLabel(task.due_date)}` : dueLabel(task.due_date)}
               </span>
             )}
           </div>
