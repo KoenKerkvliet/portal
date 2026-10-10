@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import LeadScanDialog from '../../components/LeadScanDialog'
 import type { Lead, LeadPriority, LeadStatus } from '../../types'
 import type { LeadSortMode } from '../../lib/leads'
 import {
@@ -14,6 +15,8 @@ import {
   CalendarClock,
   RotateCcw,
   UserPlus,
+  BadgeCheck,
+  Plus,
 } from 'lucide-react'
 import {
   PRIORITIES,
@@ -67,6 +70,8 @@ export default function Leads() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(readPageSize)
   const [sortMode, setSortMode] = useState<LeadSortMode>(readSortMode)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [scanStarted, setScanStarted] = useState<string | null>(null)
 
   const fetchLeads = async () => {
     const { data } = await supabase.from('leads').select('*')
@@ -100,6 +105,7 @@ export default function Leads() {
     navigate('/admin/klanten', {
       state: {
         leadPrefill: {
+          leadId: lead.id,
           company: lead.name,
           phone: lead.phone ?? '',
           domainName: lead.name,
@@ -175,12 +181,45 @@ export default function Leads() {
 
   return (
     <div>
+      {scanOpen && (
+        <LeadScanDialog
+          onClose={() => setScanOpen(false)}
+          onStarted={(url) => { setScanOpen(false); setScanStarted(url) }}
+        />
+      )}
+
+      {scanStarted && (
+        <div className="flex items-center justify-between gap-4 mb-5 px-4 py-3 bg-green-50 border border-green-100 rounded-xl">
+          <p className="text-sm text-green-900">
+            Scan gestart. De resultaten verschijnen hier vanzelf zodra hij klaar is —
+            ververs deze pagina over een minuut of twee.
+          </p>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <a href={scanStarted} target="_blank" rel="noopener noreferrer"
+               className="text-sm text-green-800 underline hover:no-underline">
+              Volg de scan
+            </a>
+            <button onClick={() => { setScanStarted(null); fetchLeads() }}
+                    className="text-sm font-medium text-green-800 hover:text-green-900">
+              Ververs
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <p className="text-gray-500 mt-1">{SORT_MODES[sortMode].hint}.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setScanOpen(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nieuwe scan
+          </button>
           <ArrowDownWideNarrow className="w-4 h-4 text-gray-400" />
           <select
             value={sortMode}
@@ -336,6 +375,11 @@ export default function Leads() {
                           <p className="text-xs text-gray-500">
                             {city(lead.address)}
                             {lead.lead_type && <span className="text-gray-400"> · {lead.lead_type}</span>}
+                            {lead.client_id && (
+                              <span className="ml-2 px-1.5 py-0.5 rounded bg-green-50 text-green-700 font-medium">
+                                Klant
+                              </span>
+                            )}
                           </p>
                         </td>
                         <td className="px-3 py-3">
@@ -395,13 +439,23 @@ export default function Leads() {
                         </td>
                         <td className="pr-4">
                           <div className="flex items-center justify-end">
-                            <button
-                              onClick={() => addAsClient(lead)}
-                              className="p-1.5 text-gray-400 hover:text-primary transition-colors"
-                              title="Voeg toe als klant"
-                            >
-                              <UserPlus className="w-4 h-4" />
-                            </button>
+                            {lead.client_id ? (
+                              <button
+                                onClick={() => navigate('/admin/klanten')}
+                                className="p-1.5 text-green-600 hover:text-green-700 transition-colors"
+                                title="Is al klant — open de klantenpagina"
+                              >
+                                <BadgeCheck className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => addAsClient(lead)}
+                                className="p-1.5 text-gray-400 hover:text-primary transition-colors"
+                                title="Voeg toe als klant"
+                              >
+                                <UserPlus className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => setExpandedId(expanded ? null : lead.id)}
                               className="p-1.5 text-gray-400 hover:text-gray-700 transition-colors"

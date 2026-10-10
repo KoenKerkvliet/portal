@@ -10,6 +10,7 @@ const MAX_EXTRA_EMAILS = 2
 
 // Wat de leadpagina meegeeft als je daar op "Voeg toe als klant" klikt.
 interface LeadPrefill {
+  leadId: string
   company: string
   phone: string
   domainName: string
@@ -55,6 +56,7 @@ export default function Clients() {
   const [invitingId, setInvitingId] = useState<string | null>(null)
   const [domainMode, setDomainMode] = useState<'existing' | 'new'>('existing')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [fromLeadId, setFromLeadId] = useState<string | null>(null)
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' })
   const [extraEmails, setExtraEmails] = useState<string[]>([])
   const [selectedDomainId, setSelectedDomainId] = useState('')
@@ -101,6 +103,7 @@ export default function Clients() {
     const prefill = (location.state as { leadPrefill?: LeadPrefill } | null)?.leadPrefill
     if (!prefill) return
 
+    setFromLeadId(prefill.leadId)
     setFormData({ name: '', email: '', phone: prefill.phone, company: prefill.company })
     setExtraEmails([])
     setEditingId(null)
@@ -116,6 +119,7 @@ export default function Clients() {
   const resetForm = () => {
     setShowForm(false)
     setEditingId(null)
+    setFromLeadId(null)
     setLinkingUser(null)
     setDomainMode('existing')
     setFormData({ name: '', email: '', phone: '', company: '' })
@@ -220,6 +224,14 @@ export default function Clients() {
         // etc. kan toewijzen.
         await applyDefaultTemplates(newProject.id)
       }
+    }
+
+    // Kwam dit formulier vanaf een lead? Dan die lead aan de klant koppelen,
+    // zodat je in het leadoverzicht ziet dat er al iets mee gebeurd is.
+    if (fromLeadId) {
+      await supabase.from('leads')
+        .update({ client_id: clientRecord.id, updated_at: new Date().toISOString() })
+        .eq('id', fromLeadId)
     }
 
     resetForm()

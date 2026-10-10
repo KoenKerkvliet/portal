@@ -56,3 +56,12 @@ create policy "Admins full access to leads" on public.leads
   for all using (public.is_admin());
 
 comment on table public.leads is 'Leads uit de lead-scanner. Scanvelden worden bij elke scan bijgewerkt, opvolgvelden (status/note/last_contact_at/follow_up_at) nooit.';
+
+-- Koppeling naar de klant die uit deze lead is voortgekomen. Verdwijnt de
+-- klant, dan blijft de lead bestaan zonder koppeling.
+alter table public.leads
+  add column if not exists client_id uuid references public.clients(id) on delete set null;
+
+create index if not exists leads_client_idx on public.leads (client_id) where client_id is not null;
+
+comment on column public.leads.client_id is 'Gezet wanneer je vanuit deze lead een klant aanmaakt. Een scan raakt dit veld niet aan.';

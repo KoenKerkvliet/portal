@@ -499,6 +499,7 @@ export interface Lead {
   region: string | null
   lead_type: string | null
   // Opvolging; een scan raakt deze velden nooit aan
+  client_id: string | null
   status: LeadStatus
   note: string | null
   last_contact_at: string | null
