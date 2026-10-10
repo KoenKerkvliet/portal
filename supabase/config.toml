@@ -37,6 +37,11 @@ verify_jwt = false
 # beveiliging in de function: gehashte codes, verlooptijd, pogingen en limieten.
 verify_jwt = false
 
+[functions.receive-leads]
+# De lead-scanner (GitHub Actions) authenticeert met een eigen x-leads-token,
+# waarvan alleen de SHA-256 in integration_config staat. Geen Supabase JWT.
+verify_jwt = false
+
 [functions.mcp]
 # Connector voor Claude (claude.ai, desktop, mobiel, Code). Claude stuurt een
 # eigen sleutel mee als "Authorization: Bearer <MCP_TOKEN>", geen Supabase-JWT;
