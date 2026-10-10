@@ -124,7 +124,7 @@ export default function DashboardShortcuts() {
   const inputClass = 'w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all'
 
   return (
-    <div className="mt-8 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+    <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <Link2 className="w-5 h-5 text-primary" />

@@ -1,18 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { FolderKanban, Users, FileText, FileCheck, Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench } from 'lucide-react'
+import { Mail, Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, ChevronDown, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AbsenceManager from '../../components/AbsenceManager'
 import DashboardShortcuts from '../../components/DashboardShortcuts'
-
-interface DashboardStats {
-  projects: number
-  clients: number
-  invoices: number
-  quotes: number
-  unpaidInvoices: number
-  activeProjects: number
-}
 
 interface PunchProjectStat {
   id: string
@@ -112,15 +103,6 @@ const notifIconColors: Record<string, string> = {
 }
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats>({
-    projects: 0,
-    clients: 0,
-    invoices: 0,
-    quotes: 0,
-    unpaidInvoices: 0,
-    activeProjects: 0,
-  })
-  const [loading, setLoading] = useState(true)
   const [punchStats, setPunchStats] = useState<PunchStats>(emptyPunchStats)
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const stackedIdsRef = useRef<Record<string, string[]>>({})
@@ -278,67 +260,10 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    const fetchStats = async () => {
-      const [projects, clients, invoices, quotes] = await Promise.all([
-        supabase.from('projects').select('id, status', { count: 'exact' }),
-        supabase.from('clients').select('id', { count: 'exact' }),
-        supabase.from('invoices').select('id, status, is_recurring, is_test'),
-        supabase.from('quotes').select('id', { count: 'exact' }),
-      ])
-
-      // Sjablonen van terugkerende facturen en testfacturen zijn geen echte facturen;
-      // openstaand = verstuurd en nog niet betaald (concepten staan nog niet open)
-      const realInvoices = (invoices.data || []).filter((i) => !i.is_recurring && !i.is_test)
-      setStats({
-        projects: projects.count || 0,
-        clients: clients.count || 0,
-        invoices: realInvoices.length,
-        quotes: quotes.count || 0,
-        unpaidInvoices: realInvoices.filter((i) => i.status === 'sent').length,
-        activeProjects: projects.data?.filter((p) => p.status === 'active').length || 0,
-      })
-      setLoading(false)
-    }
-
-    fetchStats()
     fetchNotifications()
     fetchPunchStats()
   }, [])
 
-  const cards = [
-    {
-      title: 'Domeinen',
-      value: stats.projects,
-      subtitle: `${stats.activeProjects} actief`,
-      icon: FolderKanban,
-      color: 'bg-primary/10 text-primary',
-      link: '/admin/projecten',
-    },
-    {
-      title: 'Klanten',
-      value: stats.clients,
-      subtitle: 'Totaal',
-      icon: Users,
-      color: 'bg-blue-50 text-blue-600',
-      link: '/admin/klanten',
-    },
-    {
-      title: 'Facturen',
-      value: stats.invoices,
-      subtitle: `${stats.unpaidInvoices} openstaand`,
-      icon: FileText,
-      color: 'bg-accent/10 text-accent-600',
-      link: '/admin/facturen',
-    },
-    {
-      title: 'Offertes',
-      value: stats.quotes,
-      subtitle: 'Totaal',
-      icon: FileCheck,
-      color: 'bg-green-50 text-green-600',
-      link: '/admin/offertes',
-    },
-  ]
 
   return (
     <div>
@@ -349,35 +274,6 @@ export default function Dashboard() {
         </div>
         <AbsenceManager />
       </div>
-
-      {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl p-6 shadow-sm animate-pulse">
-              <div className="h-20" />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-          {cards.map((card) => (
-            <Link
-              key={card.title}
-              to={card.link}
-              className="bg-white rounded-xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${card.color}`}>
-                  <card.icon className="w-5 h-5" />
-                </div>
-              </div>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{card.value}</p>
-              <p className="text-sm text-gray-500 mt-1">{card.title}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{card.subtitle}</p>
-            </Link>
-          ))}
-        </div>
-      )}
 
       <DashboardShortcuts />
 
