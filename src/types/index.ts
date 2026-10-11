@@ -505,6 +505,8 @@ export interface Lead {
   note: string | null
   last_contact_at: string | null
   follow_up_at: string | null
+  first_contacted_at: string | null // eerste mail of contact
+  replied_at: string | null // reactie ontvangen
   first_seen_at: string
   scanned_at: string | null
   updated_at: string

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Target, Loader2, CalendarClock, Send, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Lead, LeadStatus } from '../types'
-import { PRIORITIES, STATUSES, city, formatDate, todayISO } from '../lib/leads'
+import { PRIORITIES, STATUSES, city, formatDate, todayISO, leadFunnel } from '../lib/leads'
 
 const PER_COLUMN = 5
 
@@ -13,6 +13,7 @@ const LOPEND: LeadStatus[] = ['in_beraad', 'tweede_mail', 'mail_gestuurd', 'cont
 type Row = Pick<
   Lead,
   'id' | 'name' | 'address' | 'lead_type' | 'status' | 'priority' | 'score' | 'follow_up_at' | 'last_contact_at'
+  | 'first_contacted_at' | 'replied_at' | 'client_id'
 >
 
 // Dashboard: waar staan mijn leads? Links wat vandaag moet, in het midden de
@@ -24,8 +25,7 @@ export default function DashboardLeads() {
   useEffect(() => {
     supabase
       .from('leads')
-      .select('id, name, address, lead_type, status, priority, score, follow_up_at, last_contact_at')
-      .neq('status', 'niet_interessant')
+      .select('id, name, address, lead_type, status, priority, score, follow_up_at, last_contact_at, first_contacted_at, replied_at, client_id')
       .then(({ data }) => {
         setRows((data || []) as Row[])
         setLoading(false)
@@ -33,17 +33,22 @@ export default function DashboardLeads() {
   }, [])
 
   const today = todayISO()
+  // Afgeschreven leads tellen mee in het resultaat, maar niet in de lijstjes
+  const since = new Date()
+  since.setDate(since.getDate() - 30)
+  const result = leadFunnel(rows, since.toLocaleDateString('en-CA'))
+  const active = rows.filter((l) => l.status !== 'niet_interessant')
 
-  const actie = rows
+  const actie = active
     .filter((l) => (l.follow_up_at && l.follow_up_at <= today) || l.status === 'nog_opvolgen')
     .sort((a, b) => (a.follow_up_at ?? '9999').localeCompare(b.follow_up_at ?? '9999'))
 
-  const lopend = rows
+  const lopend = active
     .filter((l) => LOPEND.includes(l.status))
     // In beraad eerst: daar wordt op dit moment over jou beslist.
     .sort((a, b) => LOPEND.indexOf(a.status) - LOPEND.indexOf(b.status) || a.name.localeCompare(b.name))
 
-  const interessant = rows
+  const interessant = active
     .filter((l) => l.status === 'interessant')
     .sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
 
@@ -95,9 +100,16 @@ export default function DashboardLeads() {
           <Target className="w-5 h-5 text-gray-400" />
           <h2 className="text-lg font-semibold text-gray-900">Leads</h2>
         </div>
-        <Link to="/admin/leads" className="text-sm text-primary hover:underline">
-          Alle leads
-        </Link>
+        <div className="flex items-center gap-4">
+          {!loading && result.contacted > 0 && (
+            <span className="hidden sm:inline text-xs text-gray-500" title="Leads die je de laatste 30 dagen voor het eerst benaderde">
+              30 dagen: <strong className="text-gray-800">{result.contacted}</strong> benaderd · <strong className="text-gray-800">{result.replied}</strong> reactie · <strong className="text-gray-800">{result.clients}</strong> {result.clients === 1 ? 'klant' : 'klanten'}
+            </span>
+          )}
+          <Link to="/admin/leads" className="text-sm text-primary hover:underline">
+            Alle leads
+          </Link>
+        </div>
       </div>
 
       {loading ? (

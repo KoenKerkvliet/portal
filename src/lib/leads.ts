@@ -63,6 +63,60 @@ export const STATUS_ORDER: LeadStatus[] = [
 
 export const todayISO = () => new Date().toISOString().slice(0, 10)
 
+// Datum (YYYY-MM-DD) een aantal werkdagen of kalenderdagen na vandaag
+export function addWorkdays(n: number, from = new Date()): string {
+  const d = new Date(from)
+  let added = 0
+  while (added < n) {
+    d.setDate(d.getDate() + 1)
+    if (d.getDay() !== 0 && d.getDay() !== 6) added++
+  }
+  return d.toLocaleDateString('en-CA')
+}
+
+export function addDays(n: number, from = new Date()): string {
+  const d = new Date(from)
+  d.setDate(d.getDate() + n)
+  return d.toLocaleDateString('en-CA')
+}
+
+// Wat er automatisch meeverandert als je de status van een lead aanpast: laatst contact,
+// de volgende opvolgdatum en (voor het resultaatoverzicht) eerste contact en reactie.
+// Je kunt de datums daarna gewoon met de hand aanpassen.
+export function statusChangePatch(lead: Pick<Lead, 'first_contacted_at' | 'replied_at' | 'follow_up_at'>, status: LeadStatus): Partial<Lead> {
+  const today = new Date().toLocaleDateString('en-CA')
+  const firstContact = lead.first_contacted_at ? {} : { first_contacted_at: today }
+  switch (status) {
+    case 'mail_gestuurd':
+      return { ...firstContact, last_contact_at: today, follow_up_at: addWorkdays(5) }
+    case 'tweede_mail':
+      return { ...firstContact, last_contact_at: today, follow_up_at: addWorkdays(10) }
+    case 'contact_gelegd':
+      return { ...firstContact, last_contact_at: today, follow_up_at: addWorkdays(5) }
+    case 'in_beraad':
+      // Verenigingen beslissen in een bestuursvergadering: na een maand pas weer navragen
+      return { ...firstContact, replied_at: lead.replied_at ?? today, last_contact_at: today, follow_up_at: addDays(28) }
+    case 'nog_opvolgen':
+      return { follow_up_at: lead.follow_up_at ?? today }
+    case 'niet_interessant':
+      return { follow_up_at: null }
+    default:
+      return {}
+  }
+}
+
+/** Benaderd -> reactie -> klant, over alle leads of vanaf een datum (YYYY-MM-DD). */
+export function leadFunnel(leads: Pick<Lead, 'first_contacted_at' | 'replied_at' | 'client_id'>[], since?: string) {
+  const contacted = leads.filter((l) => l.first_contacted_at && (!since || l.first_contacted_at >= since))
+  return {
+    contacted: contacted.length,
+    replied: contacted.filter((l) => l.replied_at || l.client_id).length,
+    clients: contacted.filter((l) => l.client_id).length,
+  }
+}
+
+export const percent = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : '–')
+
 export const formatDate = (iso: string | null) =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
 

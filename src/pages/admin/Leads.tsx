@@ -17,6 +17,7 @@ import {
   UserPlus,
   BadgeCheck,
   Plus,
+  MessageCircleReply,
 } from 'lucide-react'
 import {
   PRIORITIES,
@@ -31,6 +32,9 @@ import {
   hostname,
   telHref,
   todayISO,
+  statusChangePatch,
+  leadFunnel,
+  percent,
 } from '../../lib/leads'
 
 const PAGE_SIZES = [25, 50, 100]
@@ -159,6 +163,13 @@ export default function Leads() {
       .sort(makeLeadComparator(sortMode))
   }, [leads, search, priorityFilter, statusFilter, typeFilter, regionFilter, onlyFollowUp, sortMode])
 
+  // Resultaat van het benaderen: in totaal en de laatste 30 dagen
+  const funnel = useMemo(() => {
+    const since = new Date()
+    since.setDate(since.getDate() - 30)
+    return { all: leadFunnel(leads), recent: leadFunnel(leads, since.toLocaleDateString('en-CA')) }
+  }, [leads])
+
   const stats = useMemo(() => {
     const today = todayISO()
     const count = (p: LeadPriority) => leads.filter((l) => l.priority === p).length
@@ -273,6 +284,27 @@ export default function Leads() {
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Opvolgen</p>
             <p className="text-xl font-bold text-gray-900 mt-1">{stats.opvolgen}</p>
           </button>
+        </div>
+      )}
+
+      {/* Resultaat: benaderd -> reactie -> klant */}
+      {!loading && funnel.all.contacted > 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3 mb-4 text-sm">
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Resultaat</span>
+          <span className="text-gray-600"><strong className="text-gray-900">{funnel.all.contacted}</strong> benaderd</span>
+          <span className="text-gray-300">→</span>
+          <span className="text-gray-600">
+            <strong className="text-gray-900">{funnel.all.replied}</strong> reactie
+            <span className="text-gray-400"> ({percent(funnel.all.replied, funnel.all.contacted)})</span>
+          </span>
+          <span className="text-gray-300">→</span>
+          <span className="text-gray-600">
+            <strong className="text-gray-900">{funnel.all.clients}</strong> {funnel.all.clients === 1 ? 'klant' : 'klanten'}
+            <span className="text-gray-400"> ({percent(funnel.all.clients, funnel.all.contacted)})</span>
+          </span>
+          <span className="text-xs text-gray-400 sm:ml-auto">
+            Laatste 30 dagen: {funnel.recent.contacted} benaderd, {funnel.recent.replied} reactie, {funnel.recent.clients} {funnel.recent.clients === 1 ? 'klant' : 'klanten'}
+          </span>
         </div>
       )}
 
@@ -434,7 +466,10 @@ export default function Leads() {
                         <td className="px-3 py-3">
                           <select
                             value={lead.status}
-                            onChange={(e) => saveLead(lead.id, { status: e.target.value as LeadStatus })}
+                            onChange={(e) => {
+                              const status = e.target.value as LeadStatus
+                              saveLead(lead.id, { status, ...statusChangePatch(lead, status) })
+                            }}
                             className={`px-2 py-1 rounded-md text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${STATUSES[lead.status].badge}`}
                           >
                             {STATUS_ORDER.map((s) => (
@@ -553,6 +588,19 @@ export default function Leads() {
                                   />
                                   {lead.last_contact_at && (
                                     <span className="text-xs text-gray-400">{formatDate(lead.last_contact_at)}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <MessageCircleReply className="w-3.5 h-3.5 text-gray-400" />
+                                  <label className="text-xs text-gray-500">Reactie ontvangen</label>
+                                  <input
+                                    type="date"
+                                    value={lead.replied_at ?? ''}
+                                    onChange={(e) => saveLead(lead.id, { replied_at: e.target.value || null })}
+                                    className="px-2 py-1 text-xs border border-gray-200 rounded-md text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                  />
+                                  {lead.first_contacted_at && (
+                                    <span className="text-xs text-gray-400">Eerst benaderd op {formatDate(lead.first_contacted_at)}</span>
                                   )}
                                 </div>
                               </div>
