@@ -26,6 +26,20 @@ const WERK_CATEGORIEEN = [
 ]
 const TX_CATEGORIEEN = ['private_deposit', 'private_withdrawal', 'private_purchase', 'interest']
 const FASEN = ['intake', 'design', 'development', 'oplevering', 'onderhoud']
+// Zoals src/lib/leads.ts
+const LEAD_STATUSSEN: Record<string, string> = {
+  nieuw: 'Nog niet benaderd',
+  interessant: 'Interessant',
+  contact_gelegd: 'Contact gelegd',
+  mail_gestuurd: 'Mail gestuurd',
+  tweede_mail: 'Tweede mail gestuurd',
+  in_beraad: 'In beraad bij hen',
+  nog_opvolgen: 'Nog opvolgen',
+  niet_interessant: 'Niet interessant',
+}
+const LEAD_PRIORITEITEN = ['geen_site', 'social', 'hoog', 'gemiddeld', 'ok']
+// Volgorde bij sorteren op opvolging: lopende gesprekken eerst, afgeschreven onderaan
+const LEAD_STATUS_VOLGORDE = ['in_beraad', 'tweede_mail', 'mail_gestuurd', 'contact_gelegd', 'nog_opvolgen', 'interessant', 'nieuw', 'niet_interessant']
 
 // ------------------------------------------------------------ schema's --
 
@@ -46,6 +60,7 @@ const DOMEIN = s.tekst('Domein (project): id, naam of url, bijv. "designpixels.n
 const KLANT = s.tekst('Klant: id, naam, bedrijfsnaam of e-mailadres.')
 const FACTUUR = s.tekst('Factuur: id of factuurnummer.')
 const OFFERTE = s.tekst('Offerte: id of offertenummer.')
+const LEAD = s.tekst('Lead: id of (een deel van de) naam, bijv. "Fanfare Abdissenbosch".')
 
 export const GEREEDSCHAPPEN: Gereedschap[] = [
   // ------------------------------------------------------------ inzien --
@@ -53,7 +68,8 @@ export const GEREEDSCHAPPEN: Gereedschap[] = [
     name: 'overzicht',
     description:
       'Stand van zaken in één keer: openstaande en te late facturen, concepten, onverwerkte ' +
-      'banktransacties, ongelezen meldingen, open tickets, onopgeloste chats en actieve domeinen per fase. ' +
+      'banktransacties, ongelezen meldingen, open tickets, onopgeloste chats, actieve domeinen per fase ' +
+      'en het aantal leads dat nu opgevolgd moet worden. ' +
       'Goed startpunt voor "hoe staat het ervoor?".',
     inputSchema: obj({}),
   },
@@ -120,6 +136,36 @@ export const GEREEDSCHAPPEN: Gereedschap[] = [
     name: 'offerte_details',
     description: 'Eén offerte volledig, met regels en het akkoord of de afwijzing.',
     inputSchema: obj({ offerte: OFFERTE }, ['offerte']),
+  },
+  {
+    name: 'leads_zoeken',
+    description:
+      'Zoekt in de leadscanner (bedrijven en verenigingen die ik kan benaderen). Standaard gesorteerd op ' +
+      'opvolging: lopende gesprekken eerst, daarna de voorraad op kans. Met opvolgen: true alleen wat nu ' +
+      'opgevolgd moet worden (opvolgdatum vandaag of eerder, of status nog_opvolgen). Statussen: ' +
+      Object.entries(LEAD_STATUSSEN).map(([k, v]) => `${k} (${v})`).join(', ') + '.',
+    inputSchema: obj({
+      zoekterm: s.tekst('Zoekt in naam, adres, website en notitie.'),
+      status: s.keuze(Object.keys(LEAD_STATUSSEN), 'Alleen leads met deze status.'),
+      type: s.tekst('Soort lead, bijv. Vereniging, Kapper, Nagelstudio, Schilder, Schoonheidssalon.'),
+      prioriteit: s.keuze(LEAD_PRIORITEITEN, 'Kans volgens de scanner: geen_site, social (alleen social media), hoog, gemiddeld, ok.'),
+      regio: s.tekst('Regio of plaats.'),
+      opvolgen: s.bool('Alleen leads die nu opgevolgd moeten worden.'),
+      sorteer: s.keuze(['opvolging', 'kans'], 'opvolging (standaard) of kans (beste kans eerst).'),
+      limiet: s.limiet,
+    }),
+  },
+  {
+    name: 'lead_details',
+    description: 'Alles over één lead: contactgegevens, wat de scanner vond (problemen, CMS, SSL, mobiel, laadtijd, Google-reviews), status, datums, notitie en gekoppelde klant.',
+    inputSchema: obj({ lead: LEAD }, ['lead']),
+  },
+  {
+    name: 'leads_resultaat',
+    description:
+      'Wat het benaderen oplevert: benaderd -> reactie -> klant, in totaal en vanaf een datum (standaard de ' +
+      'laatste 30 dagen), ook per soort lead. Plus het aantal leads per status en wat er nu opgevolgd moet worden.',
+    inputSchema: obj({ vanaf: s.tekst(`Begin van de periode. ${DATUM} Standaard 30 dagen geleden.`) }),
   },
   {
     name: 'werkzaamheden_zoeken',
@@ -407,6 +453,31 @@ export const GEREEDSCHAPPEN: Gereedschap[] = [
     }),
   },
   {
+    name: 'lead_bijwerken',
+    description:
+      'Past een lead aan. Een nieuwe status vult, net als in het portaal, de datums automatisch in: ' +
+      'mail_gestuurd -> laatst contact vandaag, opvolgen over 5 werkdagen; tweede_mail -> over 10 werkdagen; ' +
+      'contact_gelegd -> over 5 werkdagen; in_beraad -> reactie ontvangen, opvolgen over 4 weken; ' +
+      'nog_opvolgen -> opvolgen vandaag als er niets stond; niet_interessant -> opvolgdatum leeg. ' +
+      'Bij de eerste keer benaderen wordt ook eerst_benaderd gezet. Datums die je zelf meegeeft gaan voor. ' +
+      'Er wordt niets gemaild.',
+    inputSchema: obj(
+      {
+        lead: LEAD,
+        status: s.keuze(Object.keys(LEAD_STATUSSEN), 'Nieuwe status.'),
+        notitie: s.tekst('Vervangt de hele notitie. Gebruik notitie_toevoegen om iets toe te voegen.'),
+        notitie_toevoegen: s.tekst('Voegt een regel met de datum van vandaag toe aan de notitie.'),
+        opvolgen_op: s.tekst(`Opvolgdatum. ${DATUM} Leeg ("") maakt hem leeg.`),
+        laatst_contact: s.tekst(`Datum van het laatste contact. ${DATUM}`),
+        reactie_ontvangen: s.tekst(`Datum waarop ze reageerden (ook bij "geen interesse"). ${DATUM} Leeg ("") maakt hem leeg.`),
+        eerst_benaderd: s.tekst(`Datum van het eerste contact. ${DATUM}`),
+        type: s.tekst('Soort lead, bijv. Vereniging.'),
+        klant: s.tekst('Koppel aan een bestaande klant (id, naam of e-mail). "geen" ontkoppelt.'),
+      },
+      ['lead'],
+    ),
+  },
+  {
     name: 'ticket_status_zetten',
     description: 'Zet de status van een ticket. Er gaat geen mail naar de klant.',
     inputSchema: obj(
@@ -455,6 +526,10 @@ const UITVOERDERS: Record<string, Uitvoerder> = {
   klant_bijwerken: klantBijwerken,
   meldingen_gelezen: meldingenGelezen,
   ticket_status_zetten: ticketStatusZetten,
+  leads_zoeken: leadsZoeken,
+  lead_details: leadDetails,
+  leads_resultaat: leadsResultaat,
+  lead_bijwerken: leadBijwerken,
 }
 
 export async function voerUit(db: DB, naam: string, invoer: Invoer): Promise<unknown> {
@@ -486,6 +561,9 @@ async function overzicht(db: DB) {
     telling(db.from('chat_conversations').select('id', { count: 'exact', head: true }).eq('has_unresolved', true)),
     rijen(db.from('projects').select('current_phase').eq('status', 'active')),
   ])
+  const leadsOpvolgen = await telling(
+    db.from('leads').select('id', { count: 'exact', head: true }).or(`follow_up_at.lte.${vandaag},status.eq.nog_opvolgen`),
+  )
 
   const echt = facturen.filter((f: any) => !f.is_recurring)
   const verzonden = echt.filter((f: any) => f.status === 'sent')
@@ -517,6 +595,7 @@ async function overzicht(db: DB) {
     tickets_openstaand: tickets,
     chats_onopgelost: chats,
     actieve_domeinen_per_fase: perFase,
+    leads_nu_opvolgen: leadsOpvolgen,
   }
 }
 
@@ -1230,6 +1309,212 @@ async function ticketStatusZetten(db: DB, inv: Invoer) {
   const uitkomst = { was: t.status, ticket: nieuw, opmerking: 'Er is geen mail naar de klant gestuurd.' }
   await logboek(db, 'ticket_status_zetten', inv, uitkomst)
   return uitkomst
+}
+
+// ---------------------------------------------------------------- leads --
+
+const LEAD_VELDEN =
+  'id, name, lead_type, status, priority, score, address, phone, website, region, follow_up_at, ' +
+  'last_contact_at, first_contacted_at, replied_at, note, client_id, clients(name)'
+
+function leadKort(l: any) {
+  return {
+    id: l.id,
+    naam: l.name,
+    type: l.lead_type,
+    status: l.status,
+    status_label: LEAD_STATUSSEN[l.status] ?? l.status,
+    prioriteit: l.priority,
+    score: l.score,
+    plaats: plaatsUitAdres(l.address),
+    telefoon: l.phone,
+    website: l.website,
+    opvolgen_op: l.follow_up_at,
+    laatst_contact: l.last_contact_at,
+    eerst_benaderd: l.first_contacted_at,
+    reactie_ontvangen: l.replied_at,
+    klant: l.clients?.name ?? null,
+    notitie: l.note ? (l.note.length > 200 ? `${l.note.slice(0, 200)}...` : l.note) : null,
+  }
+}
+
+async function leadsZoeken(db: DB, inv: Invoer) {
+  let vraag = db.from('leads').select(LEAD_VELDEN)
+  const status = tekst(inv.status)
+  if (status) {
+    if (!(status in LEAD_STATUSSEN)) throw new Error(`Onbekende status. Kies uit: ${Object.keys(LEAD_STATUSSEN).join(', ')}.`)
+    vraag = vraag.eq('status', status)
+  }
+  const type = zoekterm(inv.type)
+  if (type) vraag = vraag.ilike('lead_type', `%${type}%`)
+  const prioriteit = tekst(inv.prioriteit)
+  if (prioriteit) vraag = vraag.eq('priority', prioriteit)
+  const term = zoekterm(inv.zoekterm)
+  if (term) vraag = vraag.or(`name.ilike.%${term}%,address.ilike.%${term}%,website.ilike.%${term}%,note.ilike.%${term}%`)
+
+  // Regio en opvolgen hieronder filteren: één or-filter per verzoek houdt het voorspelbaar
+  const vandaag = vandaagNL()
+  const regio = zoekterm(inv.regio)?.toLowerCase()
+  const data = (await rijen(vraag.limit(5000))).filter((l: any) =>
+    (!regio || `${l.region ?? ''} ${l.address ?? ''}`.toLowerCase().includes(regio)) &&
+    (!bool(inv.opvolgen) || (l.follow_up_at && l.follow_up_at <= vandaag) || l.status === 'nog_opvolgen'))
+  const opKans = tekst(inv.sorteer) === 'kans'
+  const rang = (l: any) => {
+    const kans = [LEAD_PRIORITEITEN.indexOf(l.priority ?? 'ok'), l.score ?? 0]
+    const st = LEAD_STATUS_VOLGORDE.indexOf(l.status)
+    return opKans ? [l.status === 'niet_interessant' ? 1 : 0, ...kans] : [st === -1 ? 99 : st, ...kans]
+  }
+  data.sort((a: any, b: any) => {
+    const ra = rang(a), rb = rang(b)
+    for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i]
+    return String(a.name).localeCompare(String(b.name))
+  })
+  const n = limiet(inv)
+  return { totaal_gevonden: data.length, getoond: Math.min(n, data.length), leads: data.slice(0, n).map(leadKort) }
+}
+
+async function leadDetails(db: DB, inv: Invoer) {
+  const lead = await zoekLead(db, inv.lead)
+  const l = await enkele(db.from('leads').select('*, clients(id, name, email)').eq('id', lead.id))
+  return { ...l, status_label: LEAD_STATUSSEN[l.status] ?? l.status, plaats: plaatsUitAdres(l.address) }
+}
+
+function trechter(leads: any[], vanaf?: string) {
+  const benaderd = leads.filter((l) => l.first_contacted_at && (!vanaf || l.first_contacted_at >= vanaf))
+  const reactie = benaderd.filter((l) => l.replied_at || l.client_id).length
+  const klant = benaderd.filter((l) => l.client_id).length
+  const pct = (x: number) => (benaderd.length ? Math.round((x / benaderd.length) * 100) : 0)
+  return { benaderd: benaderd.length, reactie, reactie_pct: pct(reactie), klant, klant_pct: pct(klant) }
+}
+
+async function leadsResultaat(db: DB, inv: Invoer) {
+  const vandaag = vandaagNL()
+  const standaard = new Date(`${vandaag}T12:00:00Z`)
+  standaard.setUTCDate(standaard.getUTCDate() - 30)
+  const vanaf = datum(inv.vanaf, 'vanaf') ?? standaard.toISOString().slice(0, 10)
+  const leads = await rijen(
+    db.from('leads').select('id, name, lead_type, status, follow_up_at, first_contacted_at, replied_at, client_id').limit(5000),
+  )
+
+  const perStatus: Record<string, number> = {}
+  for (const l of leads) perStatus[l.status] = (perStatus[l.status] ?? 0) + 1
+  const perType: Record<string, unknown> = {}
+  for (const type of [...new Set(leads.map((l: any) => l.lead_type ?? 'onbekend'))] as string[]) {
+    const r = trechter(leads.filter((l: any) => (l.lead_type ?? 'onbekend') === type))
+    if (r.benaderd > 0) perType[type] = r
+  }
+  const opvolgen = leads
+    .filter((l: any) => (l.follow_up_at && l.follow_up_at <= vandaag) || l.status === 'nog_opvolgen')
+    .sort((a: any, b: any) => String(a.follow_up_at ?? '9999').localeCompare(String(b.follow_up_at ?? '9999')))
+    .map((l: any) => ({ naam: l.name, status: LEAD_STATUSSEN[l.status] ?? l.status, opvolgen_op: l.follow_up_at }))
+  const zonderOpvolgdatum = leads
+    .filter((l: any) => ['mail_gestuurd', 'tweede_mail', 'contact_gelegd', 'in_beraad'].includes(l.status) && !l.follow_up_at)
+    .map((l: any) => l.name)
+
+  return {
+    vandaag,
+    totaal: trechter(leads),
+    periode: { vanaf, ...trechter(leads, vanaf) },
+    per_type: perType,
+    per_status: Object.fromEntries(Object.entries(perStatus).map(([k, v]) => [LEAD_STATUSSEN[k] ?? k, v])),
+    nu_opvolgen: opvolgen,
+    lopend_zonder_opvolgdatum: zonderOpvolgdatum,
+  }
+}
+
+/** Werkdagen (ma-vr) na een datum JJJJ-MM-DD. */
+function plusWerkdagen(dag: string, n: number): string {
+  const d = new Date(`${dag}T12:00:00Z`)
+  let erbij = 0
+  while (erbij < n) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    const wd = d.getUTCDay()
+    if (wd !== 0 && wd !== 6) erbij++
+  }
+  return d.toISOString().slice(0, 10)
+}
+
+function plusDagen(dag: string, n: number): string {
+  const d = new Date(`${dag}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+
+// Zelfde regels als statusChangePatch in src/lib/leads.ts
+function statusWijziging(lead: any, status: string, vandaag: string): Record<string, unknown> {
+  const eerste = lead.first_contacted_at ? {} : { first_contacted_at: vandaag }
+  switch (status) {
+    case 'mail_gestuurd':
+      return { ...eerste, last_contact_at: vandaag, follow_up_at: plusWerkdagen(vandaag, 5) }
+    case 'tweede_mail':
+      return { ...eerste, last_contact_at: vandaag, follow_up_at: plusWerkdagen(vandaag, 10) }
+    case 'contact_gelegd':
+      return { ...eerste, last_contact_at: vandaag, follow_up_at: plusWerkdagen(vandaag, 5) }
+    case 'in_beraad':
+      return { ...eerste, replied_at: lead.replied_at ?? vandaag, last_contact_at: vandaag, follow_up_at: plusDagen(vandaag, 28) }
+    case 'nog_opvolgen':
+      return { follow_up_at: lead.follow_up_at ?? vandaag }
+    case 'niet_interessant':
+      return { follow_up_at: null }
+    default:
+      return {}
+  }
+}
+
+async function leadBijwerken(db: DB, inv: Invoer) {
+  const gevonden = await zoekLead(db, inv.lead)
+  const lead = await enkele(
+    db.from('leads').select('id, name, status, note, follow_up_at, first_contacted_at, replied_at, client_id').eq('id', gevonden.id),
+  )
+  const vandaag = vandaagNL()
+  const wijziging: Record<string, unknown> = {}
+
+  if (inv.status !== undefined) {
+    const status = tekst(inv.status)
+    if (!status || !(status in LEAD_STATUSSEN)) throw new Error(`Onbekende status. Kies uit: ${Object.keys(LEAD_STATUSSEN).join(', ')}.`)
+    wijziging.status = status
+    if (status !== lead.status) Object.assign(wijziging, statusWijziging(lead, status, vandaag))
+  }
+  // Wat je zelf meegeeft gaat voor de automatische datums
+  const leegOfDatum = (v: unknown, veld: string) => (v === '' || v === null ? null : datum(v, veld))
+  if (inv.opvolgen_op !== undefined) wijziging.follow_up_at = leegOfDatum(inv.opvolgen_op, 'opvolgen_op')
+  if (inv.laatst_contact !== undefined) wijziging.last_contact_at = leegOfDatum(inv.laatst_contact, 'laatst_contact')
+  if (inv.reactie_ontvangen !== undefined) wijziging.replied_at = leegOfDatum(inv.reactie_ontvangen, 'reactie_ontvangen')
+  if (inv.eerst_benaderd !== undefined) wijziging.first_contacted_at = leegOfDatum(inv.eerst_benaderd, 'eerst_benaderd')
+  if (inv.type !== undefined) wijziging.lead_type = tekst(inv.type) ?? null
+  if (inv.notitie !== undefined) wijziging.note = tekst(inv.notitie) ?? null
+  const toevoeging = tekst(inv.notitie_toevoegen)
+  if (toevoeging) {
+    const huidig = (wijziging.note as string | null | undefined) ?? lead.note ?? ''
+    wijziging.note = `${huidig ? `${huidig}\n` : ''}${vandaag}: ${toevoeging}`
+  }
+  if (inv.klant !== undefined) {
+    const w = tekst(inv.klant)
+    wijziging.client_id = !w || w.toLowerCase() === 'geen' ? null : (await zoekKlant(db, w)).id
+  }
+  if (Object.keys(wijziging).length === 0) throw new Error('Er viel niets te wijzigen.')
+
+  wijziging.updated_at = new Date().toISOString()
+  const nieuw = await enkele(db.from('leads').update(wijziging).eq('id', lead.id).select(LEAD_VELDEN))
+  const uitkomst = { was: LEAD_STATUSSEN[lead.status] ?? lead.status, lead: leadKort(nieuw), opmerking: 'Er is niets gemaild.' }
+  await logboek(db, 'lead_bijwerken', inv, uitkomst)
+  return uitkomst
+}
+
+async function zoekLead(db: DB, waarde: unknown) {
+  const w = verplicht(tekst(waarde), 'lead')
+  if (UUID.test(w)) return await enkele(db.from('leads').select('id, name').eq('id', w))
+  const term = zoekterm(w)!
+  const kandidaten = await rijen(db.from('leads').select('id, name, lead_type, address').ilike('name', `%${term}%`).limit(10))
+  return kies(kandidaten, w, (l: any) => [l.name], 'lead', (l: any) => `${l.name} (${l.lead_type ?? 'onbekend'}, ${plaatsUitAdres(l.address) || 'geen plaats'})`)
+}
+
+/** "Straat 1, 6411 HK Heerlen, Nederland" -> "Heerlen" */
+function plaatsUitAdres(adres: string | null): string {
+  if (!adres) return ''
+  const delen = adres.split(',').map((p) => p.trim())
+  const kandidaat = delen.length >= 2 ? delen[delen.length - 2] : delen[0]
+  return kandidaat.replace(/^\d{4}\s?[A-Z]{2}\s+/u, '')
 }
 
 // ------------------------------------------------------------- opzoeken --

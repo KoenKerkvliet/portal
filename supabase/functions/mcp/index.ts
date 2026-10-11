@@ -91,7 +91,8 @@ async function behandel(verzoek: Verzoek, db: any) {
           instructions:
             'Admin-toegang tot het klantportaal van Design Pixels: klanten, domeinen (projecten), ' +
             'facturen, offertes, werkzaamheden, strippenkaarten, meldingen, chats, tickets en ' +
-            'financiën (banktransacties en kosten). Bedragen zijn euro’s. Datums als JJJJ-MM-DD. ' +
+            'financiën (banktransacties en kosten), en de leadscanner (leads benaderen en opvolgen). ' +
+            'Bedragen zijn euro’s. Datums als JJJJ-MM-DD. ' +
             'Geen enkele tool mailt een klant; versturen gebeurt in de admin-UI. ' +
             'Vraag bij wijzigingen eerst bevestiging als het om geld of status gaat.',
         },
