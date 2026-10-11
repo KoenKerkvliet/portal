@@ -28,7 +28,8 @@ export default function PublicKnowledgeBase() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
-          <Link to="/kennisbank" className="text-lg font-bold tracking-tight">
+          <Link to="/kennisbank" className="text-lg font-bold tracking-tight flex items-center">
+            <img src="/logo-mark.png" alt="" className="w-8 h-8 mr-2.5 rounded-lg flex-shrink-0" />
             <span className="text-primary">Design</span>
             <span className="text-gray-900">Pixels</span>
             <span className="ml-2 text-sm font-medium text-gray-400">Kennisbank</span>

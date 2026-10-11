@@ -42,9 +42,12 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
       <header className="bg-white border-b border-gray-100 shadow-sm">
         {/* Bij ontwerpen even breed als de (brede) ontwerpweergave eronder */}
         <div className={`${type === 'design' ? 'max-w-[1920px] px-4' : 'max-w-5xl px-4 sm:px-6 lg:px-8'} mx-auto h-14 sm:h-16 flex items-center`}>
-          <span className="text-lg font-bold tracking-tight">
-            <span className="text-primary">Design</span>
-            <span className="text-gray-900">Pixels</span>
+          <span className="text-lg font-bold tracking-tight flex items-center gap-2.5">
+            <img src="/logo-mark.png" alt="" className="w-8 h-8 rounded-lg flex-shrink-0" />
+            <span>
+              <span className="text-primary">Design</span>
+              <span className="text-gray-900">Pixels</span>
+            </span>
           </span>
         </div>
       </header>

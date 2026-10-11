@@ -168,11 +168,14 @@ export default function ClientLayout() {
             {/* Logo */}
             <div className="flex items-center">
               <h1
-                className="text-lg font-bold tracking-tight cursor-pointer"
+                className="text-lg font-bold tracking-tight cursor-pointer flex items-center gap-2.5"
                 onClick={() => navigate('/')}
               >
-                <span className="text-primary">Design</span>
-                <span className="text-gray-900">Pixels</span>
+                <img src="/logo-mark.png" alt="" className="w-8 h-8 rounded-lg flex-shrink-0" />
+                <span>
+                  <span className="text-primary">Design</span>
+                  <span className="text-gray-900">Pixels</span>
+                </span>
               </h1>
             </div>
 

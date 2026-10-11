@@ -73,11 +73,14 @@ export default function AdminLayout() {
   const sidebarContent = (
     <>
       {/* Logo / Brand */}
-      <div className="px-5 py-4 sm:px-6 border-b border-white/10">
-        <h1 className="text-lg font-bold tracking-tight">
-          <span className="text-primary-300">Design</span>Pixels
-        </h1>
-        <p className="text-xs text-gray-400 mt-0.5">Admin Portal</p>
+      <div className="px-5 py-4 sm:px-6 border-b border-white/10 flex items-center gap-3">
+        <img src="/logo-mark.png" alt="" className="w-9 h-9 rounded-lg flex-shrink-0" />
+        <div>
+          <h1 className="text-lg font-bold tracking-tight leading-tight">
+            <span className="text-primary-300">Design</span>Pixels
+          </h1>
+          <p className="text-xs text-gray-400">Admin Portal</p>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -154,8 +157,9 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile header */}
       <div className="lg:hidden sticky top-0 z-40 bg-sidebar text-white flex items-center justify-between px-4 h-14">
-        <h1 className="text-lg font-bold tracking-tight">
-          <span className="text-primary-300">Design</span>Pixels
+        <h1 className="text-lg font-bold tracking-tight flex items-center gap-2.5">
+          <img src="/logo-mark.png" alt="" className="w-8 h-8 rounded-lg flex-shrink-0" />
+          <span><span className="text-primary-300">Design</span>Pixels</span>
         </h1>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
