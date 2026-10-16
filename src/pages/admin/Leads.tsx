@@ -17,6 +17,7 @@ import {
   BadgeCheck,
   Plus,
   MessageCircleReply,
+  Monitor as MonitorIcon,
 } from 'lucide-react'
 import {
   PRIORITIES,
@@ -254,6 +255,14 @@ export default function Leads() {
                               <span className="ml-2 px-1.5 py-0.5 rounded bg-green-50 text-green-700 font-medium">
                                 Klant
                               </span>
+                            )}
+                            {lead.redesign_image_url && (
+                              <MonitorIcon
+                                className="inline-block w-3.5 h-3.5 ml-2 -mt-0.5 text-primary"
+                                aria-label="Redesignpagina klaar"
+                              >
+                                <title>Redesignpagina klaar</title>
+                              </MonitorIcon>
                             )}
                             {lead.redesign_views > 0 && (
                               <span className="ml-2 px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-medium"
