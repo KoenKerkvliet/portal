@@ -77,7 +77,7 @@ export default function PublicRedesignPage({ token }: { token: string }) {
             </button>
           </div>
           <div>
-            <MonitorPreview imageUrl={redesign.image_url} title={redesign.title} />
+            <MonitorPreview imageUrl={redesign.image_url} title={redesign.title} fullWidth />
             <p className="hidden pointer-fine:block mt-3 text-center text-xs text-gray-400">
               Ga met je muis over het scherm om door het ontwerp te scrollen
             </p>

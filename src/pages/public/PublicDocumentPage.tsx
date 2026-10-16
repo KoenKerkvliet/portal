@@ -54,7 +54,8 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
           </span>
         </div>
       </header>
-      <AbsenceBanner width={wide ? 'max-w-[1920px]' : 'max-w-5xl'} />
+      {/* Een lead hoeft niet te weten dat ik op vakantie ben */}
+      {type !== 'redesign' && <AbsenceBanner width={wide ? 'max-w-[1920px]' : 'max-w-5xl'} />}
 
       {type === 'assignment' ? (
         <ClientAssignmentPage key={token} publicToken={token || ''} />

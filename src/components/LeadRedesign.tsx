@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Check, Copy, Eye, ExternalLink, ImagePlus, Loader2, Trash2, Upload } from 'lucide-react'
+import { Check, Copy, Download, Eye, ExternalLink, ImagePlus, Loader2, Monitor, Trash2, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { renderMonitorImage } from './MonitorPreview'
 import { newBoardToken } from '../lib/tasks'
 import { REDESIGN_DEFAULT_INTRO, REDESIGN_URL, redesignDefaultTitle } from '../lib/leads'
 import type { Lead } from '../types'
@@ -16,6 +17,7 @@ export default function LeadRedesign({ lead, onSave }: {
 }) {
   const [uploading, setUploading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const url = lead.redesign_token ? `${REDESIGN_URL}/${lead.redesign_token}` : ''
   const active = !!lead.redesign_image_url && !!url
 
@@ -49,6 +51,26 @@ export default function LeadRedesign({ lead, onSave }: {
       setTimeout(() => setCopied(false), 2000)
     } catch {
       window.prompt('Kopieer de link:', url)
+    }
+  }
+
+  // De monitor met de homepage als JPG, om in de mail te zetten
+  const downloadMonitor = async () => {
+    if (!lead.redesign_image_url) return
+    setDownloading(true)
+    try {
+      const blob = await renderMonitorImage(lead.redesign_image_url)
+      const slug = lead.name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `redesign-${slug || 'lead'}.jpg`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    } catch (err) {
+      console.error('Monitorafbeelding maken mislukt:', err)
+      alert('De monitorafbeelding maken is mislukt. Probeer het opnieuw.')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -90,6 +112,13 @@ export default function LeadRedesign({ lead, onSave }: {
                 <Trash2 className="w-3 h-3" />
               </button>
             </div>
+            <button type="button" onClick={downloadMonitor} disabled={downloading}
+              className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 border border-gray-200 bg-white rounded-lg hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-60"
+              title="Monitor met de homepage als afbeelding, voor in je mail">
+              {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Monitor className="w-3.5 h-3.5" />}
+              Monitor downloaden
+              {!downloading && <Download className="w-3 h-3 text-gray-400" />}
+            </button>
           </div>
 
           <div className="space-y-2 min-w-0">
