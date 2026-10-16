@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { Check, Copy, Download, Eye, ExternalLink, ImagePlus, Loader2, Monitor, Trash2, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { renderMonitorImage } from './MonitorPreview'
-import { newBoardToken } from '../lib/tasks'
-import { REDESIGN_DEFAULT_INTRO, REDESIGN_URL, redesignDefaultTitle } from '../lib/leads'
+import { REDESIGN_DEFAULT_INTRO, REDESIGN_URL, isLongRedesignToken, newRedesignToken, redesignDefaultTitle } from '../lib/leads'
 import type { Lead } from '../types'
 
 const formatViewed = (iso: string) =>
@@ -32,7 +31,7 @@ export default function LeadRedesign({ lead, onSave }: {
       // De eerste keer: code en standaardtekst erbij. Daarna blijft de link hetzelfde.
       await onSave({
         redesign_image_url: data.publicUrl,
-        ...(lead.redesign_token ? {} : { redesign_token: newBoardToken() }),
+        ...(lead.redesign_token ? {} : { redesign_token: newRedesignToken(lead.name) }),
         ...(lead.redesign_title ? {} : { redesign_title: redesignDefaultTitle(lead.name) }),
         ...(lead.redesign_intro ? {} : { redesign_intro: REDESIGN_DEFAULT_INTRO }),
       })
@@ -146,6 +145,18 @@ export default function LeadRedesign({ lead, onSave }: {
                   {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
                   {copied ? 'Gekopieerd' : 'Kopieer link'}
                 </button>
+                {isLongRedesignToken(lead.redesign_token!) && (
+                  <button type="button"
+                    onClick={() => {
+                      if (confirm('Een nieuwe, kortere link maken? De huidige lange link werkt daarna niet meer. Doe dit alleen als je hem nog niet hebt gemaild.')) {
+                        onSave({ redesign_token: newRedesignToken(lead.name) })
+                      }
+                    }}
+                    className="px-2.5 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+                    title="Vervangt de lange link door een korte, leesbare link">
+                    Kortere link
+                  </button>
+                )}
                 <a href={url} target="_blank" rel="noopener noreferrer" title="Bekijk de pagina (telt niet mee als bezoek)"
                   className="p-1.5 text-gray-400 hover:text-primary border border-gray-200 bg-white rounded-lg transition-colors">
                   <ExternalLink className="w-3.5 h-3.5" />

@@ -38,6 +38,9 @@ const TABLES: Record<DocType, string> = {
 }
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/
+// Redesignlinks zijn korter en leesbaar (naam-code, bijv. kapsalon-jansen-k3x9m2qf7a);
+// oudere lange codes passen hier ook in
+const REDESIGN_TOKEN_PATTERN = /^[a-z0-9-]{8,128}$/
 const MAX_NAME = 200
 const MAX_TEXT = 2000
 const MAX_SIGNATURE = 500_000
@@ -875,7 +878,7 @@ Deno.serve(async (req) => {
     const type = body.type as DocType | 'design' | 'form' | 'board' | 'redesign'
     const token = typeof body.token === 'string' ? body.token : ''
     if (type !== 'design' && type !== 'form' && type !== 'board' && type !== 'redesign' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
-    if (!TOKEN_PATTERN.test(token)) throw notFound()
+    if (!(type === 'redesign' ? REDESIGN_TOKEN_PATTERN : TOKEN_PATTERN).test(token)) throw notFound()
 
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 

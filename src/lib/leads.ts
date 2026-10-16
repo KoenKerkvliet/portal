@@ -203,4 +203,17 @@ export const REDESIGN_DEFAULT_INTRO =
   'Ik heb alvast uitgewerkt hoe je nieuwe website eruit zou kunnen zien. In het scherm zie je de homepage, ' +
   'daaronder staat het volledige ontwerp. Helemaal vrijblijvend: gewoon om te laten zien wat er mogelijk is.'
 
-export const REDESIGN_URL = 'https://portal.designpixels.nl/d/redesign'
+export const REDESIGN_URL = 'https://portal.designpixels.nl/r'
+
+// Leesbare, korte code voor de link: naam van de lead + 10 willekeurige tekens
+// (31^10 mogelijkheden, dus niet te raden). Zonder makkelijk te verwarren tekens (0/o, 1/l/i).
+const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
+export function newRedesignToken(name: string): string {
+  const slug = name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24).replace(/-+$/, '') || 'redesign'
+  const code = Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('')
+  return `${slug}-${code}`
+}
+
+// De eerste versie van de pagina gebruikte een lange code van 48 tekens
+export const isLongRedesignToken = (token: string) => /^[0-9a-f]{48}$/.test(token)
