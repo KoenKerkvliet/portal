@@ -82,6 +82,7 @@ function AppRoutes() {
       <Route path="/d/design/:token" element={<PublicDocumentPage type="design" />} />
       <Route path="/d/vragenlijst/:token" element={<PublicDocumentPage type="form" />} />
       <Route path="/d/planning/:token" element={<PublicDocumentPage type="board" />} />
+      <Route path="/d/redesign/:token" element={<PublicDocumentPage type="redesign" />} />
       <Route path="/kennisbank" element={<PublicKnowledgeBase />} />
       <Route path="/kennisbank/categorie/:category" element={<PublicKnowledgeBase />} />
       <Route path="/kennisbank/:slug" element={<PublicKnowledgeBase />} />

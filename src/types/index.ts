@@ -507,6 +507,14 @@ export interface Lead {
   follow_up_at: string | null
   first_contacted_at: string | null // eerste mail of contact
   replied_at: string | null // reactie ontvangen
+  // Openbare redesignpagina (/d/redesign/<token>); bezoeken houdt public-document bij
+  redesign_token: string | null
+  redesign_image_url: string | null
+  redesign_title: string | null
+  redesign_intro: string | null
+  redesign_views: number
+  redesign_first_viewed_at: string | null
+  redesign_last_viewed_at: string | null
   first_seen_at: string
   scanned_at: string | null
   updated_at: string

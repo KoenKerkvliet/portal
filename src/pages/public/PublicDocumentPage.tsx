@@ -6,6 +6,7 @@ import ClientAssignmentPage from '../client/AssignmentPage'
 import PublicDesignPage from './PublicDesignPage'
 import PublicFormPage from './PublicFormPage'
 import PublicBoardPage from './PublicBoardPage'
+import PublicRedesignPage from './PublicRedesignPage'
 import AbsenceBanner from '../../components/AbsenceBanner'
 import type { PublicDocType } from '../../lib/publicDocument'
 
@@ -28,7 +29,7 @@ function useMeta(name: string, content: string) {
   }, [name, content])
 }
 
-// Offerte, factuur, opdracht, designs, vragenlijst of planning via de link in de mail — zonder inloggen
+// Offerte, factuur, opdracht, designs, vragenlijst, planning of een redesign voor een lead via de link in de mail — zonder inloggen
 export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
   const { token } = useParams<{ token: string }>()
   const [searchParams] = useSearchParams()
@@ -37,11 +38,13 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
   useMeta('referrer', 'no-referrer')
   useMeta('robots', 'noindex, nofollow')
 
+  const wide = type === 'design' || type === 'redesign'
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 shadow-sm">
         {/* Bij ontwerpen even breed als de (brede) ontwerpweergave eronder */}
-        <div className={`${type === 'design' ? 'max-w-[1920px] px-4' : 'max-w-5xl px-4 sm:px-6 lg:px-8'} mx-auto h-14 sm:h-16 flex items-center`}>
+        <div className={`${wide ? 'max-w-[1920px] px-4' : 'max-w-5xl px-4 sm:px-6 lg:px-8'} mx-auto h-14 sm:h-16 flex items-center`}>
           <span className="text-lg font-bold tracking-tight flex items-center gap-2.5">
             <img src="/logo-mark.png" alt="" className="w-8 h-8 rounded-lg flex-shrink-0" />
             <span>
@@ -51,13 +54,17 @@ export default function PublicDocumentPage({ type }: { type: PublicDocType }) {
           </span>
         </div>
       </header>
-      <AbsenceBanner width={type === 'design' ? 'max-w-[1920px]' : 'max-w-5xl'} />
+      <AbsenceBanner width={wide ? 'max-w-[1920px]' : 'max-w-5xl'} />
 
       {type === 'assignment' ? (
         <ClientAssignmentPage key={token} publicToken={token || ''} />
       ) : type === 'design' ? (
         <div className="py-8 px-4">
           <PublicDesignPage key={token} token={token || ''} focusType={searchParams.get('type')} />
+        </div>
+      ) : type === 'redesign' ? (
+        <div className="py-8 px-4">
+          <PublicRedesignPage key={token} token={token || ''} />
         </div>
       ) : type === 'board' ? (
         <div className="py-8 px-4 sm:px-6 lg:px-8">

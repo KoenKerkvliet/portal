@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import LeadScanDialog from '../../components/LeadScanDialog'
+import LeadRedesign from '../../components/LeadRedesign'
 import type { Lead, LeadPriority, LeadStatus } from '../../types'
 import type { LeadSortMode } from '../../lib/leads'
 import {
@@ -254,6 +255,12 @@ export default function Leads() {
                                 Klant
                               </span>
                             )}
+                            {lead.redesign_views > 0 && (
+                              <span className="ml-2 px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 font-medium"
+                                title={`Redesign ${lead.redesign_views}× bekeken`}>
+                                Redesign bekeken
+                              </span>
+                            )}
                           </p>
                         </td>
                         <td className="px-3 py-3">
@@ -432,6 +439,7 @@ export default function Leads() {
                                 </div>
                               </div>
                             </div>
+                            <LeadRedesign lead={lead} onSave={(patch) => saveLead(lead.id, patch)} />
                           </td>
                         </tr>
                       )}

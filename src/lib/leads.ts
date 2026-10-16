@@ -196,3 +196,11 @@ export const hostname = (url: string | null) => {
     return url
   }
 }
+
+// Standaardtekst voor de redesignpagina van een lead; per lead aan te passen
+export const redesignDefaultTitle = (name: string) => `Een nieuwe website voor ${name}`
+export const REDESIGN_DEFAULT_INTRO =
+  'Ik heb alvast uitgewerkt hoe je nieuwe website eruit zou kunnen zien. In het scherm zie je de homepage, ' +
+  'daaronder staat het volledige ontwerp. Helemaal vrijblijvend: gewoon om te laten zien wat er mogelijk is.'
+
+export const REDESIGN_URL = 'https://portal.designpixels.nl/d/redesign'

@@ -16,6 +16,7 @@
 //   { action: 'get',        type: 'board', token }                                    — takenbord van een domein
 //   { action: 'feedback',   type: 'board', token, text, page?, name?, screenshot? }   — feedback op de testsite
 //   { action: 'delivered',  type: 'board', token, task_id }                           — klanttaak aangeleverd
+//   { action: 'get',        type: 'redesign', token }                                 — redesignpagina van een lead
 //
 // verify_jwt = false (zie supabase/config.toml): de geheime code ís de autorisatie.
 
@@ -90,6 +91,16 @@ function labelFor(type: DocType, doc: Record<string, unknown>) {
   return `Opdracht: ${doc.title}`
 }
 
+// Bekijk ik (ingelogd als admin) het zelf? Dan telt het bezoek niet mee.
+async function isAdminRequest(db: SupabaseClient, req: Request) {
+  const bearer = (req.headers.get('Authorization') || '').replace('Bearer ', '')
+  if (bearer.split('.').length !== 3) return false
+  const { data: { user } } = await db.auth.getUser(bearer)
+  if (!user) return false
+  const { data: profile } = await db.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  return profile?.role === 'admin'
+}
+
 // Registreert dat een document via de link is geopend (portaalgebruik in het beheer).
 // Mijn eigen bezoeken (ingelogd als admin) tellen niet mee, en hetzelfde document binnen
 // 30 minuten telt één keer. Mag het openen nooit laten mislukken.
@@ -101,14 +112,7 @@ async function logDocOpen(db: SupabaseClient, req: Request, event: {
   label: string
 }) {
   try {
-    const bearer = (req.headers.get('Authorization') || '').replace('Bearer ', '')
-    if (bearer.split('.').length === 3) {
-      const { data: { user } } = await db.auth.getUser(bearer)
-      if (user) {
-        const { data: profile } = await db.from('profiles').select('role').eq('id', user.id).maybeSingle()
-        if (profile?.role === 'admin') return
-      }
-    }
+    if (await isAdminRequest(db, req)) return
     const since = new Date(Date.now() - 30 * 60_000).toISOString()
     const { data: recent } = await db
       .from('portal_events')
@@ -464,6 +468,61 @@ async function handleDesignResponse(db: SupabaseClient, token: string, body: Rec
   return handleDesignGet(db, token)
 }
 
+// ── Redesign voor een lead ──
+// De code hoort bij één lead: een pagina met titel, intro en het ontwerp, zonder
+// goedkeuring. Elk bezoek (behalve dat van mij, en herladen binnen 30 minuten) telt
+// mee; bij het eerste bezoek krijg ik een melding op het dashboard.
+
+async function handleRedesignGet(db: SupabaseClient, token: string, req: Request) {
+  const { data: lead, error } = await db
+    .from('leads')
+    .select('id, name, redesign_image_url, redesign_title, redesign_intro, redesign_views, redesign_first_viewed_at, redesign_last_viewed_at')
+    .eq('redesign_token', token)
+    .maybeSingle()
+  if (error) throw new Error(`Redesign laden mislukt: ${error.message}`)
+  if (!lead || !lead.redesign_image_url) throw notFound()
+
+  try {
+    const recent = lead.redesign_last_viewed_at && Date.parse(lead.redesign_last_viewed_at) > Date.now() - 30 * 60_000
+    if (!recent && !(await isAdminRequest(db, req))) {
+      const now = new Date().toISOString()
+      await db.from('leads').update({
+        redesign_views: (lead.redesign_views || 0) + 1,
+        redesign_last_viewed_at: now,
+        redesign_first_viewed_at: lead.redesign_first_viewed_at || now,
+      }).eq('id', lead.id)
+      if (!lead.redesign_first_viewed_at) {
+        await db.from('admin_notifications').insert({
+          type: 'lead_view',
+          title: `${lead.name} heeft het redesign bekeken`,
+          message: `${lead.name} heeft de redesignpagina voor het eerst geopend via de link.`,
+          project_id: null,
+          client_id: null,
+        })
+      }
+    }
+  } catch (e) {
+    // Bijhouden mag het bekijken nooit laten mislukken
+    console.error('[public-document] Redesignbezoek registreren mislukt:', e instanceof Error ? e.message : String(e))
+  }
+
+  return json({
+    success: true,
+    type: 'redesign',
+    document: {
+      title: lead.redesign_title || `Een nieuwe website voor ${lead.name}`,
+      intro: lead.redesign_intro || '',
+      image_url: lead.redesign_image_url,
+      contact_email: ADMIN_EMAIL,
+    },
+    project_name: lead.name,
+    client_name: '',
+    client_company: lead.name,
+    settings: null,
+    attachments: [],
+  })
+}
+
 // ── Vragenlijsten ──
 // De code hoort bij één form_submissions-rij (vragenlijst x domein). De klant kan
 // tussentijds opslaan en later via dezelfde link verder; na insturen is hij alleen-lezen.
@@ -813,9 +872,9 @@ Deno.serve(async (req) => {
     }
 
     const action = body.action
-    const type = body.type as DocType | 'design' | 'form' | 'board'
+    const type = body.type as DocType | 'design' | 'form' | 'board' | 'redesign'
     const token = typeof body.token === 'string' ? body.token : ''
-    if (type !== 'design' && type !== 'form' && type !== 'board' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
+    if (type !== 'design' && type !== 'form' && type !== 'board' && type !== 'redesign' && !(type in TABLES)) throw new HttpError(400, 'Onbekend documenttype.')
     if (!TOKEN_PATTERN.test(token)) throw notFound()
 
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
@@ -827,6 +886,11 @@ Deno.serve(async (req) => {
         case 'decline': return await handleDesignResponse(db, token, body, false)
         default: throw new HttpError(400, 'Onbekende actie.')
       }
+    }
+
+    if (type === 'redesign') {
+      if (action !== 'get') throw new HttpError(400, 'Onbekende actie.')
+      return await handleRedesignGet(db, token, req)
     }
 
     if (type === 'board') {

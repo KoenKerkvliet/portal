@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, Wrench, MessageSquareText } from 'lucide-react'
+import { Bell, X, CheckCircle, XCircle, ClipboardCheck, Layers, Ticket, Gift, Euro, Timer, Wrench, MessageSquareText, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AbsenceManager from '../../components/AbsenceManager'
 import DashboardShortcuts from '../../components/DashboardShortcuts'
@@ -86,6 +86,7 @@ const notifIcons: Record<string, typeof Bell> = {
   assignment: ClipboardCheck,
   card_update: Layers,
   feedback: MessageSquareText,
+  lead_view: Eye,
   general: Bell,
 }
 
@@ -95,6 +96,7 @@ const notifColors: Record<string, string> = {
   feedback: 'bg-sky-50 border-sky-200',
   assignment: 'bg-emerald-50 border-emerald-200',
   card_update: 'bg-amber-50 border-amber-200',
+  lead_view: 'bg-violet-50 border-violet-200',
   general: 'bg-gray-50 border-gray-200',
 }
 
@@ -105,6 +107,7 @@ const notifIconColors: Record<string, string> = {
   card_update: 'text-amber-500',
   general: 'text-gray-400',
   feedback: 'text-sky-500',
+  lead_view: 'text-violet-500',
 }
 
 export default function Dashboard() {
