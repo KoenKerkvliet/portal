@@ -257,11 +257,16 @@ export default function Leads() {
                               </span>
                             )}
                             {lead.redesign_image_url && (
+                              // Rood: pagina klaar maar nog niet geopend door de lead; groen: wel geopend
                               <MonitorIcon
-                                className="inline-block w-3.5 h-3.5 ml-2 -mt-0.5 text-primary"
-                                aria-label="Redesignpagina klaar"
+                                className={`inline-block w-3.5 h-3.5 ml-2 -mt-0.5 ${lead.redesign_views > 0 ? 'text-green-600' : 'text-red-500'}`}
+                                aria-label={lead.redesign_views > 0 ? 'Redesignpagina geopend' : 'Redesignpagina nog niet geopend'}
                               >
-                                <title>Redesignpagina klaar</title>
+                                <title>
+                                  {lead.redesign_views > 0
+                                    ? `Redesignpagina ${lead.redesign_views}× geopend`
+                                    : 'Redesignpagina nog niet geopend'}
+                                </title>
                               </MonitorIcon>
                             )}
                             {lead.redesign_views > 0 && (
