@@ -84,6 +84,10 @@ function AppRoutes() {
       <Route path="/d/planning/:token" element={<PublicDocumentPage type="board" />} />
       <Route path="/d/redesign/:token" element={<PublicDocumentPage type="redesign" />} />
       <Route path="/r/:token" element={<PublicDocumentPage type="redesign" />} />
+      {/* Selectie voor bestaande klanten (link in de nieuwsbrief) */}
+      <Route path="/kennisbank/klanten" element={<PublicKnowledgeBase onlyExistingClients />} />
+      <Route path="/kennisbank/klanten/categorie/:category" element={<PublicKnowledgeBase onlyExistingClients />} />
+      <Route path="/kennisbank/klanten/:slug" element={<PublicKnowledgeBase onlyExistingClients />} />
       <Route path="/kennisbank" element={<PublicKnowledgeBase />} />
       <Route path="/kennisbank/categorie/:category" element={<PublicKnowledgeBase />} />
       <Route path="/kennisbank/:slug" element={<PublicKnowledgeBase />} />

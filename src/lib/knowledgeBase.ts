@@ -1,5 +1,6 @@
 // Kennisbank: artikelen in kb_articles. Gepubliceerde artikelen zijn zonder inloggen te
 // lezen via /kennisbank/:slug, zodat je de link ook in een mail kunt zetten.
+import { createContext, useContext } from 'react'
 
 export interface KbArticle {
   id: string
@@ -9,6 +10,7 @@ export interface KbArticle {
   summary: string
   content: string
   published: boolean
+  for_existing_clients: boolean // ook tonen in de selectie voor bestaande klanten
   view_count?: number // aantal keer gelezen (anoniem)
   created_at: string
   updated_at: string
@@ -16,7 +18,21 @@ export interface KbArticle {
 
 export const KB_PUBLIC_URL = 'https://portal.designpixels.nl/kennisbank'
 
-export const articlePath = (slug: string) => `/kennisbank/${slug}`
+// Selectie voor bestaande klanten (link in de nieuwsbrief): alleen artikelen met
+// for_existing_clients, en alle links blijven binnen /kennisbank/klanten.
+export const KB_BASE = '/kennisbank'
+export const KB_CLIENTS_BASE = '/kennisbank/klanten'
+export const KB_CLIENTS_URL = 'https://portal.designpixels.nl/kennisbank/klanten'
+
+export interface KbScope {
+  base: string
+  onlyExistingClients: boolean
+}
+
+export const KbScopeContext = createContext<KbScope>({ base: KB_BASE, onlyExistingClients: false })
+export const useKbScope = () => useContext(KbScopeContext)
+
+export const articlePath = (slug: string, base = KB_BASE) => `${base}/${slug}`
 
 // "Openingstijden aanpassen in WordPress" -> "openingstijden-aanpassen-in-wordpress"
 export function slugify(text: string): string {
@@ -82,7 +98,7 @@ export const KB_CATEGORIES: { name: string; description: string }[] = [
 
 export const categorySlug = (name: string) => slugify(name)
 
-export const categoryPath = (name: string) => `/kennisbank/categorie/${categorySlug(name)}`
+export const categoryPath = (name: string, base = KB_BASE) => `${base}/categorie/${categorySlug(name)}`
 
 export interface KbCategorySummary {
   name: string

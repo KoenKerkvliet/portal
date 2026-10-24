@@ -5,14 +5,32 @@ import { BookOpenText, ChevronRight, LifeBuoy, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import KbSearch from '../../components/KbSearch'
 import AbsenceBanner from '../../components/AbsenceBanner'
-import { articlePath, categoryPath, categorySlug, KB_CATEGORIES, type KbArticle } from '../../lib/knowledgeBase'
+import { articlePath, categoryPath, categorySlug, KB_BASE, KB_CATEGORIES, KB_CLIENTS_BASE, KbScopeContext, useKbScope, type KbArticle } from '../../lib/knowledgeBase'
 import KbCategoryIcon from '../../components/KbCategoryIcon'
 import { trackArticleView } from '../../lib/tracking'
 
 // Openbare kennisbank, zonder inloggen: /kennisbank (zoeken + categorieën),
 // /kennisbank/categorie/:category (artikelen van één categorie) en /kennisbank/:slug
 // (één artikel). De links kun je in mails aan klanten zetten.
-export default function PublicKnowledgeBase() {
+// Met onlyExistingClients dezelfde pagina's onder /kennisbank/klanten, met alleen de
+// artikelen voor bestaande klanten (de link in de nieuwsbrief).
+export default function PublicKnowledgeBase({ onlyExistingClients = false }: { onlyExistingClients?: boolean }) {
+  const scope = { base: onlyExistingClients ? KB_CLIENTS_BASE : KB_BASE, onlyExistingClients }
+  return (
+    <KbScopeContext.Provider value={scope}>
+      <KnowledgeBasePage />
+    </KbScopeContext.Provider>
+  )
+}
+
+// Gepubliceerde artikelen, binnen de selectie als die actief is
+function articlesQuery(onlyExistingClients: boolean) {
+  const request = supabase.from('kb_articles').select('*').eq('published', true)
+  return onlyExistingClients ? request.eq('for_existing_clients', true) : request
+}
+
+function KnowledgeBasePage() {
+  const { base } = useKbScope()
   const { slug, category } = useParams<{ slug?: string; category?: string }>()
 
   // Niet in zoekmachines: de kennisbank is voor klanten
@@ -28,7 +46,7 @@ export default function PublicKnowledgeBase() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between">
-          <Link to="/kennisbank" className="text-lg font-bold tracking-tight flex items-center">
+          <Link to={base} className="text-lg font-bold tracking-tight flex items-center">
             <img src="/logo-mark.png" alt="" className="w-8 h-8 mr-2.5 rounded-lg flex-shrink-0" />
             <span className="text-primary">Design</span>
             <span className="text-gray-900">Pixels</span>
@@ -62,13 +80,14 @@ function Index() {
 
 // Kruimelpad: Kennisbank › Categorie (› artikel)
 function Breadcrumb({ category }: { category?: string }) {
+  const { base } = useKbScope()
   return (
     <nav className="flex items-center gap-1.5 text-sm text-gray-500 flex-wrap" aria-label="Kruimelpad">
-      <Link to="/kennisbank" className="font-medium hover:text-primary transition-colors">Kennisbank</Link>
+      <Link to={base} className="font-medium hover:text-primary transition-colors">Kennisbank</Link>
       {category && (
         <>
           <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-          <Link to={categoryPath(category)} className="font-medium hover:text-primary transition-colors">{category}</Link>
+          <Link to={categoryPath(category, base)} className="font-medium hover:text-primary transition-colors">{category}</Link>
         </>
       )}
     </nav>
@@ -76,13 +95,14 @@ function Breadcrumb({ category }: { category?: string }) {
 }
 
 function Category({ slug }: { slug: string }) {
+  const { base, onlyExistingClients } = useKbScope()
   const [articles, setArticles] = useState<KbArticle[]>([])
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('kb_articles').select('*').eq('published', true).order('title')
+      const { data } = await articlesQuery(onlyExistingClients).order('title')
       const inCategory = ((data || []) as KbArticle[]).filter(a => categorySlug(a.category || 'Algemeen') === slug)
       setArticles(inCategory)
       setName(inCategory[0]?.category || '')
@@ -90,7 +110,7 @@ function Category({ slug }: { slug: string }) {
       setLoading(false)
     }
     load()
-  }, [slug])
+  }, [slug, onlyExistingClients])
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
@@ -122,7 +142,7 @@ function Category({ slug }: { slug: string }) {
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {articles.map(a => (
-          <Link key={a.id} to={articlePath(a.slug)}
+          <Link key={a.id} to={articlePath(a.slug, base)}
             className="group flex flex-col rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
             <h2 className="font-semibold text-gray-900 group-hover:text-primary transition-colors leading-snug">{a.title}</h2>
             {a.summary && <p className="text-sm text-gray-500 mt-2 leading-snug flex-1">{a.summary}</p>}
@@ -138,25 +158,26 @@ function Category({ slug }: { slug: string }) {
 }
 
 function Article({ slug }: { slug: string }) {
+  const { base, onlyExistingClients } = useKbScope()
   const [article, setArticle] = useState<KbArticle | null>(null)
   const [related, setRelated] = useState<KbArticle[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('kb_articles').select('*').eq('slug', slug).eq('published', true).maybeSingle()
+      const { data } = await articlesQuery(onlyExistingClients).eq('slug', slug).maybeSingle()
       setArticle(data as KbArticle | null)
       if (data) {
         document.title = `${data.title} · DesignPixels Kennisbank`
         trackArticleView(slug)
-        const { data: others } = await supabase.from('kb_articles').select('*')
-          .eq('published', true).eq('category', data.category).neq('id', data.id).order('title').limit(5)
+        const { data: others } = await articlesQuery(onlyExistingClients)
+          .eq('category', data.category).neq('id', data.id).order('title').limit(5)
         setRelated((others || []) as KbArticle[])
       }
       setLoading(false)
     }
     load()
-  }, [slug])
+  }, [slug, onlyExistingClients])
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
 
@@ -197,11 +218,11 @@ function Article({ slug }: { slug: string }) {
         <div>
           <div className="flex items-center justify-between mb-2 px-1">
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Meer over {article.category}</h2>
-            <Link to={categoryPath(article.category)} className="text-xs font-medium text-primary hover:text-primary-600">Alle artikelen</Link>
+            <Link to={categoryPath(article.category, base)} className="text-xs font-medium text-primary hover:text-primary-600">Alle artikelen</Link>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
             {related.map(r => (
-              <Link key={r.id} to={articlePath(r.slug)} className="block px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 hover:text-primary transition-colors">
+              <Link key={r.id} to={articlePath(r.slug, base)} className="block px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 hover:text-primary transition-colors">
                 {r.title}
               </Link>
             ))}

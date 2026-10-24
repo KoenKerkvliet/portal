@@ -2,30 +2,33 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Loader2, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { articlePath, categoryPath, categorySummaries, searchArticles, type KbArticle } from '../lib/knowledgeBase'
+import { articlePath, categoryPath, categorySummaries, searchArticles, useKbScope, type KbArticle } from '../lib/knowledgeBase'
 import KbCategoryIcon from './KbCategoryIcon'
 
 // Zoeken in de kennisbank, met daaronder kaarten per categorie (of de zoekresultaten).
-// Gebruikt bij Support in het portaal en op de openbare pagina /kennisbank.
+// Gebruikt bij Support in het portaal en op de openbare pagina's /kennisbank en /kennisbank/klanten.
 export default function KbSearch({ autoFocus = false, compact = false }: { autoFocus?: boolean; compact?: boolean }) {
+  const { base, onlyExistingClients } = useKbScope()
   const [articles, setArticles] = useState<KbArticle[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.from('kb_articles').select('*').eq('published', true).order('title')
+      let request = supabase.from('kb_articles').select('*').eq('published', true)
+      if (onlyExistingClients) request = request.eq('for_existing_clients', true)
+      const { data } = await request.order('title')
       setArticles((data || []) as KbArticle[])
       setLoading(false)
     }
     load()
-  }, [])
+  }, [onlyExistingClients])
 
   const results = searchArticles(articles, query)
   const searching = query.trim().length > 0
 
   const item = (a: KbArticle) => (
-    <Link key={a.id} to={articlePath(a.slug)}
+    <Link key={a.id} to={articlePath(a.slug, base)}
       className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group text-left">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors">{a.title}</p>
@@ -48,7 +51,7 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
       {/* Compact (bij Support): alleen zoeken, geen overzicht van alle artikelen */}
       {compact && !searching ? (
         articles.length > 0 && (
-          <Link to="/kennisbank" className="inline-flex items-center gap-1 mt-4 text-sm font-medium text-primary hover:text-primary-600">
+          <Link to={base} className="inline-flex items-center gap-1 mt-4 text-sm font-medium text-primary hover:text-primary-600">
             Alle artikelen bekijken
             <ChevronRight className="w-4 h-4" />
           </Link>
@@ -71,7 +74,7 @@ export default function KbSearch({ autoFocus = false, compact = false }: { autoF
           // Categoriekaarten: titel, korte omschrijving en het aantal artikelen
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {categorySummaries(articles).map(c => (
-              <Link key={c.slug} to={categoryPath(c.name)}
+              <Link key={c.slug} to={categoryPath(c.name, base)}
                 className="group flex items-start gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
                 <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
                   <KbCategoryIcon category={c.name} className="w-5 h-5 text-primary" />

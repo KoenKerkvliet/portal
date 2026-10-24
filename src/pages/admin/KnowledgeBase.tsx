@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { BookOpenText, Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import RichTextEditor from '../../components/RichTextEditor'
-import { KB_PUBLIC_URL, articlePath, groupByCategory, searchArticles, slugify, type KbArticle } from '../../lib/knowledgeBase'
+import { KB_CLIENTS_URL, KB_PUBLIC_URL, articlePath, groupByCategory, searchArticles, slugify, type KbArticle } from '../../lib/knowledgeBase'
 
-const emptyForm = { title: '', slug: '', category: '', summary: '', content: '', published: false }
+const emptyForm = { title: '', slug: '', category: '', summary: '', content: '', published: false, for_existing_clients: false }
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -48,7 +48,7 @@ export default function KnowledgeBase() {
 
   const openEdit = (a: KbArticle) => {
     setEditing(a)
-    setForm({ title: a.title, slug: a.slug, category: a.category, summary: a.summary, content: a.content, published: a.published })
+    setForm({ title: a.title, slug: a.slug, category: a.category, summary: a.summary, content: a.content, published: a.published, for_existing_clients: a.for_existing_clients })
     setSlugTouched(true)
     setError('')
     setFormKey(k => k + 1)
@@ -68,6 +68,7 @@ export default function KnowledgeBase() {
       summary: form.summary.trim(),
       content: form.content,
       published: form.published,
+      for_existing_clients: form.for_existing_clients,
       updated_at: new Date().toISOString(),
     }
     const { error: err } = editing
@@ -93,15 +94,17 @@ export default function KnowledgeBase() {
     await load()
   }
 
-  const copyLink = async (a: KbArticle) => {
+  const copyText = async (id: string, text: string) => {
     try {
-      await navigator.clipboard.writeText(`${KB_PUBLIC_URL}/${a.slug}`)
-      setCopiedId(a.id)
+      await navigator.clipboard.writeText(text)
+      setCopiedId(id)
       setTimeout(() => setCopiedId(null), 1500)
     } catch {
-      prompt('Kopieer de link:', `${KB_PUBLIC_URL}/${a.slug}`)
+      prompt('Kopieer de link:', text)
     }
   }
+
+  const copyLink = (a: KbArticle) => copyText(a.id, `${KB_PUBLIC_URL}/${a.slug}`)
 
   const visible = searchArticles(articles, search)
   const inputClass = 'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white text-sm transition-all'
@@ -113,11 +116,19 @@ export default function KnowledgeBase() {
           <h1 className="text-2xl font-bold text-gray-900">Kennisbank</h1>
           <p className="text-gray-500 mt-1">Artikelen die klanten bij Support kunnen zoeken. Elk gepubliceerd artikel heeft een eigen link die zonder inloggen werkt, handig in een mail.</p>
         </div>
-        <button onClick={openNew}
-          className="flex-shrink-0 flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
-          <Plus className="w-4 h-4" />
-          Nieuw artikel
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button type="button" onClick={() => copyText('nieuwsbrief', KB_CLIENTS_URL)}
+            title="Link naar de kennisbank met alleen de artikelen voor bestaande klanten, voor in de nieuwsbrief"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">
+            {copiedId === 'nieuwsbrief' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+            <span className="hidden sm:inline">{copiedId === 'nieuwsbrief' ? 'Gekopieerd' : 'Nieuwsbrieflink'}</span>
+          </button>
+          <button onClick={openNew}
+            className="flex items-center gap-2 bg-primary hover:bg-primary-600 text-white px-4 py-2.5 rounded-lg font-medium transition-colors">
+            <Plus className="w-4 h-4" />
+            Nieuw artikel
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -174,6 +185,11 @@ export default function KnowledgeBase() {
                     className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30" />
                   <span className="text-sm text-gray-700">Gepubliceerd (zichtbaar voor klanten en via de link)</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer w-fit">
+                  <input type="checkbox" checked={form.for_existing_clients} onChange={(e) => setForm(f => ({ ...f, for_existing_clients: e.target.checked }))}
+                    className="w-4 h-4 rounded text-primary border-gray-300 focus:ring-primary/30" />
+                  <span className="text-sm text-gray-700">Ook in de selectie voor bestaande klanten (link in de nieuwsbrief)</span>
+                </label>
                 {error && <p className="text-sm text-red-600">{error}</p>}
               </div>
               <div className="flex justify-end gap-3 p-6 border-t border-gray-100">
@@ -223,6 +239,11 @@ export default function KnowledgeBase() {
                         <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${a.published ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                           {a.published ? 'Gepubliceerd' : 'Concept'}
                         </span>
+                        {a.for_existing_clients && (
+                          <span title="Staat in de selectie voor bestaande klanten" className="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary">
+                            Nieuwsbrief
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-400 truncate mt-0.5">
                         {a.summary || 'Geen samenvatting'} · bijgewerkt {formatDate(a.updated_at)}{a.published && ` · ${a.view_count || 0}× gelezen`}
