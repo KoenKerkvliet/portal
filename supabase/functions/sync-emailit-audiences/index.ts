@@ -13,7 +13,8 @@
 //   - Vanuit het admin-portaal ("Synchroniseer"), met de JWT van een admin
 // Body: { dry_run?: boolean }. Met dry_run laat hij alleen zien wat er zou gebeuren.
 //
-// Vereiste secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (automatisch), EMAILIT_API_KEY
+// Vereiste secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (automatisch),
+//   EMAILIT_AUDIENCES_API_KEY — Emailit-sleutel met volledige rechten (audiences beheren)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -45,7 +46,9 @@ const json = (body: unknown, status = 200) =>
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const EMAILIT_API_KEY = Deno.env.get('EMAILIT_API_KEY')!
+// Audiences beheren vraagt een sleutel met volledige rechten; de gewone EMAILIT_API_KEY mag
+// meestal alleen versturen. Daarom een aparte sleutel, met de gewone als terugval.
+const EMAILIT_API_KEY = Deno.env.get('EMAILIT_AUDIENCES_API_KEY') ?? Deno.env.get('EMAILIT_API_KEY')!
 
 const db = createClient(SUPABASE_URL, SERVICE_ROLE)
 const emailitHeaders = { Authorization: `Bearer ${EMAILIT_API_KEY}`, 'Content-Type': 'application/json' }
