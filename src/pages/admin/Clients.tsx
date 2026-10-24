@@ -106,13 +106,26 @@ export default function Clients() {
 
   useEffect(() => { fetchData() }, [])
 
+  // De echte foutmelding uit het antwoord van de function halen (supabase-js geeft anders alleen "non-2xx")
+  const syncFout = async (error: unknown, data: { error?: string } | null) => {
+    if (data?.error) return data.error
+    const response = (error as { context?: Response } | null)?.context
+    if (response && typeof response.json === 'function') {
+      try {
+        const body = await response.json()
+        if (body?.error) return String(body.error)
+      } catch { /* geen leesbare body */ }
+    }
+    return (error as Error | null)?.message || 'Onbekende fout'
+  }
+
   // Eerst een droge run (laat zien wat er verandert), daarna pas doorvoeren na bevestiging
   const runSync = async () => {
     setSyncing(true)
     const preview = await supabase.functions.invoke('sync-emailit-audiences', { body: { dry_run: true } })
     if (preview.error || preview.data?.error) {
       setSyncing(false)
-      alert('Synchroniseren mislukt: ' + (preview.error?.message || preview.data?.error))
+      alert('Synchroniseren mislukt: ' + await syncFout(preview.error, preview.data))
       return
     }
     const a = preview.data.audiences
@@ -127,7 +140,7 @@ export default function Clients() {
     const { data, error } = await supabase.functions.invoke('sync-emailit-audiences', { body: { dry_run: false } })
     setSyncing(false)
     if (error || data?.error) {
-      alert('Synchroniseren mislukt: ' + (error?.message || data?.error))
+      alert('Synchroniseren mislukt: ' + await syncFout(error, data))
       return
     }
     const fouten = [...data.audiences.alle.fouten, ...data.audiences.hosting.fouten]

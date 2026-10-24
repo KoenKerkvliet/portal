@@ -240,6 +240,8 @@ Deno.serve(async (req) => {
       audiences: { alle, hosting },
     })
   } catch (err) {
-    return json({ error: (err as Error).message }, 500)
+    // Supabase-fouten zijn geen Error-instanties; zorg dat de melding altijd leesbaar is
+    const e = err as { message?: string; details?: string; hint?: string }
+    return json({ error: e?.message || e?.details || JSON.stringify(err) }, 500)
   }
 })
