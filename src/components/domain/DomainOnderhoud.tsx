@@ -208,7 +208,7 @@ export default function DomainOnderhoud({ projectId }: { projectId: string }) {
                   <p className="text-[11px] text-gray-400 capitalize">{formatDate(log.performed_at)} · {log.category}</p>
                 </div>
                 <span className="text-xs text-gray-500 flex-shrink-0">{formatDuration(log.duration_minutes)}</span>
-                <div className="flex items-center flex-shrink-0 -my-1 -mr-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                <div className="flex items-center flex-shrink-0 -my-1 -mr-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                   <button type="button" onClick={() => openWorkLogForm(log)} title="Bewerken"
                     className="p-1 text-gray-400 hover:text-primary rounded-md hover:bg-primary/5 transition-colors">
                     <Pencil className="w-3.5 h-3.5" />

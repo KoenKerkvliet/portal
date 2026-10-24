@@ -284,7 +284,7 @@ export default function Werkzaamheden() {
                               <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{log.description}</p>
                             ))}
                           </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity flex-shrink-0">
                             <button
                               onClick={() => handleEdit(log)}
                               className="p-1.5 text-gray-400 hover:text-primary rounded-lg hover:bg-primary/5 transition-colors"
