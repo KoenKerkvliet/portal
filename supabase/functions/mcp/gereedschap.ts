@@ -602,17 +602,28 @@ async function overzicht(db: DB) {
 async function klantenZoeken(db: DB, inv: Invoer) {
   let vraag = db
     .from('clients')
-    .select('id, name, company, email, email_extra, phone, status, created_at, project_clients(projects(id, name, url, status, current_phase))')
+    .select('id, name, company, email, email_extra, phone, status, created_at, project_clients(projects(id, name, url, status, current_phase, hosted_by_us))')
   const status = tekst(inv.status) ?? 'active'
   if (status !== 'alle') vraag = vraag.eq('status', status)
   const term = zoekterm(inv.zoekterm)
   if (term) vraag = vraag.or(`name.ilike.%${term}%,company.ilike.%${term}%,email.ilike.%${term}%`)
   const data = await rijen(vraag.order('name').limit(limiet(inv)))
-  return data.map((k: any) => ({
-    ...k,
-    project_clients: undefined,
-    domeinen: (k.project_clients ?? []).map((pc: any) => pc.projects).filter(Boolean),
-  }))
+  // Host bij ons = minstens één actief domein met hosted_by_us (primaire klant of gekoppeld)
+  const gehost = new Set<string>()
+  const primair = await rijen(
+    db.from('projects').select('client_id').eq('hosted_by_us', true).eq('status', 'active').not('client_id', 'is', null),
+  )
+  for (const p of primair as any[]) gehost.add(p.client_id)
+  return data.map((k: any) => {
+    const domeinen = (k.project_clients ?? []).map((pc: any) => pc.projects).filter(Boolean)
+    if (domeinen.some((d: any) => d.hosted_by_us && d.status === 'active')) gehost.add(k.id)
+    return {
+      ...k,
+      project_clients: undefined,
+      domeinen,
+      host_bij_mij: gehost.has(k.id),
+    }
+  })
 }
 
 async function domeinenZoeken(db: DB, inv: Invoer) {

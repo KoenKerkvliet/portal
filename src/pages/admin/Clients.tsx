@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { applyDefaultTemplates } from '../../lib/applyDefaultTemplates'
 import type { Client } from '../../types'
-import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore, KeyRound, Activity } from 'lucide-react'
+import { Plus, Users, Trash2, UserPlus, Mail, Phone, Building2, X, Globe, FolderKanban, Pencil, Archive, ArchiveRestore, KeyRound, Activity, RefreshCw } from 'lucide-react'
 import { formatDateTime, formatRelative } from '../../lib/portalActivity'
 
 const MAX_EXTRA_EMAILS = 2
@@ -49,6 +49,8 @@ export default function Clients() {
   const [newUsers, setNewUsers] = useState<NewUser[]>([])
   const [domains, setDomains] = useState<DomainOption[]>([])
   const [clientDomains, setClientDomains] = useState<Record<string, ClientDomain[]>>({})
+  const [hostedClientIds, setHostedClientIds] = useState<Set<string>>(new Set())
+  const [syncing, setSyncing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active')
@@ -66,8 +68,8 @@ export default function Clients() {
     const [{ data: clientData }, { data: profileData }, { data: domainData }, { data: pcData }, { data: activityData }] = await Promise.all([
       supabase.from('clients').select('*').order('created_at', { ascending: false }),
       supabase.from('profiles').select('id, email, full_name, created_at').eq('role', 'client'),
-      supabase.from('projects').select('id, name, url').order('name'),
-      supabase.from('project_clients').select('client_id, project:projects(id, name)'),
+      supabase.from('projects').select('id, name, url, client_id, hosted_by_us, status').order('name'),
+      supabase.from('project_clients').select('client_id, project:projects(id, name, hosted_by_us, status)'),
       supabase.rpc('admin_client_activity'),
     ])
 
@@ -77,14 +79,21 @@ export default function Clients() {
     // Domeinen per klant verzamelen op basis van project_clients.
     // Supabase typeert de joined `project` als array; runtime is het een single object
     // (many-to-one via FK). We casten via unknown om de strikte type-check te omzeilen.
-    type PCRow = { client_id: string; project: { id: string; name: string } | null }
+    type PCRow = { client_id: string; project: { id: string; name: string; hosted_by_us: boolean; status: string } | null }
     const domainsByClient: Record<string, ClientDomain[]> = {}
+    const hosted = new Set<string>()
     for (const row of ((pcData || []) as unknown as PCRow[])) {
       if (!row.project) continue
       if (!domainsByClient[row.client_id]) domainsByClient[row.client_id] = []
       domainsByClient[row.client_id].push({ id: row.project.id, name: row.project.name })
+      if (row.project.hosted_by_us && row.project.status === 'active') hosted.add(row.client_id)
+    }
+    // Een klant host bij ons zodra één actief domein hosted_by_us heeft (ook als primaire klant)
+    for (const p of (domainData || []) as unknown as { client_id: string | null; hosted_by_us: boolean; status: string }[]) {
+      if (p.client_id && p.hosted_by_us && p.status === 'active') hosted.add(p.client_id)
     }
 
+    setHostedClientIds(hosted)
     setClients(clientData || [])
     setNewUsers(unlinkedProfiles)
     setDomains(domainData || [])
@@ -96,6 +105,34 @@ export default function Clients() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // Eerst een droge run (laat zien wat er verandert), daarna pas doorvoeren na bevestiging
+  const runSync = async () => {
+    setSyncing(true)
+    const preview = await supabase.functions.invoke('sync-emailit-audiences', { body: { dry_run: true } })
+    if (preview.error || preview.data?.error) {
+      setSyncing(false)
+      alert('Synchroniseren mislukt: ' + (preview.error?.message || preview.data?.error))
+      return
+    }
+    const a = preview.data.audiences
+    const regels = (naam: string, x: { toevoegen: string[]; verwijderen: string[]; afgemeld_overgeslagen: string[] }) =>
+      `${naam}: ${x.toevoegen.length} toevoegen, ${x.verwijderen.length} verwijderen` +
+      (x.afgemeld_overgeslagen.length ? `, ${x.afgemeld_overgeslagen.length} afgemeld (overgeslagen)` : '')
+    const samenvatting = `${regels('Alle klanten', a.alle)}\n${regels('Hostingklanten', a.hosting)}`
+    if (!confirm(`Emailit-lijsten bijwerken?\n\n${samenvatting}`)) {
+      setSyncing(false)
+      return
+    }
+    const { data, error } = await supabase.functions.invoke('sync-emailit-audiences', { body: { dry_run: false } })
+    setSyncing(false)
+    if (error || data?.error) {
+      alert('Synchroniseren mislukt: ' + (error?.message || data?.error))
+      return
+    }
+    const fouten = [...data.audiences.alle.fouten, ...data.audiences.hosting.fouten]
+    alert(`Klaar.\n\n${samenvatting}` + (fouten.length ? `\n\nFouten:\n${fouten.join('\n')}` : ''))
+  }
 
   // Vanaf de leadpagina: formulier openen met wat we al weten. De naam en het
   // e-mailadres van de contactpersoon kent de scanner niet; die vul je zelf aan.
@@ -401,6 +438,17 @@ export default function Clients() {
           <p className="text-gray-500 mt-1">Beheer je klanten</p>
         </div>
         <div className="flex items-center gap-2">
+          {viewMode === 'active' && (
+            <button
+              onClick={runSync}
+              disabled={syncing}
+              title="Werkt de Emailit-lijsten 'Alle klanten' en 'Hostingklanten' bij"
+              className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Nieuwsbrieflijsten</span>
+            </button>
+          )}
           <div className="inline-flex bg-gray-100 rounded-lg p-1">
             <button
               type="button"
@@ -723,7 +771,12 @@ export default function Clients() {
                         {client.name?.charAt(0)?.toUpperCase() || '?'}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{client.name}</h3>
+                        <h3 className="font-semibold text-gray-900 truncate flex items-center gap-2">
+                          {client.name}
+                          {hostedClientIds.has(client.id) && (
+                            <span title="Website wordt bij DesignPixels gehost" className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                          )}
+                        </h3>
                         {client.company && (
                           <p className="text-xs text-gray-400 truncate">{client.company}</p>
                         )}

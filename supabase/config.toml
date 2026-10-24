@@ -42,6 +42,11 @@ verify_jwt = false
 # waarvan alleen de SHA-256 in integration_config staat. Geen Supabase JWT.
 verify_jwt = false
 
+[functions.sync-emailit-audiences]
+# Aangeroepen door pg_cron (service-role Bearer) en door de admin in het portaal (admin-JWT).
+# De function controleert zelf of de aanroeper admin is.
+verify_jwt = false
+
 [functions.mcp]
 # Connector voor Claude (claude.ai, desktop, mobiel, Code). Claude stuurt een
 # eigen sleutel mee als "Authorization: Bearer <MCP_TOKEN>", geen Supabase-JWT;
