@@ -9,7 +9,7 @@
 //   - Een klant met nieuwsbrief_sync = false telt niet mee (bijv. testklanten).
 //
 // Aanroepbaar:
-//   - Nachtelijk via pg_cron (zie supabase/sync-emailit-audiences-cron.sql), met de service-role key als Bearer
+//   - Nachtelijk via pg_cron (zie supabase/sync-emailit-audiences-cron.sql), met header x-cron-token
 //   - Vanuit het admin-portaal ("Synchroniseer"), met de JWT van een admin
 // Body: { dry_run?: boolean }. Met dry_run laat hij alleen zien wat er zou gebeuren.
 //
@@ -214,12 +214,30 @@ async function syncAudience(key: AudienceKey, desired: Member[], dryRun: boolean
   }
 }
 
+async function sha256(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+// De cron-code zelf staat in Vault; integration_config bewaart alleen de SHA-256
+async function isCronToken(candidate: string): Promise<boolean> {
+  if (!candidate) return false
+  const { data } = await db
+    .from('integration_config')
+    .select('value')
+    .eq('key', 'sync_emailit_cron_token_sha256')
+    .maybeSingle()
+  return !!data?.value && (await sha256(candidate)) === data.value
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  // Auth: cron via de service-role key, of een ingelogde admin uit het portaal
+  // Auth: pg_cron met de x-cron-token (code staat in Vault, hier alleen de hash),
+  // of een ingelogde admin uit het portaal
   const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
-  if (token !== SERVICE_ROLE) {
+  const viaCron = await isCronToken(req.headers.get('x-cron-token') ?? '')
+  if (!viaCron && token !== SERVICE_ROLE) {
     const { data: userData, error: userErr } = await db.auth.getUser(token)
     if (userErr || !userData.user) return json({ error: 'Niet ingelogd' }, 401)
     const { data: profile } = await db.from('profiles').select('role').eq('id', userData.user.id).single()
